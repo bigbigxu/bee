@@ -33,7 +33,7 @@ class PhpEnv
     {
         if($allow === null) {
             if(App::getInstance()->isDebug()) {
-                $allow = 1;
+                $allow = 0;
             } else {
                 $allow = 0;
             }
