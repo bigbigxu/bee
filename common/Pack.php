@@ -223,9 +223,19 @@ class Pack
         return $this->_read(__METHOD__, $name);
     }
 
+    public function writeUnChar($value)
+    {
+        return $this->_write(__METHOD__, $value);
+    }
+
     public function readByte($name)
     {
         return $this->readUnChar($name);
+    }
+
+    public function writeByte($value)
+    {
+        return $this->writeUnChar($value);
     }
 
     /**
