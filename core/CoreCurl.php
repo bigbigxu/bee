@@ -272,13 +272,13 @@ class CoreCurl
      */
     public function setCache ($key, $str)
     {
-        if(count($this->cache)>512)
+        if (count($this->cache)>512)
             $this->cache=array();
         $this->cache[$key] = $str;
         
         //如果引入的phpquery对象
-        if(class_exists('\\phpQuery') && count(\phpQuery::$documents)>512)
-            \phpQuery::$documents=array();
+        if(class_exists('phpQuery') && count(phpQuery::$documents) > 512)
+            phpQuery::$documents = array();
     }
 
     /**

@@ -23,12 +23,14 @@ class BaseServerLower
      * 包结束符
      * @var mixed|string
      */
-    protected $eof = "\r\n";
+    protected $eof = '';
     /**
      * server对象
      * @var BaseServer
      */
     private static $_instance;
+
+    protected $baseDir;
 
     /**
      * 加载配置文件
@@ -42,16 +44,36 @@ class BaseServerLower
         if (!file_exists($configPath)) {
             $configPath = dirname(__FILE__) . '/config.php';
         }
-        $this->config = include $configPath;
-        if (!$this->config) {
-            throw new Exception('配置文件不存在');
-        }
+        $this->config = require $configPath;
         if($this->c('server.debug') == true) { //debug模式下设置非后台运行
             $this->config['serverd']['daemonize'] = false;
         }
+
+        if ($this->c('server.base_dir') == false) {
+            die("请指定程序运行根目录\n");
+        }
+
+        $this->baseDir = rtrim($this->c('server.base_dir'), '/');
+        $this->c("server.run_dir", $this->baseDir . '/run'); //运行目录
+        $this->c("server.log_dir", $this->baseDir . "/log"); //日志目录
+        $this->c("server.data_dir", $this->baseDir . "/data"); //数据目录
+
+        //定义相关文件
+        $this->c("server.pid_file", $this->baseDir . '/run/server.pid');
+        $this->c("server.error_log", $this->baseDir . '/log/error.log');
+        $this->c("server.access_log", $this->baseDir . '/log/access.log');
+        if ($this->c('serverd.log_file') == false) {
+            $this->c("serverd.log_file", $this->baseDir . '/run/server.log');
+        }
+
         error_reporting(E_ALL & ~E_NOTICE);
         ini_set('error_log', $this->c('server.error_log'));
         $this->init();
+    }
+
+    public function setDebug()
+    {
+        $this->config['serverd']['daemonize'] = false;
     }
 
     /**
@@ -111,7 +133,6 @@ class BaseServerLower
         $mode = $this->c('server.server_mode');
         $type = $this->c('server.socket_type');
         $this->s = new swoole_server($host, $port, $mode, $type);
-
         $this->s->set($this->c('serverd'));
         $this->registerCallback();
         return $this->s->start();
@@ -119,28 +140,6 @@ class BaseServerLower
 
     /**
      * 重启所有worker进程
-     * 一台繁忙的后端服务器随时都在处理请求，如果管理员通过kill进程方式来终止/重启服务器程序，
-     * 可能导致刚好代码执行到一半终止。
-     * 这种情况下会产生数据的不一致。如交易系统中，支付逻辑的下一段是发货，假设在支付逻辑之后进程被终止了。
-     * 会导致用户支付了货币，但并没有发货，后果非常严重。
-     *
-     * Swoole提供了柔性终止/重启的机制，管理员只需要向SwooleServer发送特定的信号，
-     * Server的worker进程可以安全的结束。
-     *
-     *  SIGTERM: 向主进程发送此信号服务器将安全终止，在PHP代码中可以调用$serv->shutdown()完成此操作
-     *
-     *  SIGUSR1: 向管理进程发送SIGUSR1信号，将平稳地restart所有worker进程，
-     *  在PHP代码中可以调用$serv->reload()完成此操作
-     *  swoole的reload有保护机制，当一次reload正在进行时，收到新的重启信号会丢弃
-     *
-     *  重启所有worker进程 kill -SIGUSR1 主进程PID
-     *  仅重启task进程 kill -SIGUSR2 主进程PID
-     *
-     * 平滑重启只对onWorkerStart或onReceive等在Worker进程中include/require的PHP文件有效，
-     * Server启动前就已经include/require的PHP文件，不能通过平滑重启重新加载
-     *
-     * 对于Server的配置即$serv->set()中传入的参数设置，必须关闭/重启整个Server才可以重新加载
-     * Server可以监听一个内网端口，然后可以接收远程的控制命令，去重启所有worker
      * @return bool
      */
     public function reloadWorker()
@@ -151,7 +150,7 @@ class BaseServerLower
     /**
      * 关闭服务器
      * 此函数可以用在worker进程内。向主进程发送SIGTERM也可以实现关闭服务器。
-     * kill -15 主进程PID
+     * kill -s SIGTERM 主进程PID
      * @return bool
      */
     public function shutdown()
@@ -162,10 +161,6 @@ class BaseServerLower
 
     /**
      * 关闭客户端连接
-     * 操作成功返回true，失败返回false.
-     * Server主动close连接，也一样会触发onClose事件。
-     * 不要在close之后写清理逻辑。应当放置到onClose回调中处理。
-     *
      * @param int $fd 当前连接描述符
      * @param int $formId
      * @return bool
@@ -177,9 +172,8 @@ class BaseServerLower
 
     /**
      * 向客户端发送数据
-     *
-     *  * $data，发送的数据。TCP协议最大不得超过2M，UDP协议不得超过64K
-     *  * 发送成功会返回true，如果连接已被关闭或发送失败会返回false
+     * 发送的数据。TCP协议最大不得超过2M，UDP协议不得超过64K
+     * 发送成功会返回true，如果连接已被关闭或发送失败会返回false
      *
      *  TCP服务器
      *  * send操作具有原子性，多个进程同时调用send向同一个连接发送数据，不会发生数据混杂
@@ -271,52 +265,7 @@ class BaseServerLower
     }
 
     /**
-     * 用来遍历当前Server所有的客户端连接，connection_list方法是基于共享内存的，
-     * 不存在IOWait，遍历的速度很快。
-     * 另外connection_list会返回所有TCP连接，而不仅仅是当前worker进程的TCP连接
-     *
-     * 示例：
-     *
-     *      $start_fd = 0;
-     *      while(true)
-     *      {
-     *          $conn_list = $serv->connection_list($start_fd, 10);
-     *          if($conn_list===false or count($conn_list) === 0)
-     *          {
-     *              echo "finish\n";
-     *              break;
-     *          }
-     *          $start_fd = end($conn_list);
-     *          var_dump($conn_list);
-     *          foreach($conn_list as $fd)
-     *          {
-     *              $serv->send($fd, "broadcast");
-     *          }
-     *      }
-     *
-     * @param int $startFd 起始fd
-     * @param int $pageSize 每页取多少条，最大不得超过100
-     * @return array | bool
-     */
-    public function connectionList($startFd = 0, $pageSize = 10)
-    {
-        return $this->s->connection_list($startFd, $pageSize);
-    }
-
-    /**
      * 投递一个异步任务到task_worker池中。此函数会立即返回。worker进程可以继续处理新的请求
-     *
-     *  * $data要投递的任务数据，可以为除资源类型之外的任意PHP变量
-     *  * $taskWorkerId可以制定要给投递给哪个task进程，传入ID即可，范围是0 - serv->task_worker_num
-     *  * 返回值为整数($task_id)，表示此任务的ID。如果有finish回应，onFinish回调中会携带$task_id参数
-     *
-     * 此功能用于将慢速的任务异步地去执行，比如一个聊天室服务器，可以用它来进行发送广播。
-     * 当任务完成时，在task进程中调用$serv->finish("finish")告诉worker进程此任务已完成。
-     * 当然swoole_server->finish是可选的。
-     *
-     *  * AsyncTask功能在1.6.4版本增加，默认不启动task功能，需要在手工设置task_worker_num来启动此功能
-     *  * task_worker的数量在swoole_server::set参数中调整，如task_worker_num => 64，表示启动64个进程来接收异步任务
-     *
      *
      * 注意事项
      *  * 数据超过8K时会启用临时文件来保存。当临时文件内容超过 server->package_max_length 时底层会抛出一个警告。
@@ -335,14 +284,6 @@ class BaseServerLower
 
     /**
      * taskwait与task方法作用相同，用于投递一个异步的任务到task进程池去执行。
-     * 与task不同的是taskwait是阻塞等待的，直到任务完成或者超时返回
-     *
-     * $result为任务执行的结果，由$serv->finish函数发出。如果此任务超时，这里会返回false。
-     *
-     * taskwait是阻塞接口，如果你的Server是全异步的请使用swoole_server::task和swoole_server::finish,不要使用taskwait
-     * 第3个参数可以制定要给投递给哪个task进程，传入ID即可，范围是0 - serv->task_worker_num
-     * $dst_worker_id在1.6.11+后可用，默认为随机投递
-     * taskwait方法不能在task进程中调用
      *
      * @param mixed $data
      * @param float $timeout
@@ -355,11 +296,6 @@ class BaseServerLower
     }
 
     /**
-     * 此函数用于在task进程中通知worker进程，投递的任务已完成。此函数可以传递结果数据给worker进程
-     *  $serv->finish("response");
-     * 使用swoole_server::finish函数必须为Server设置onFinish回调函数。此函数只可用于task进程的onTask回调中
-     *
-     * swoole_server::finish是可选的。如果worker进程不关心任务执行的结果，不需要调用此函数
      * 在onTask回调函数中return字符串，等同于调用finish
      *
      * @param string $data
@@ -516,41 +452,23 @@ class BaseServerLower
     }
 
     /**
-     * TCP连接迭代器，可以使用foreach遍历服务器当前所有的连接，
-     * 此属性的功能与swoole_server->connnection_list是一致的，
-     * 但是更加友好。遍历的元素为单个连接的fd
-     *
-     * 连接迭代器依赖pcre库，未安装pcre库无法使用此功能
-     *
-     *      foreach($server->connections as $fd)
-     *      {
-     *          $server->send($fd, "hello");
-     *      }
-     *
-     *      echo "当前服务器共有 ".count($server->connections). " 个连接\n";
-     *
-     * !! 注意$connections属性是一个迭代器对象, 只能通过foreach进行遍历操作。
-     * @return array
+     * 得到或设置配置参数
+     * @param string $path
+     * @param null $value
+     * @return array|mixed|null
      */
-    public function getConnections()
-    {
-        return $this->s->connections;
-    }
-
-    /**
-     * 得到一个配置参数
-     * @param string $path vod_db.xxx.xxx的形式
-     * @return mixed
-     */
-    public function c($path = '')
+    public function c($path = '', $value = null)
     {
         if ($path == '') {
             return $this->config;
         }
         $pathArr = explode('.', $path);
-        $tmp = $this->config;
-        foreach ($pathArr as $row) {
-            $tmp = $tmp[$row];
+        $tmp = &$this->config;
+        foreach ($pathArr as &$row) {
+            $tmp = &$tmp[$row];
+        }
+        if ($value !== null) {
+            $tmp = $value;
         }
         return $tmp;
     }
@@ -568,6 +486,9 @@ class BaseServerLower
      */
     public function onStart(swoole_server $server)
     {
+        if (is_dir($this->c('server.run_dir')) == false) {
+            mkdir($this->c('server.run_dir')); //创建运行目录
+        }
         $pidFile = $this->c('server.pid_file');
         $pidStr = '';
         $pidStr .= "master_pid={$server->master_pid}\n";
@@ -605,6 +526,20 @@ class BaseServerLower
      */
     public function onWorkerStart(swoole_server $server, $workerId)
     {
+        $user = posix_getpwnam($this->c('serverd.user'));
+        posix_setuid($user['uid']);
+        posix_setgid($user['gid']);
+
+        if ($workerId == 0) {
+            if (is_dir($this->c('server.log_dir')) == false) {
+                mkdir($this->c('server.log_dir'));
+            }
+
+            if (is_dir($this->c('server.data_dir')) == false) {
+                mkdir($this->c('server.data_dir'));
+            }
+        }
+
         $name = $this->c('server.server_name');
         if($workerId >= $server->setting['worker_num']) {
             swoole_set_process_name("{$name}_task_worker");
@@ -681,7 +616,7 @@ class BaseServerLower
      *      1.7.2以上的版本，在onTask函数中 return字符串，表示将此内容返回给worker进程。
      *      worker进程中会触发onFinish函数，表示投递的task已完成
      * @param swoole_server $server
-     * @param intv $taskId 任务ID，由swoole扩展内自动生成，用于区分不同的任务。$task_id和$from_id组合起来才是全局唯一的
+     * @param int $taskId 任务ID，由swoole扩展内自动生成，用于区分不同的任务。$task_id和$from_id组合起来才是全局唯一的
      * @param $fromId
      * @param $data
      */
@@ -768,12 +703,12 @@ class BaseServerLower
      */
     public function reload()
     {
-        $masterPid = $this->getManagerPidByFile();
-        if ($masterPid == false) {
+        $managerPid = $this->getManagerPidByFile();
+        if ($managerPid == false) {
             die("not found master pid\n");
         }
         $signal = SIGUSR1;
-        shell_exec("kill -s {$signal} {$masterPid}");
+        shell_exec("kill -s {$signal} {$managerPid}");
     }
 
     /**
@@ -793,6 +728,7 @@ class BaseServerLower
         $pidArr = parse_ini_file($this->c('server.pid_file'));
         return $pidArr['manager_pid'];
     }
+
     /**
      * 重启服务
      */
