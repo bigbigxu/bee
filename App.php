@@ -20,6 +20,7 @@ class App
     protected $runtimeDir; //运行文件目录
     protected $crontabDir; //命令行程序目录
     protected static $_container; //对象容器
+    protected $namespace = array(); //所有注册的命令空间
 
     private  function __construct($config = null)
     {
@@ -44,7 +45,6 @@ class App
         $this->isDebug = $this->config['debug'];
         $this->crontabDir = $this->config['crontab_dir'];
         $this->runtimeDir = $this->config['runtime_dir'];
-
         $this->loadCorePackage();
         //注册自动加载函数
         spl_autoload_register(array($this, 'autoLoad'));
@@ -58,6 +58,9 @@ class App
         $this->setPhpEnv(); //需要在对象实例化完成之后，进行环境配置
         $this->classMap = self::c('class_map'); //加载类地图
         $this->load(self::c('autoload')); //加载配置文件的包。
+        $this->namespace = (array)$this->config['namespace'];
+        $this->loadNamespace('bee', $this->sysDir);
+        $this->loadNamespace('app', $this->baseDir);
     }
 
     /**
@@ -120,14 +123,14 @@ class App
     {
         /* @var $object App */
         $object = self::$_instance;
-        if($path == '') {
+        if ($path == '') {
             return $object->config;
         }
 
         $pathArr = explode('.', $path);
         //如果第一个配置节为.php或.ini表示需要加载一个文件
         //表法目前仅支持一级.php分布式配置。
-        if(is_string($object->config[$pathArr[0]])) {
+        if (is_string($object->config[$pathArr[0]])) {
             $res = $object->_loadConfigFile($object->config[$pathArr[0]]);
             if($res === null) {
                 throw new Exception('不支持的配置文件格式');
@@ -238,6 +241,28 @@ class App
     }
 
     /**
+     * 加载一个命名空间
+     * 和psr4标准不同的是，这里只可以加载一级命名空间。
+     * 类似于 bee => __DIR__,这种。其它方式，App.php将不能正常工作。
+     * 除去根命名空间的部分，类名与要目录结构名称何保持一致。
+     * @TODO psr4标准加载，将在其它类中完成
+     * @example
+     * 注册 bee => system 那么bee\server\BaseServer类将位于
+     * system/server目录下的BaseServer.php文件。
+     * @param string $namespace 命名空间名称
+     * @param string $baseDir 命名空间根路径
+     * @throws Exception
+     */
+    public function loadNamespace($namespace, $baseDir)
+    {
+        if (strpos($namespace, '\\') !== false) {
+            throw new Exception('只可以注册一级命名空间');
+        }
+        $baseDir = rtrim(str_replace('\\',  '/', $baseDir), '/');
+        $this->namespace[$namespace] = $baseDir;
+    }
+
+    /**
      * 加载文件，不区分package和class
      * @param $arr
      */
@@ -269,6 +294,7 @@ class App
      * 命名空间，类名和文件名一致，路径和命名空间一致。包名为根空间，支持目录递归加载
      * @param $className
      * @return bool
+     * @throws Exception
      */
     public function autoLoad($className)
     {
@@ -277,24 +303,34 @@ class App
             require $file;
             return true;
         }
-
-        //如果文件不在classMap中，则从package中找。
-        foreach($this->packageMap as $package) {
-            //如果是基于命名空间的类
-            //则package的值是根空间的路径
-            if(strpos($className, '\\') !== false) {
-                $file = str_replace('\\', '/', $className) . '.php';
-            } else {
-                $file = $className . '.php';
+        $pos = strpos($className, '\\');
+        if ($pos !== false) {  //如果类名包含命令空间
+            if ('\\' == $className[0]) {
+                $className = substr($className, 1); //解决5.3部分版本的一个bug
             }
-
-            $file = rtrim($package, '/') . '/' . $file;
-            if(!is_file($file)) {
-                continue;
-            } else {
-                $this->classMap[$className] = $file;
-                require $file;
-                return true;
+            $namespace = substr($className, 0, $pos);
+            $baseName = substr($className, $pos + 1);
+            if ($this->namespace[$namespace] == false) {
+                throw new Exception("没有注册的命名空间");
+            }
+            $file = $this->namespace[$namespace]
+                . '/'
+                . str_replace('\\', '/', $baseName)
+                . '.php';
+            $this->classMap[$className] = $file;
+            require $file;
+            return true;
+        } else { //非命名空间，遍历目录
+            foreach($this->packageMap as $package) {
+                $file = $className . '.php';
+                $file = rtrim($package, '/') . '/' . $file;
+                if(!is_file($file)) {
+                    continue;
+                } else {
+                    $this->classMap[$className] = $file;
+                    require $file;
+                    return true;
+                }
             }
         }
         return false;

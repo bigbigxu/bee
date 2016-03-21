@@ -982,9 +982,10 @@ class CoreRedis
 	public function getConnInfo()
 	{
 		return array(
-		    'host'=>$this->host,
-		    'port'=>$this->port,
-		    'auth'=>$this->auth
+		    'host' => $this->host,
+		    'port' => $this->port,
+		    'auth' => $this->auth,
+			'db_id' => $this->dbId
 		);
 	}
 
@@ -1080,13 +1081,12 @@ class CoreRedis
 	}
 
 	/**
-	 * 得到条批量删除key的命令
+	 * 得到条批量删除key的命令。这里不会执行此命令。
 	 * @param string $keys
      * @param string $cmd 命令路径
-     * @param int $dbId 数据库ID号
      * @return string
 	 */
-	public function delKeys($keys, $cmd = 'redis-cli', $dbId = 0 )
+	public function delKeysCmd($keys, $cmd = 'redis-cli')
 	{
 	    $redisInfo = $this->getConnInfo();
         if($redisInfo['auth'] == false) {
@@ -1101,7 +1101,7 @@ class CoreRedis
 	        '-p',
 	        $redisInfo['port'],
 	        '-n',
-	        $dbId,
+	        $redisInfo['db_id'],
 	    );
 	    $redisStr = implode(' ', $cmdArr);
 	    $cmd = "{$redisStr} KEYS \"{$keys}\" | xargs {$redisStr} del";
@@ -1186,6 +1186,8 @@ class CoreRedis
 
 	/**
 	 * 设置key前缀
+	 * 此方法慎用。这个设置在整个redis会话期间有效。由于redis在实例化的时候
+	 * 使用了单例模式，这个设会干扰其它模型。
 	 * @param $prefix
 	 * @return bool
 	 */

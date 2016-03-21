@@ -100,12 +100,20 @@ class CoreLog
         return $file;
     }
 
-    public static function trace()
+    /**
+     * 打印调试堆
+     * @param bool $print
+     */
+    public static function trace($print = false)
     {
         ob_start();
         debug_print_backtrace();
         $msg = ob_get_contents();
-        self::error($msg);
+        if ($print) {
+            echo $msg;
+        } else {
+            self::error($msg);
+        }
         ob_end_clean();
     }
 }

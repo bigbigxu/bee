@@ -712,7 +712,7 @@ class CoreModel
      */
     public function getPkName()
     {
-        $field = $this->db()->getField();
+        $field = $this->from()->getField();
         return $field['pk'];
     }
 
