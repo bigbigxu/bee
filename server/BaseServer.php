@@ -181,12 +181,11 @@ class BaseServer
      * 不要在close之后写清理逻辑。应当放置到onClose回调中处理。
      *
      * @param int $fd 当前连接描述符
-     * @param int $formId
      * @return bool
      */
-    public function close($fd, $formId = 0)
+    public function close($fd)
     {
-        return $this->s->close($fd, $formId);
+        return $this->s->close($fd);
     }
 
     /**

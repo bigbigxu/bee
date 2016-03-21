@@ -44,6 +44,10 @@ return array(
         'heartbeat_idle_time' => 60,
 
 
+        'open_eof_check' => true, //打开EOF检测
+        'package_eof' => "\r\n", //设置EOF
+        'open_eof_split' => true,
+
         /**
          * 设置worker/task子进程的所属用户。服务器如果需要监听1024以下的端口，
          * 必须有root权限。但程序运行在root用户下，代码中一旦有漏洞，
