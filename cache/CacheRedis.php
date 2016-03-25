@@ -17,6 +17,7 @@
  *    6.异步更新mysql,最好基于swoole写个server来实现，定时器也是可选的方案，但不可靠。
  *    7.索引的更新，最好使用其它服务来定时检查。
  *    8.大数据下，冷热数据的区分，目前没有想到比较好的实现方法。也许可以基本规则判断数据是否进入cache
+ *    9.关于Limit的使用，最好不使用limit。而是限定rank,score,id。根据条件得到开始值，结束值。只能指定数据量的数据。
  *
  * 此类的作用：
  *    1.统一cache ,mysql操作，减少代码量，增加可复用性,，并保证Mysql数据和redis数据的一致性。
@@ -76,10 +77,15 @@ class CacheRedis extends CoreModel
         'field' => '', //查询的字段，数组形式
         'sort' => self::SORT_ASC, //排序类型
         'limit' => array(), //开始位置
-        'min' => '-inf', //索引最小值
-        'max' => '+inf', //索引最大值
+        'min_score' => '-inf', //索引最小值
+        'max_score' => '+inf', //索引最大值
         'index' => '', //使用的索引
         'group' => '', //使用的分组
+        'min_rank' => 0, //最小排名
+        'max_rank' => -1, //最大排名
+        'min_id' => false, //最小ID
+        'max_id' => false, //最大ID
+        'index_key' => '', //当查询的index_key
     );
     /**
      * 是否自动重建索引
@@ -485,6 +491,7 @@ class CacheRedis extends CoreModel
     {
         $this->redisQuery['index'] = $index;
         $this->redisQuery['group'] = '';
+        $this->_checkCacheIndex();
         return $this;
     }
 
@@ -499,6 +506,7 @@ class CacheRedis extends CoreModel
     {
         $this->redisQuery['group'] = array($field, $value);
         $this->redisQuery['index'] = '';
+        $this->_checkCacheIndex();
         return $this;
     }
 
@@ -552,15 +560,150 @@ class CacheRedis extends CoreModel
     }
 
     /**
+     * 设置排名查询范围
+     * @param int $min
+     * @param int $max
+     * @return $this
+     */
+    public function cacheRank($min = 0, $max = -1)
+    {
+        $this->redisQuery['min_rank'] = $min;
+        $this->redisQuery['max_rank'] = $max;
+        return $this;
+    }
+
+    /**
+     * 设置ID查询范围
+     * @param bool $min
+     * @param bool $max
+     * @return $this
+     */
+    public function cacheIdRange($min = false, $max = false)
+    {
+        $this->redisQuery['min_id'] = $min;
+        $this->redisQuery['max_id'] = $max;
+        return $this;
+    }
+
+    /**
      * 从cache查找所有数据
+     * 可以根据分值进行查找
      * @param array $query
      * @return array
      * @throws Exception
      */
-    public function cacheAll($query = array())
+    public function cacheAllByScore($query = array())
     {
         $this->redisQuery = array_merge($this->redisQuery, $query);
+        $indexKey = $this->getIndexKey();
+        $min = $this->redisQuery['min_score'];
+        $max = $this->redisQuery['max_score'];
+        $limit = $this->redisQuery['limit'];
+        $sort = $this->redisQuery['sort'];
+
+        if ($sort == self::SORT_DESC) {
+            $idArr = $this->redis()->zRevRangeByScore($indexKey, $max, $min, array('limit' => $limit));
+        } else {
+            $idArr = $this->redis()->zRangeByScore($indexKey, $min, $max, array('limit' => $limit));
+        }
+        $r = $this->getDataById($idArr);
+        $this->clearQuery();
+        return $r;
+    }
+
+    /**
+     * 根据排名查找数据
+     * @param array $query
+     * @return array
+     * @throws Exception
+     */
+    public function cacheAllByRank($query = array())
+    {
+        $this->redisQuery = array_merge($this->redisQuery, $query);
+        $indexKey = $this->getIndexKey();
+        $start = $this->redisQuery['min_rank'];
+        $end = $this->redisQuery['max_rank'];
+        $sort = $this->redisQuery['sort'];
+        $limit = $this->redisQuery['limit'];
+        if ($sort == self::SORT_ASC) {
+            $idArr = $this->redis()->zRange($indexKey, $start, $end);
+        } else {
+            $idArr = $this->redis()->zRevRange($indexKey, $start, $end);
+        }
+        if ($limit) { //此处只能使用数组分页
+            $idArr = array_slice($idArr, $limit[0], $limit[1]);
+        }
+        $r = $this->getDataById($idArr);
+        $this->clearQuery();
+        return $r;
+    }
+
+    /**
+     * 根据ID进行查找数据
+     * @TODO 此方法没有测试
+     * @param array $query
+     * @return array
+     * @throws Exception
+     */
+    public function cacheAllById($query = array())
+    {
+        $this->redisQuery = array_merge($this->redisQuery, $query);
+        $indexKey = $this->getIndexKey();
+        $min = $this->redisQuery['min_id'];
+        $max = $this->redisQuery['max_id'];
+        $sort = $this->redisQuery['sort'];
+        $limit = $this->redisQuery['limit'];
+
+        if ($sort == self::SORT_ASC) {
+            $start = $this->redis()->zRank($indexKey, $min);
+            $end = $this->redis()->zRank($indexKey, $max);
+        } else {
+            $start = $this->redis()->zRevRank($indexKey, $min);
+            $end = $this->redis()->zRevRank($indexKey, $max);
+        }
+        $start = $start ? $start : 0;
+        $end = $end ? $end : -1;
+        $rank1 = min($start, $end);
+        $rank2 = $end == -1 ? $end : max($start, $end);
+
+        if ($sort == self::SORT_ASC) {
+            $idArr = $this->redis()->zRange($indexKey, $rank1, $rank2);
+        } else {
+            $idArr = $this->redis()->zRevRange($indexKey, $rank1, $rank2);
+        }
+        if ($limit) { //此处只能使用数组分页
+            $idArr = array_slice($idArr, $limit[0], $limit[1]);
+        }
+        $r = $this->getDataById($idArr);
+        $this->clearQuery();
+        return $r;
+    }
+
+    /**
+     * 根据ID得到详情
+     * @param $idArr
+     * @return array
+     */
+    public function getDataById($idArr)
+    {
         $r = array();
+        foreach ((array)$idArr as $id) {
+            $item = $this->cacheOne($id);
+            if ($this->redisQuery['field']) {
+                $item = Functions::arrayFilterKey($item, $this->redisQuery['field']);
+            }
+            $r[] = $item;
+        }
+        return $r;
+    }
+
+    /**
+     * 检查索引
+     * @return string 索引的key
+     * @throws Exception
+     */
+    private function _checkCacheIndex()
+    {
         if ($this->redisQuery['index'] && in_array($this->redisQuery['index'], $this->indexField())) {
             $indexKey = $this->cacheIndexKey($this->redisQuery['index']);
         } elseif ($this->redisQuery['group'] && array_key_exists($this->redisQuery['group'][0], $this->groupField())) {
@@ -581,25 +724,8 @@ class CacheRedis extends CoreModel
                 throw new Exception("索引或分组不存在");
             }
         }
-        $min = $this->redisQuery['min'];
-        $max = $this->redisQuery['max'];
-        $limit = $this->redisQuery['limit'];
-        if ($this->redisQuery['sort'] == self::SORT_DESC) {
-            $idArr = $this->redis()->zRevRangeByScore($indexKey, $max, $min, array('limit' => $limit));
-        } else {
-            $idArr = $this->redis()->zRangeByScore($indexKey, $min, $max, array('limit' => $limit));
-        }
-        foreach ((array)$idArr as $id) {
-            $item = $this->cacheOne($id);
-            if ($this->redisQuery['field']) {
-                $item = Functions::arrayFilterKey($item, $this->redisQuery['field']);
-            }
-            $r[] = $item;
-        }
-        $this->clearQuery();
-        return $r;
+        return $this->redisQuery['index_key'] = $indexKey;
     }
-
     /**
      * 一次查询执行后，清量相关参数
      */
@@ -610,10 +736,15 @@ class CacheRedis extends CoreModel
             'field' => '', //查询的字段，数组形式
             'sort' => self::SORT_ASC, //排序类型
             'limit' => array(), //开始位置
-            'min' => '-inf', //索引最小值
-            'max' => '+inf', //索引最大值
+            'min_score' => '-inf', //索引最小值
+            'max_score' => '+inf', //索引最大值
             'index' => '',
-            'group' => ''
+            'group' => '',
+            'min_rank' => 0, //最小排名
+            'max_rank' => -1, //最大排名
+            'min_id' => 0, //最小ID
+            'max_id' => 0, //最大ID
+            'cache_key' => ''
         );
     }
 
@@ -792,5 +923,19 @@ class CacheRedis extends CoreModel
         $keys = "{$this->globalKeyPrefix}*";
         $cmd = $this->redis()->delKeysCmd($keys, $this->redisCli);
         echo shell_exec($cmd);
+    }
+
+    /**
+     * 返回当前设置查询的index_key
+     * @return mixed
+     * @throws Exception
+     */
+    public function getIndexKey()
+    {
+        $key =  $this->redisQuery['index_key'];
+        if ($key == false) {
+            throw new Exception('请设置查询key');
+        }
+        return $key;
     }
 }
