@@ -21,18 +21,18 @@ class BaseServer
      * 包结束符
      * @var mixed|string
      */
-    protected $eof = "\r\n";
+    protected $eof = '';
     /**
      * server对象
      * @var BaseServer
      */
     private static $_instance;
+    protected $baseDir; //程序运行根目录
 
     /**
      * 加载配置文件
      * BaseServer constructor.
      * @param string $configPath
-     * @throws \Exception
      */
     public function __construct($configPath = '')
     {
@@ -40,12 +40,25 @@ class BaseServer
         if (!file_exists($configPath)) {
             $configPath = __DIR__ . '/config.php';
         }
-        $this->config = include $configPath;
-        if (!$this->config) {
-            throw new \Exception('配置文件不存在');
-        }
+        $this->config = require($configPath);
         if($this->c('server.debug') == true) { //debug模式下设置非后台运行
             $this->config['serverd']['daemonize'] = false;
+        }
+        if ($this->c('server.base_dir') == false) {
+            die("请指定程序运行根目录\n");
+        }
+
+        $this->baseDir = rtrim($this->c('server.base_dir'), '/');
+        $this->c("server.run_dir", $this->baseDir . '/run'); //运行目录
+        $this->c("server.log_dir", $this->baseDir . "/log"); //日志目录
+        $this->c("server.data_dir", $this->baseDir . "/data"); //数据目录
+
+        //定义相关文件
+        $this->c("server.pid_file", $this->baseDir . '/run/server.pid');
+        $this->c("server.error_log", $this->baseDir . '/log/error.log');
+        $this->c("server.access_log", $this->baseDir . '/log/access.log');
+        if ($this->c('serverd.log_file') == false) {
+            $this->c("serverd.log_file", $this->baseDir . '/run/server.log');
         }
         error_reporting(E_ALL & ~E_NOTICE);
         ini_set('error_log', $this->c('server.error_log'));
@@ -132,19 +145,6 @@ class BaseServer
 
     /**
      * 重启所有worker进程
-     * 一台繁忙的后端服务器随时都在处理请求，如果管理员通过kill进程方式来终止/重启服务器程序，
-     * 可能导致刚好代码执行到一半终止。
-     * 这种情况下会产生数据的不一致。如交易系统中，支付逻辑的下一段是发货，假设在支付逻辑之后进程被终止了。
-     * 会导致用户支付了货币，但并没有发货，后果非常严重。
-     *
-     * Swoole提供了柔性终止/重启的机制，管理员只需要向SwooleServer发送特定的信号，
-     * Server的worker进程可以安全的结束。
-     *
-     *  SIGTERM: 向主进程发送此信号服务器将安全终止，在PHP代码中可以调用$serv->shutdown()完成此操作
-     *
-     *  SIGUSR1: 向管理进程发送SIGUSR1信号，将平稳地restart所有worker进程，
-     *  在PHP代码中可以调用$serv->reload()完成此操作
-     *  swoole的reload有保护机制，当一次reload正在进行时，收到新的重启信号会丢弃
      *
      *  重启所有worker进程 kill -SIGUSR1 主进程PID
      *  仅重启task进程 kill -SIGUSR2 主进程PID
@@ -154,6 +154,7 @@ class BaseServer
      *
      * 对于Server的配置即$serv->set()中传入的参数设置，必须关闭/重启整个Server才可以重新加载
      * Server可以监听一个内网端口，然后可以接收远程的控制命令，去重启所有worker
+     *
      * @return bool
      */
     public function reloadWorker()
@@ -164,7 +165,7 @@ class BaseServer
     /**
      * 关闭服务器
      * 此函数可以用在worker进程内。向主进程发送SIGTERM也可以实现关闭服务器。
-     * kill -15 主进程PID
+     * kill -SIGTERM 主进程PID
      * @return bool
      */
     public function shutdown()
@@ -180,12 +181,11 @@ class BaseServer
      * 不要在close之后写清理逻辑。应当放置到onClose回调中处理。
      *
      * @param int $fd 当前连接描述符
-     * @param int $formId
      * @return bool
      */
-    public function close($fd, $formId = 0)
+    public function close($fd)
     {
-        return $this->s->close($fd, $formId);
+        return $this->s->close($fd);
     }
 
     /**
@@ -235,7 +235,7 @@ class BaseServer
     {
         clearstatcache();
         if (!file_exists($filename)) {
-            return FALSE;
+            return false;
         }
         return $this->s->sendfile($fd, $filename);
     }
@@ -319,18 +319,6 @@ class BaseServer
     /**
      * 投递一个异步任务到task_worker池中。此函数会立即返回。worker进程可以继续处理新的请求
      *
-     *  * $data要投递的任务数据，可以为除资源类型之外的任意PHP变量
-     *  * $taskWorkerId可以制定要给投递给哪个task进程，传入ID即可，范围是0 - serv->task_worker_num
-     *  * 返回值为整数($task_id)，表示此任务的ID。如果有finish回应，onFinish回调中会携带$task_id参数
-     *
-     * 此功能用于将慢速的任务异步地去执行，比如一个聊天室服务器，可以用它来进行发送广播。
-     * 当任务完成时，在task进程中调用$serv->finish("finish")告诉worker进程此任务已完成。
-     * 当然swoole_server->finish是可选的。
-     *
-     *  * AsyncTask功能在1.6.4版本增加，默认不启动task功能，需要在手工设置task_worker_num来启动此功能
-     *  * task_worker的数量在swoole_server::set参数中调整，如task_worker_num => 64，表示启动64个进程来接收异步任务
-     *
-     *
      * 注意事项
      *  * 数据超过8K时会启用临时文件来保存。当临时文件内容超过 server->package_max_length 时底层会抛出一个警告。
      *  * 使用swoole_server_task必须为Server设置onTask和onFinish回调，否则swoole_server->start会失败
@@ -350,12 +338,6 @@ class BaseServer
      * taskwait与task方法作用相同，用于投递一个异步的任务到task进程池去执行。
      * 与task不同的是taskwait是阻塞等待的，直到任务完成或者超时返回
      *
-     * $result为任务执行的结果，由$serv->finish函数发出。如果此任务超时，这里会返回false。
-     *
-     * taskwait是阻塞接口，如果你的Server是全异步的请使用swoole_server::task和swoole_server::finish,不要使用taskwait
-     * 第3个参数可以制定要给投递给哪个task进程，传入ID即可，范围是0 - serv->task_worker_num
-     * $dst_worker_id在1.6.11+后可用，默认为随机投递
-     * taskwait方法不能在task进程中调用
      *
      * @param mixed $data
      * @param float $timeout
@@ -613,19 +595,23 @@ class BaseServer
     }
 
     /**
-     * 得到一个配置参数
-     * @param string $path vod_db.xxx.xxx的形式
-     * @return mixed
+     * 得到或设置配置参数
+     * @param string $path
+     * @param null $value
+     * @return array|mixed|null
      */
-    public function c($path = '')
+    public function c($path = '', $value = null)
     {
         if ($path == '') {
             return $this->config;
         }
         $pathArr = explode('.', $path);
-        $tmp = $this->config;
-        foreach ($pathArr as $row) {
-            $tmp = $tmp[$row];
+        $tmp = &$this->config;
+        foreach ($pathArr as &$row) {
+            $tmp = &$tmp[$row];
+        }
+        if ($value !== null) {
+            $tmp = $value;
         }
         return $tmp;
     }
@@ -643,6 +629,9 @@ class BaseServer
      */
     public function onStart(\swoole_server $server)
     {
+        if (is_dir($this->c('server.run_dir')) == false) {
+            mkdir($this->c('server.run_dir')); //创建运行目录
+        }
         $pidFile = $this->c('server.pid_file');
         $pidStr = '';
         $pidStr .= "master_pid={$server->master_pid}\n";
@@ -680,6 +669,15 @@ class BaseServer
      */
     public function onWorkerStart(\swoole_server $server, $workerId)
     {
+        if ($workerId == 0) {
+            if (is_dir($this->c('server.log_dir')) == false) {
+                mkdir($this->c('server.log_dir'));
+            }
+
+            if (is_dir($this->c('server.data_dir')) == false) {
+                mkdir($this->c('server.data_dir'));
+            }
+        }
         $name = $this->c('server.server_name');
         if($workerId >= $server->setting['worker_num']) {
             swoole_set_process_name("{$name}_task_worker");
@@ -824,7 +822,7 @@ class BaseServer
      */
     public function onManagerStop(\swoole_server $server)
     {
-        $this->serverLog('manager is stop');
+
     }
 
     /**

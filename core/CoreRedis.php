@@ -415,7 +415,7 @@ class CoreRedis
 	}
 
     /**
-     * 返回order值在start end之间的数量
+     * 返回score值在start end之间的数量
      * @param $key
      * @param $start
      * @param $end

@@ -103,6 +103,9 @@ class CoreModel
      */
     public static function getInstance($name = __CLASS__)
     {
+        if (version_compare(PHP_VERSION, '5.4.0', '>=')) {
+            $name = get_called_class();
+        }
         if(!isset(self::$_instance[$name])) {
             self::$_instance[$name] = new $name();
         }
