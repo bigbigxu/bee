@@ -18,6 +18,7 @@
  *    7.索引的更新，最好使用其它服务来定时检查。
  *    8.大数据下，冷热数据的区分，目前没有想到比较好的实现方法。也许可以基本规则判断数据是否进入cache
  *    9.关于Limit的使用，最好不使用limit。而是限定rank,score,id。根据条件得到开始值，结束值。只能指定数据量的数据。
+ *    10.mysql数据插入的时候，有默认值。如果需要在redis保存这个默认值，需要定义defaultValue方法
  *
  * 此类的作用：
  *    1.统一cache ,mysql操作，减少代码量，增加可复用性,，并保证Mysql数据和redis数据的一致性。
@@ -147,6 +148,15 @@ class CacheRedis extends CoreModel
      * )
      */
     public function groupField()
+    {
+        return array();
+    }
+
+    /**
+     *  设置default默认值。是为了解决mysql插入默认值，而redis无法更新这个默认值的问题。
+     * @return array
+     */
+    public function defaultValue()
     {
         return array();
     }
@@ -289,6 +299,9 @@ class CacheRedis extends CoreModel
         if ($data == false && $this->mysqlMode != self::MYSQL_NONE) {
             $data = $this->findById($pk);
         }
+        if ($op == self::OP_INSERT) {
+            $data = array_merge($this->defaultValue(), $data); //合并默认参数
+        }
         if ($this->updateData($pk, $data) == false) {
             return false;
         }
@@ -343,7 +356,6 @@ class CacheRedis extends CoreModel
     {
         $dataField = $this->dataField();
         $dataKey = $this->cacheDataKey($pk);
-
         if ($dataField != false) { //只保存指定字段的数据
             $data = Functions::arrayFilterKey($data, $dataField);
         }
