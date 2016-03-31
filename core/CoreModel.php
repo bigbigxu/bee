@@ -16,6 +16,8 @@ class CoreModel
     protected $errno = 0; //错误码
     protected $scene; //模型当前使用场景。
     protected $errArr = array(); // 当前错误消息对应的错误码
+    protected $redisKeyPrefix = ''; //当前模型key的前缀
+    protected $cacheKeySeparator = '_'; //key每个变量连接符
 
     const SCENE_INSERT = 'insert'; //数据插入场景
     const SCENE_UPDATE = 'update'; //数据更新场景
@@ -726,5 +728,18 @@ class CoreModel
     public function _prefix($name)
     {
         return $this->redis()->_prefix($name);
+    }
+
+    /**
+     * 创建一个Key
+     * 函数接受多个参数。会在前面加上前缀。
+     * @return string
+     */
+    public function createRedisKey()
+    {
+        $params = func_get_args();
+        array_unshift($params, $this->redisKeyPrefix);
+        $key = implode($this->cacheKeySeparator, $params);
+        return $key;
     }
 }
