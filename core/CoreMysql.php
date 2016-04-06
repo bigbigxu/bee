@@ -291,19 +291,25 @@ class CoreMysql
     /**
      * 根据一个或多个属性查找记录
      * @param $attr
-     * @param int $num 查找的数量，如果为1，将返回一个一维数据，
+     * @param int $num 查找的数量，如果为1，将返回一个一维数据
+	 * @throws Exception
      * @return array|bool
      */
     public function findByAttr($attr, $num = 1)
     {
         $where = 1;
         $this->setField();
+		$params = array();
         foreach($attr as $key => $row) {
-            if(!in_array($key, $this->fields[$this->tableName]))
-                continue;
+            if(!in_array($key, $this->fields[$this->tableName])) {
+				continue;
+			}
             $where .= " and `{$key}`=:{$key}";
             $params[":{$key}"] = $row;
         }
+		if ($params == false) {
+			throw new Exception("没有可用的属性条件");
+		}
         if($num == 1) {
             $method = 'one';
         } else {
