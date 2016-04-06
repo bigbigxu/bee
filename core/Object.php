@@ -144,4 +144,41 @@ class Object
             }
         }
     }
+
+    /**
+     * 根据配置创建一个继承Object类的实例
+     * Object::create与App::createObject方法不同。
+     * App::createObject可以创建任何类型的对象，但不能设置非public的属性，支持构造函数参数
+     * Object::create只能创建继承于Object类的对象，可以在实例化的时候设置任何成员属性，不支持构造函数参数
+     * Object::getInstance只能创建已知类，Object::create创建可创建动态的类。
+     * @param $objConfig
+     * @param bool $single
+     * @return object
+     * @throws Exception
+     */
+    public static function create($objConfig, $single = true)
+    {
+        if (is_string($objConfig)) {
+            $objConfig = App::c($objConfig);
+        }
+        $className = $objConfig['class_name']; //类名
+        $config = $objConfig['config']; //对象属性配置
+        $classFile = $objConfig['class_file']; //对象文件路径
+
+        if ($single == true && is_object(self::$_instance[$className])) {
+            return self::$_instance[$className]; //返回单例对象
+        }
+        if ($classFile) {
+            //加载配置文件。支持非标准类的加载。
+            App::getInstance()->loadClass(array(
+                $className => $classFile
+            ));
+        }
+        $re = new ReflectionClass($className);
+        $o = $re->newInstance($config);
+        if ($single == true) {
+            self::$_instance[$className] = $o; //单例模式下，保存当前对象
+        }
+        return $o;
+    }
 }
