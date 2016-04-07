@@ -731,6 +731,27 @@ class CoreModel
     }
 
     /**
+     * 设置全局cache key的前缀
+     * 此方法不可以在类实例后更改。只能在子类中重写init方法。
+     * @param $key
+     * @return $this
+     */
+    public function setRedisKeyPrefix($key)
+    {
+        $this->redisKeyPrefix = $key;
+        return $this;
+    }
+
+    /**
+     * 得到全局cache key的前缀
+     * @return string
+     */
+    public function getRedisKeyPrefix()
+    {
+        return $this->redisKeyPrefix;
+    }
+
+    /**
      * 创建一个Key
      * 函数接受多个参数。会在前面加上前缀。
      * @return string

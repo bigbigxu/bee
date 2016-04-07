@@ -24,10 +24,10 @@
  *    1.统一cache ,mysql操作，减少代码量，增加可复用性,，并保证Mysql数据和redis数据的一致性。
  *    2.统一管理的cache ，key。
  *    3.事实上，也可以只使用redis
- * @TODO 未经测试，不要使用
+ *
  * @TODO 不支持联合主键
  */
-class CacheRedis extends CoreModel
+class RedisMysqlModel extends CoreModel
 {
     /**
      * 创建索引的有序集合的过期时间
@@ -54,11 +54,6 @@ class CacheRedis extends CoreModel
      * @var string
      */
     protected $groupKeyPrefix = 'auto_group_';
-    /**
-     * 全局的key前缀。默认使用表名
-     * @var string
-     */
-    protected $globalKeyPrefix = '';
     /**
      * 保存下一个自增长id的key
      * @var string
@@ -172,8 +167,8 @@ class CacheRedis extends CoreModel
         if ($name == false) {
             throw new Exception("请定义表名！");
         }
-        if ($this->globalKeyPrefix == false) {
-            $this->globalKeyPrefix = $this->tableName() . '_';
+        if ($this->redisKeyPrefix == false) {
+            $this->redisKeyPrefix = $this->tableName() . '_';
         }
         $this->setErrMode(PDO::ERRMODE_SILENT); //设置errmode为静默处理。用于回滚cache
         $this->db()->setAttr(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, true);
@@ -398,12 +393,12 @@ class CacheRedis extends CoreModel
      */
     public function cacheDataKey($id)
     {
-        return $this->globalKeyPrefix . $this->dataKeyPrefix . $id;
+        return $this->redisKeyPrefix . $this->dataKeyPrefix . $id;
     }
 
     public function cacheGroupKey($field, $value)
     {
-        return $this->globalKeyPrefix . $this->groupKeyPrefix . $field . "_" . $value;
+        return $this->redisKeyPrefix . $this->groupKeyPrefix . $field . "_" . $value;
     }
 
     /**
@@ -413,7 +408,7 @@ class CacheRedis extends CoreModel
      */
     public function cacheIndexKey($field)
     {
-        return "{$this->globalKeyPrefix }{$this->indexKeyPrefix}{$field}";
+        return "{$this->redisKeyPrefix }{$this->indexKeyPrefix}{$field}";
     }
 
 
@@ -826,28 +821,6 @@ class CacheRedis extends CoreModel
     }
 
     /**
-     * 设置全局cache key的前缀
-     * 此方法不可以在类实例后更改。只能在子类中重写init方法。
-     * @param $key
-     * @return $this
-     */
-    public function setGlobalKeyPrefix($key)
-    {
-        $this->globalKeyPrefix = $key;
-        return $this;
-    }
-
-    /**
-     * 得到全局cache key的前缀
-     * @return string
-     */
-    public function getGlobalKeyPrefix()
-    {
-        return $this->globalKeyPrefix;
-    }
-
-
-    /**
      * 设置索引cache的前缀
      * @param $key
      * @return $this
@@ -856,18 +829,6 @@ class CacheRedis extends CoreModel
     {
         $this->indexKeyPrefix = $key;
         return $this;
-    }
-
-    /**
-     * 创建一个Key
-     * 函数接受多个参数。会在前面加上前缀。
-     * @return string
-     */
-    public function createKey()
-    {
-        $params = func_get_args();
-        $key = $this->globalKeyPrefix . implode('_', $params);
-        return $key;
     }
 
     /**
@@ -914,7 +875,7 @@ class CacheRedis extends CoreModel
      */
     public function delCacheData()
     {
-        $keys = "{$this->globalKeyPrefix}{$this->indexKeyPrefix}*";
+        $keys = "{$this->redisKeyPrefix}{$this->indexKeyPrefix}*";
         $cmd = $this->redis()->delKeysCmd($keys, $this->redisCli);
         echo shell_exec($cmd);
     }
@@ -929,10 +890,10 @@ class CacheRedis extends CoreModel
      */
     public function delAll()
     {
-        if ($this->globalKeyPrefix == false) {
+        if ($this->redisKeyPrefix == false) {
             throw new Exception('cache前缀不能为空');
         }
-        $keys = "{$this->globalKeyPrefix}*";
+        $keys = "{$this->redisKeyPrefix}*";
         $cmd = $this->redis()->delKeysCmd($keys, $this->redisCli);
         echo shell_exec($cmd);
     }
