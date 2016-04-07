@@ -913,4 +913,22 @@ class BaseServer
         sleep(3);
         $this->start();
     }
+
+    /**
+     * 根据命令字执行对应的方法
+     * @param $method
+     */
+    public function exec($method)
+    {
+        $allowMethod = array('status', 'start', 'stop', 'restart', 'reload');
+        if (in_array($method, $allowMethod) == false) {
+            die("Usage: server {start|stop|restart|reload|status}\n");
+        }
+        $this->$method();
+    }
+
+    public function status()
+    {
+        echo "status\n";
+    }
 }
