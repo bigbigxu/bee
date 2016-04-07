@@ -346,6 +346,7 @@ class App
             'sys.common' => $this->sysDir . '/common',
             'sys.object' => $this->sysDir . '/object',
             'sys.validate' => $this->sysDir . '/validate',
+            'sys.db_model' => $this->sysDir . '/db_model',
 
             'app.common' => $this->baseDir . '/common',
             'app.model' => $this->baseDir . '/model',
