@@ -1,4 +1,5 @@
 <?php
+
 /**
  * ftp上传相关的操作类。
  * 默认将使用随机文件名基于年月的创建目录。
@@ -56,7 +57,7 @@ class Ftp
             throw new Exception($this, '无法链接ftp服务器');
         }
         if (!ftp_login($this->ch, $this->username, $this->password)) {
-            throw new Exception( '无法登录ftp服务器');
+            throw new Exception('无法登录ftp服务器');
         }
 
         //得到根目录
@@ -150,8 +151,7 @@ class Ftp
         //得到上传后的文件名。
         if ($this->option['random_name'] == true) {
             $newFileName = $this->getRandFileName($localFile);
-        }
-        else {
+        } else {
             $newFileName = "{$this->option['dir']}/" . basename($localFile);
         }
         if (!$this->mkdir($newFileName)) {

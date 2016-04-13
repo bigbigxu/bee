@@ -13,24 +13,11 @@ class WebSocketServer extends BaseServer
         $this->eof = $this->c('serverd.package_eof');
         $host = $this->c('server.host');
         $port = $this->c('server.port');
-        $mode = $this->c('server.server_mode');
-        $type = $this->c('server.socket_type');
-        $this->s = new \swoole_websocket_server($host, $port, $mode, $type);
+        $this->s = new \swoole_websocket_server($host, $port);
 
         $this->s->set($this->c('serverd'));
         $this->registerCallback();
         return $this->s->start();
-    }
-
-    /**
-     * WebSocket建立连接后进行握手。WebSocket服务器已经内置了handshake，
-     * 如果用户希望自己进行握手处理，可以设置onHandShake事件回调函数。
-     * @param \swoole_http_request $request
-     * @param \swoole_http_response $response
-     */
-    public function onHandShake(\swoole_http_request $request, \swoole_http_response $response)
-    {
-        $this->accessLog('hello');
     }
 
     /**
@@ -40,7 +27,7 @@ class WebSocketServer extends BaseServer
      */
     public function onOpen(\swoole_websocket_server $svr, \swoole_http_request $req)
     {
-
+        $this->push($req->fd, 'welcome!');
     }
 
     /**
@@ -56,7 +43,17 @@ class WebSocketServer extends BaseServer
      */
     public function onMessage(\swoole_server $server, \swoole_websocket_frame $frame)
     {
-        $this->send($frame->fd, $frame->data);
+        $this->push($frame->fd, $frame->data);
     }
 
+    /**
+     * 向客户端发送数据
+     * @param $fd
+     * @param $data
+     * @return mixed
+     */
+    public function push($fd, $data)
+    {
+        return $this->s->push($fd, $data);
+    }
 }

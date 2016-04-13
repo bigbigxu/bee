@@ -1,4 +1,5 @@
 <?php
+
 /**
  * ssh扩展类
  * 1. 下载 php extension ssh2
@@ -45,7 +46,8 @@ class Ssh
     );
 
     //链接资源句柄。
-    public $ch = FALSE;
+    public $ch = false;
+    public $error;
 
     public function __construct($option)
     {
@@ -65,8 +67,8 @@ class Ssh
     }
 
     /**
-     * 执行相关的命令
-     * @param unknown $command
+     * @param $command
+     * @return bool|string
      */
     public function execute($command)
     {
@@ -76,7 +78,6 @@ class Ssh
         }
 
         $stream = ssh2_exec($this->ch, $command);
-        echo $command;
         stream_set_blocking($stream, true);
         $str = stream_get_contents($stream);
         if (DIRECTORY_SEPARATOR == '\\' && $GLOBALS['argv'][0])
@@ -86,8 +87,8 @@ class Ssh
 
     /**
      * 检查命令是不是可以执行。
-     * @param unknown $command
-     * @return boolean
+     * @param $command
+     * @return bool
      */
     private function checkCommand($command)
     {
