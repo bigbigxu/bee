@@ -103,17 +103,18 @@ class CoreLog
     /**
      * 打印调试堆
      * @param bool $print
+     * @return array
      */
     public static function trace($print = false)
     {
         ob_start();
         debug_print_backtrace();
         $msg = ob_get_contents();
+        ob_end_clean();
         if ($print) {
             echo $msg;
         } else {
-            self::error($msg);
+            return $msg;
         }
-        ob_end_clean();
     }
 }
