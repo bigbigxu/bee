@@ -5,6 +5,19 @@
  * Date: 2015/4/1
  * Time: 14:42
  * 系统核心入口文件
+ *
+ * 必须指定一个数组或配置文件。App会加载如下核心配置
+ * array(
+ *  'env' => '设置系统当前运行环境',
+ *  'base_dir' => '应用的相关文件根目录',
+ *  'config_dir' => '配置文件目录'
+ *  'debug' => '是否为调试模式'
+ *  'crontab_dir' => '定时器脚本目录'
+ *  'runtime_dir' => '运行时目录，比如日志',
+ *  'class_map' => '类地图，用于减少自动加载的开销',
+ *  'autoload' => '自动加载的包（目录加载）',
+ *  'namespace' => '需要加载的命名空间'
+ * );
  */
 class App
 {
@@ -21,6 +34,11 @@ class App
     protected $crontabDir; //命令行程序目录
     protected static $_container; //对象容器
     protected $namespace = array(); //所有注册的命令空间
+    protected $env; //环境类型。有3种
+
+    const ENV_TEST = 'test'; //开发环境
+    const ENV_DEV = 'dev'; //测试环境
+    const ENV_PRO = 'pro'; //生产环境
 
     private  function __construct($config = null)
     {
@@ -45,6 +63,7 @@ class App
         $this->isDebug = $this->config['debug'];
         $this->crontabDir = $this->config['crontab_dir'];
         $this->runtimeDir = $this->config['runtime_dir'];
+        $this->env = $this->config['env'];
         $this->loadCorePackage();
         //注册自动加载函数
         spl_autoload_register(array($this, 'autoLoad'));
@@ -55,7 +74,8 @@ class App
      */
     protected function init()
     {
-        $this->setPhpEnv(); //需要在对象实例化完成之后，进行环境配置
+        PhpEnv::getInstance()
+            ->exec($this->env, (array)self::c('env_set.php')); //需要在对象实例化完成之后，进行环境配置
         $this->classMap = self::c('class_map'); //加载类地图
         $this->load(self::c('autoload')); //加载配置文件的包。
         $this->namespace = (array)$this->config['namespace'];
@@ -68,24 +88,6 @@ class App
      */
     public function run()
     {
-        $route = $_GET['r'];
-        $routeArr = explode('/', $route);
-        //数组第一个表示控制器名称,第二个是方法名称
-        $c = $routeArr[0] == false ? 'Index' : $routeArr[0];
-        $a = $routeArr[1] == false ? 'index' : $routeArr[1];
-        $c = $c . 'Controller';
-
-        if(!class_exists($c)) {
-            new Exception("控制器不存在");
-        }
-
-        $re = new ReflectionClass($c);
-        if(!$re->hasMethod($a)) {
-            new Exception("控制器动作不存在");
-        }
-
-        $object = $re->newInstanceArgs(array($_GET, $_POST));
-        return $object->$a;
     }
 
     /**
@@ -518,13 +520,7 @@ class App
      */
     public static function getErrorLogFile()
     {
-        $o = self::$_instance;
-        $dir = $o->runtimeDir . '/error_log/' . date('Y/m');
-        if(!is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
-        $file = $dir . '/error_' . date('d') . '.log';
-        self::changeLogFileMode($file);
+        $file = CoreLog::getErrorLogFile();
         return $file;
     }
 
@@ -534,13 +530,7 @@ class App
      */
     public static function getAccessLogFile()
     {
-        $o = self::$_instance;
-        $dir = $o->runtimeDir . '/access_log/' . date('Y/m');
-        if(!is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
-        $file = $dir . '/access_' . date('d') . '.log';
-        self::changeLogFileMode($file);
+        $file = CoreLog::getAccessLogFile();
         return $file;
     }
 
@@ -550,35 +540,16 @@ class App
      */
     public static function getDebugLogFile()
     {
-        $o = self::$_instance;
-        $dir = $o->runtimeDir . '/debug_log/' . date('Y/m');
-        if(!is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
-        $file = $dir . '/debug_' . date('d') . '.log';
-        self::changeLogFileMode($file);
+        $file = CoreLog::getDebugLogFile();
         return $file;
     }
 
     /**
-     * 修改日志文件的权限
-     * @param $file
-     * @param int $mode
+     * 得到当前环境
+     * @return mixed
      */
-    public static function changeLogFileMode($file, $mode = 0660)
+    public function getEnv()
     {
-        if (!is_file($file)) {
-            file_put_contents($file, '');
-            @chmod($file, $mode);
-        }
-    }
-
-    public function setPhpEnv()
-    {
-        $file = self::getErrorLogFile();
-        PhpEnv::getInstance()
-            ->displayError()
-            ->errorReporting()
-            ->errorLog($file);
+        return $this->env;
     }
 }

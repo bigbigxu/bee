@@ -8,64 +8,111 @@
  */
 class PhpEnv
 {
+    protected $env = null; //环境类型
+    protected $options = array();
     private static $_instance;
 
-    public function __construct()
-    {}
-
     /**
-     * @return self
+     * 实例化对象
+     * @return static
      */
     public static function getInstance()
     {
-        if(!is_object(self::$_instance)) {
+        if (!is_object(self::$_instance)) {
             self::$_instance = new self();
         }
         return self::$_instance;
     }
 
     /**
-     * 关闭或都打开php错误报告
-     * @param $allow
+     * 设置运行环境
+     * @param $env
      * @return $this
      */
-    public function displayError($allow = null)
+    public function setEnv($env)
     {
-        if($allow === null) {
-            if(App::getInstance()->isDebug()) {
-                $allow = 1;
-            } else {
-                $allow = 0;
-            }
-        }
-        ini_set('display_errors', $allow); //是否报告错误显示
+        $this->env = $env;
+        return $this;
+    }
+
+    /**
+     * 设置是否在页面显示错误
+     * @param $flag
+     * @return $this
+     */
+    public function setDisplayError($flag)
+    {
+        $this->options['display_errors'] = $flag;
         return $this;
     }
 
     /**
      * 设置错误报告级别
-     * @param int|null $level
+     * @param $level
      * @return $this
      */
-    public function errorReporting($level = null)
+    public function setErrorReporting($level)
     {
-        if($level === null) {
-            $level = E_ALL & ~E_NOTICE;
-        }
-        error_reporting($level);
+        $this->options['error_reporting'] = $level;
         return $this;
     }
 
     /**
-     * 设置php错误文件位置
-     * 说明，错误文件不能记录语法错误
+     * 设置错误日志
      * @param $file
      * @return $this
      */
-    public function errorLog($file)
+    public function setErrorLog($file)
     {
-        ini_set('log_errors', 1);
-        ini_set('error_log', $file);
+        $this->options['log_errors'] = 1;
+        $this->options['error_log'] = $file;
         return $this;
+    }
+
+    /**
+     * 默认3种环境的设置
+     * @return array
+     */
+    public function getDefaultSet()
+    {
+        $set =  array(
+            App::ENV_DEV => array(
+                'display_errors' => 1,
+                'error_reporting' => E_ALL & ~E_NOTICE,
+                'log_errors' => 1,
+                'error_log' => CoreLog::getErrorLogFile()
+            ),
+            App::ENV_TEST => array(
+                'display_errors' => 1,
+                'error_reporting' => E_ALL & ~E_NOTICE,
+                'log_errors' => 1,
+                'error_log' => CoreLog::getErrorLogFile()
+            ),
+            App::ENV_PRO => array(
+                'display_errors' => 0,
+                'error_reporting' => E_ALL & ~E_NOTICE,
+                'log_errors' => 1,
+                'error_log' => CoreLog::getErrorLogFile()
+            ),
+        );
+        return $set[$this->env];
+    }
+
+    /**
+     * 执行选项
+     * @param bool $env 环境
+     * @param array $options
+     * @return null
+     */
+    public function exec($env = false,$options = array())
+    {
+        if ($env !== false) {
+            $this->env = $env;
+        }
+        $this->options = array_merge($this->getDefaultSet(), $this->options, $options);
+        foreach ($this->options as $key => $value) {
+            ini_set($key, $value);
+        }
+        return true;
     }
 }
