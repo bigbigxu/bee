@@ -26,6 +26,39 @@ class Mongo
 
     );
 
+    protected $mongo;
+    protected $dbName;
+    protected $connString; //连接字符串
+    protected $collection; //当前集合名称
+    protected $namespace; //当前使用命名空间
+
+    /**
+     * 查询相关选项
+     * @example
+     * array(
+     *  '$' => array(), //查询操作符，比如$gt等
+     *  'p' => array(
+     *      'limit' => 1, //查询数量
+     *      'skip' => 0, //偏移量
+     *      'sort' => array(), //排序
+     *  )
+     * )
+     * @var array
+     */
+    protected $read = array('$' => array(), 'p' => array());
+    /**
+     * 写入相关选项
+     * array(
+     *  '$' => array(), //更新操作符
+     *  'p' => array(
+     *      'multi' => false, //是否可以更新多条记录
+     *      'upsert' => false, //记录不存在，是否插入
+     *  ),
+     *  ''
+     * )
+     * @var array
+     */
+    protected $write = array('$' => array(), 'p' => array());
     /**
      * 写入相关的配置先项
      * @var array
@@ -46,29 +79,17 @@ class Mongo
         'j' => 1,
         'wtimeout' => 30000, //写入超时时间，系统默认不超时。w>1才会起作用
     );
-
-    protected $mongo;
-    protected $dbName;
-    protected $connString; //连接字符串
-    protected $collection; //当前集合名称
-    protected $namespace; //当前使用命名空间
-    protected $query = array(
-        '$' => array(), //查询相关的配置操作符
-        'p' => array(
-            'limit' => 1, //查询数量
-            'skip' => 0, //偏移量
-        ),
-    );
-    protected $write = array(
-        '$' => array(), //更新操作符
-        'p' => array(
-            'multi' => false, //是否可以更新多条记录
-            'upsert' => false, //记录不存在，是否插入
-        ),
-    );
+    protected $expireTime;
+    protected $k;
+    private static $_instance;
 
     const SORT_ASC = 1;
     const SORT_DESC = -1;
+    const OP_INSERT = 'insert'; //插入操作
+    const OP_UPDATE = 'update'; //插入操作
+    const OP_DEL = 'del'; //删除操作
+    const OP_QUERY = 'query'; //查询操作
+
     /**
      * 配置文件格式如下
      * array(
@@ -80,16 +101,14 @@ class Mongo
      *  'options' => array(
      *      '选荐key' => '选项value'
      *  ),
-     *  'db_name' => '数据库名称'
+     *  'db_name' => '数据库名称',
+     *  'timeout' => 30, //链接超时时间
      * )
      * Mongo constructor.
      * @param $config
      */
     public function __construct($config)
     {
-        if (!is_array($config)) {
-            $config = \App::c($config);
-        }
         $str = 'mongodb://';
         if ($config['username']) {
             $str .= "{$config['username']}:{$config['password']}@";
@@ -113,6 +132,29 @@ class Mongo
         if (isset($config['options']['wtimeout'])) {
             $this->writeConcern['wtimeout'] = $config['options']['wtimeout'];
         }
+        $timeout = $config['timeout'] ? $config['timeout'] : 30;
+        $this->expireTime = time() + $timeout;
+    }
+
+    /**
+     * @param $config
+     * @return static
+     * @throws \Exception
+     */
+    public static function getInstance($config)
+    {
+        if (!is_array($config)) {
+            $config = \App::c($config);
+        }
+        $k = md5(implode('', $config['server']));
+
+        //如果连接没有创建，或者连接已经失效
+        if(!(self::$_instance[$k] instanceof self) || time() > self::$_instance[$k]->expireTime) {
+            self::$_instance[$k] = null;
+            self::$_instance[$k] = new self($config);
+            self::$_instance[$k]->k = $k;
+        }
+        return self::$_instance[$k];
     }
 
     /**
@@ -133,23 +175,15 @@ class Mongo
 
     /**
      * 执行数据插入
-     * @param array|BulkWrite $data 一个key-value数组或一个BulkWrite对象
+     * @param array $data 一个key-value数组
      * @param array $writeConcern 一个数组，可以包含w,j,wtimeout 3个参数
      * @return \MongoDB\Driver\WriteResult
      */
     public function insert($data, $writeConcern = array())
     {
-        if (!($data instanceof BulkWrite)) {
-            $bulk = new BulkWrite();
-            $bulk->insert($data);
-        } else {
-            $bulk = $data;
-        }
-
         $writeConcern = array_merge($this->writeConcern, $writeConcern);
-        $writeConcernObject = $this->getWriteConcernObject($writeConcern);
-        $result = $this->mongo->executeBulkWrite($this->namespace, $bulk, $writeConcernObject);
-        return $result;
+        $res = $this->exec(self::OP_INSERT, $data, $writeConcern);
+        return $res;
     }
 
     /**
@@ -164,52 +198,95 @@ class Mongo
     {
         $this->write['$'] = array_merge($this->write['$'], $data);
         $this->write['p'] = array_merge($this->write['p'], $options);
-        $this->query['$'] = array_merge($this->query['$'], $filter);
+        $this->read['$'] = array_merge($this->read['$'], $filter);
+        $writeConcern = array_merge($this->writeConcern, $writeConcern);
+        $res = $this->exec(self::OP_UPDATE, $data, $writeConcern);
+        return $res;
+    }
 
-        if (!($data instanceof BulkWrite)) {
-            $bulk = new BulkWrite();
-            $bulk->update($this->query['$'], $this->write['$'], $this->write['p']);
+    /**
+     * 删除记录
+     * @param array $filter 条件查询操作符
+     * @param array $options 删除选项
+     * @param array $writeConcern 写入安全相关
+     * @return \MongoDB\Driver\WriteResult
+     */
+    public function delete($filter = array(), $options, $writeConcern = array())
+    {
+        $this->read['$'] = array_merge($this->read['$'], $filter);
+        $this->write['p'] = array_merge($this->write['p'], $options);
+        $writeConcern = array_merge($this->writeConcern, $writeConcern);
+        $res = $this->exec(self::OP_DEL, $data, $writeConcern);
+        return $res;
+    }
+
+    /**
+     * 执行一个非查询操作
+     * @param string $type 操作类型
+     * @param array $data 数组
+     * @param array $writeConcern
+     * @throws \Exception
+     * @return bool|\MongoDB\Driver\WriteResult
+     */
+    public function exec($type, $data = array(), $writeConcern = array())
+    {
+        if ($this->namespace == false) {
+            throw new \Exception("请设置集合名称");
+        }
+        $bulk = new BulkWrite();
+        if ($type == self::OP_INSERT) {
+            $bulk->insert($data);
+        } elseif ($type == self::OP_UPDATE) {
+            $bulk->update($this->read['$'], $this->write['$'], $this->write['p']);
+        } elseif ($type == self::OP_DEL) {
+            $bulk->delete($this->read['$'], $this->read['p']);
         } else {
-            $bulk = $data;
+            return false;
         }
 
-        $writeConcern = array_merge($this->writeConcern, $writeConcern);
+        if ($writeConcern == false) {
+            $writeConcern = $this->writeConcern; //取初始化默认值
+        }
         $writeConcernObject = $this->getWriteConcernObject($writeConcern);
         $result = $this->mongo->executeBulkWrite($this->namespace, $bulk, $writeConcernObject);
-        \Functions::showArr($result);
+        $this->clear();
         return $result;
     }
 
 
     /**
-     * 删除记录
-     * @param array $filter 条件查询操作符
-     * @param int $num 可以删除的数量
-     * @param array $writeConcern 写入安全相关
-     * @return \MongoDB\Driver\WriteResult
+     * 执行一个查询操作。
+     * @param array $filter
+     * @param array $options
+     * @return \MongoDB\Driver\Cursor
      */
-    public function delete($filter = array(), $num = 1, $writeConcern = array())
-    {
-        $this->query['$'] = array_merge($this->query['$'], $filter);
-        $bulk = new BulkWrite();
-        $bulk->delete($this->query['$'], array('limit' => $num));
-
-        $writeConcern = array_merge($this->writeConcern, $writeConcern);
-        $writeConcernObject = $this->getWriteConcernObject($writeConcern);
-        $result = $this->mongo->executeBulkWrite($this->namespace, $bulk, $writeConcernObject);
-        \Functions::showArr($result);
-        return $result;
-    }
-
     public function query($filter = array(), $options = array())
     {
-        $this->query['p'] = array_merge($this->query['p'], $options);
-        $this->query['$'] = array_merge($this->query['$'], $filter);
-        $query = new Query($this->query['$'], $this->query['p']);
+        $this->read['p'] = array_merge($this->read['p'], $options);
+        $this->read['$'] = array_merge($this->read['$'], $filter);
+        $query = new Query($this->read['$'], $this->read['p']);
         $cursor = $this->mongo->executeQuery($this->namespace, $query);
+        $this->clear();
         return $cursor;
     }
 
+    /**
+     * 执行清除操作
+     * @return $this
+     */
+    public function clear()
+    {
+        $this->write = array('$' => array(), 'p' => array());
+        $this->read = array('$' => array(), 'p' => array());
+        return $this;
+    }
+
+    /**
+     * 查询一条记录。
+     * @param array $filter
+     * @param array $options
+     * @return array
+     */
     public function one($filter = array(), $options = array())
     {
         $this->limit(1);
@@ -218,6 +295,12 @@ class Mongo
         return (array)$res;
     }
 
+    /**
+     * 查询多条记录
+     * @param array $filter
+     * @param array $options
+     * @return array
+     */
     public function all($filter = array(), $options = array())
     {
         $cursor = $this->query($filter, $options);
@@ -228,13 +311,19 @@ class Mongo
         return $r;
     }
 
+    /**
+     * 查找记当总数
+     * @param array $filter
+     * @param array $options
+     * @return mixed
+     */
     public function count($filter = array(), $options = array())
     {
-        $this->query['p'] = array_merge($this->query['p'], $options);
-        $this->query['$'] = array_merge($this->query['$'], $filter);
+        $this->read['p'] = array_merge($this->read['p'], $options);
+        $this->read['$'] = array_merge($this->read['$'], $filter);
         $cursor = $this->execCommand(array(
             'count' => $this->collection,
-            'query' => $this->query['$'],
+            'query' => $this->read['$'],
         ));
         $res = $cursor->toArray()[0]->n;
         return $res;
@@ -274,7 +363,7 @@ class Mongo
      */
     public function _eq($name, $value)
     {
-        $this->query['$'][$name] = $value;
+        $this->read['$'][$name] = $value;
         return $this;
     }
 
@@ -286,7 +375,7 @@ class Mongo
      */
     public function _gt($name, $value)
     {
-        $this->query['$'][$name]['$gt'] = $value;
+        $this->read['$'][$name]['$gt'] = $value;
         return $this;
     }
 
@@ -298,7 +387,7 @@ class Mongo
      */
     public function _gte($name, $value)
     {
-        $this->query['$'][$name]['$gte'] = $value;
+        $this->read['$'][$name]['$gte'] = $value;
         return $this;
     }
 
@@ -310,7 +399,7 @@ class Mongo
      */
     public function _lt($name, $value)
     {
-        $this->query['$'][$name]['$lt'] = $value;
+        $this->read['$'][$name]['$lt'] = $value;
         return $this;
     }
 
@@ -322,7 +411,7 @@ class Mongo
      */
     public function _lte($name, $value)
     {
-        $this->query['$'][$name]['$lte'] = $value;
+        $this->read['$'][$name]['$lte'] = $value;
         return $this;
     }
 
@@ -333,7 +422,7 @@ class Mongo
      */
     public function limit($num)
     {
-        $this->query['limit'] = $num;
+        $this->read['limit'] = $num;
         return $this;
     }
 
@@ -344,7 +433,7 @@ class Mongo
      */
     public function skip($num)
     {
-        $this->query['skip'] = $num;
+        $this->read['skip'] = $num;
         return $this;
     }
 
@@ -356,7 +445,7 @@ class Mongo
      */
     public function _sort($name, $type)
     {
-        $this->query['sort'][$name] = $type;
+        $this->read['sort'][$name] = $type;
         return $this;
     }
 
@@ -368,7 +457,7 @@ class Mongo
      */
     public function _ne($name, $value)
     {
-        $this->query['$'][$name]['$ne'] = $value;
+        $this->read['$'][$name]['$ne'] = $value;
         return $this;
     }
 
@@ -380,7 +469,7 @@ class Mongo
      */
     public function _in($name, $value)
     {
-        $this->query['$'][$name]['$in'] = $value;
+        $this->read['$'][$name]['$in'] = $value;
         return $this;
     }
 
@@ -392,7 +481,7 @@ class Mongo
      */
     public function _nin($name, $value)
     {
-        $this->query['$'][$name]['$nin'] = $value;
+        $this->read['$'][$name]['$nin'] = $value;
         return $this;
     }
 
@@ -409,7 +498,7 @@ class Mongo
      */
     public function _mod($name, $value)
     {
-        $this->query['$'][$name]['$mod'] = $value;
+        $this->read['$'][$name]['$mod'] = $value;
         return $this;
     }
 
@@ -421,7 +510,7 @@ class Mongo
      */
     public function _all($name, $value)
     {
-        $this->query['$'][$name]['$all'] = $value;
+        $this->read['$'][$name]['$all'] = $value;
         return $this;
     }
 
@@ -433,7 +522,7 @@ class Mongo
      */
     public function _size($name, $value)
     {
-        $this->query['$'][$name]['$size'] = $value;
+        $this->read['$'][$name]['$size'] = $value;
         return $this;
     }
 
@@ -445,7 +534,7 @@ class Mongo
      */
     public function _exists($name, $value)
     {
-        $this->query['$'][$name]['$exists'] = $value;
+        $this->read['$'][$name]['$exists'] = $value;
         return $this;
     }
 
@@ -457,13 +546,13 @@ class Mongo
      */
     public function _type($name, $value)
     {
-        $this->query['%'][$name]['$type'] = $value;
+        $this->read['%'][$name]['$type'] = $value;
         return $this;
     }
 
     public function _or($name, $value, $sign = null)
     {
-        $this->query['where']['$and'][$name]['$or'] = 'tes';
+        $this->read['where']['$and'][$name]['$or'] = 'tes';
     }
 
 
