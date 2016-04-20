@@ -66,7 +66,7 @@ class App
         $this->env = $this->config['env'];
         $this->loadCorePackage();
         //注册自动加载函数
-        spl_autoload_register(array($this, 'autoLoad'), true, true);
+        spl_autoload_register(array($this, 'autoLoad'));
     }
 
     /**
