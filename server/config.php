@@ -74,7 +74,10 @@ return array(
         //socket模式，默认为tcp
         'socket_type' => SWOOLE_SOCK_TCP,
 
-        //是不是开启debug模式。如果开启　不在后台运行
+        //开发环境类型
+        'env' => 'pro',
+
+        //是否为debug模式
         'debug' => false,
 
         /**
@@ -87,5 +90,9 @@ return array(
 
         //程序运行根目录
         'base_dir' => __DIR__,
+
+        'php_env' => array(
+
+        ), //php环境配置
     ),
 );

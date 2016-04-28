@@ -3,7 +3,11 @@ namespace bee\server;
 
 /**
  * Class BaseServer
- * @package iphp\server
+ * @package bee\server
+ * swoole server基础封装类。
+ * 1. 解决代码提示问题
+ * 2. 增加server的默认行为和配置
+ * 3. 注释
  */
 class BaseServer
 {
@@ -28,6 +32,12 @@ class BaseServer
      */
     private static $_instance;
     protected $baseDir; //程序运行根目录
+    protected $env; //当前运行环境
+    protected $debug = 0;
+
+    const ENV_DEV = 0; //开发环境
+    const ENV_TEST = 1; //测试环境
+    const ENV_PRO = 2; //生产环境
 
     /**
      * 加载配置文件
@@ -41,13 +51,12 @@ class BaseServer
             $configPath = __DIR__ . '/config.php';
         }
         $this->config = require($configPath);
-        if($this->c('server.debug') == true) { //debug模式下设置非后台运行
-            $this->config['serverd']['daemonize'] = false;
-        }
         if ($this->c('server.base_dir') == false) {
             die("请指定程序运行根目录\n");
         }
 
+        $this->debug = (int)$this->c('server.debug');
+        $this->env = (int)$this->c('server.env');
         $this->baseDir = rtrim($this->c('server.base_dir'), '/');
         $this->c("server.run_dir", $this->baseDir . '/run'); //运行目录
         $this->c("server.log_dir", $this->baseDir . "/log"); //日志目录
@@ -60,11 +69,36 @@ class BaseServer
         if ($this->c('serverd.log_file') == false) {
             $this->c("serverd.log_file", $this->baseDir . '/run/server.log');
         }
-        error_reporting(E_ALL & ~E_NOTICE);
-        ini_set('error_log', $this->c('server.error_log'));
+
+        //设置php运行环境
+        $this->setPhpEnv();
         $this->init();
     }
 
+    /**
+     * 设置php运行时的环境
+     */
+    public function setPhpEnv()
+    {
+        $env = array_merge($this->getDefaultPhpEnv(), $this->c('server.php_env'));
+        foreach ($env as $key => $value) {
+            ini_set($key, $value);
+        }
+    }
+
+    /**
+     * 设置php默认的环境相关的默认配置
+     * @return array
+     */
+    public function getDefaultPhpEnv()
+    {
+        return array(
+            'display_errors' => 0,
+            'error_reporting' => E_ALL & ~E_NOTICE,
+            'log_errors' => 1,
+            'error_log' => $this->c('server.error_log')
+        );
+    }
 
     /**
      * 实例化一个对象
@@ -90,6 +124,7 @@ class BaseServer
 
     /**
      * 完成回调函数的注册
+     * 所有使用on开始的函数都被认为是回调函数
      * 使用this注册，那可回调函数中可使用this　
      */
     public function registerCallback()
@@ -101,12 +136,13 @@ class BaseServer
             }
         }
     }
+
     /**
      * 执行环境检查
      */
     public static function checkEnv()
     {
-        if (strtolower(PHP_OS) !='linux') {
+        if (strtolower(PHP_OS) != 'linux') {
             die('请于linux下运行');
         }
         if (!extension_loaded('swoole')) {
@@ -119,13 +155,10 @@ class BaseServer
             die('php版本不能小于5.3');
         }
     }
+
     /**
-     * 启动成功后会创建worker_num + task_worker_num + 2个进程。
-     * master进程用于事件分发。
-     * Manager进程，管理worker进程。
-     * worker进程对 收到的数据进行处理，包括协议解析和响应请求。
+     * 启动server，监听所有TCP/UDP端口
      * 如果想设置开机启动　在/etc/rc.local　加入启动命令
-     *
      * start之前创建的对象，所有worker进程共享，如果要修改，只能重启服务
      * @return bool
      */
@@ -140,7 +173,8 @@ class BaseServer
 
         $this->s->set($this->c('serverd'));
         $this->registerCallback();
-        return $this->s->start();
+        echo "server is starting\n";
+        $this->s->start();
     }
 
     /**
@@ -152,9 +186,7 @@ class BaseServer
      * 平滑重启只对onWorkerStart或onReceive等在Worker进程中include/require的PHP文件有效，
      * Server启动前就已经include/require的PHP文件，不能通过平滑重启重新加载
      *
-     * 对于Server的配置即$serv->set()中传入的参数设置，必须关闭/重启整个Server才可以重新加载
-     * Server可以监听一个内网端口，然后可以接收远程的控制命令，去重启所有worker
-     *
+     * 对于Server的配置即$serv->set()中传入的参数设置，必须关闭/重启整个Server才可以重新加载*
      * @return bool
      */
     public function reloadWorker()
@@ -344,7 +376,7 @@ class BaseServer
      * @param int $taskWorkerId
      * @return string
      */
-    public function taskWait($data, $timeout = 0.5,$taskWorkerId = -1)
+    public function taskWait($data, $timeout = 0.5, $taskWorkerId = -1)
     {
         return $this->s->taskwait($data, $timeout, $taskWorkerId);
     }
@@ -637,6 +669,7 @@ class BaseServer
         $pidStr .= "master_pid={$server->master_pid}\n";
         $pidStr .= "manager_pid={$server->manager_pid}";
         file_put_contents($pidFile, $pidStr);
+        $this->serverLog("server is start\n");
         swoole_set_process_name($this->c('server.server_name') . "_master");
     }
 
@@ -649,7 +682,7 @@ class BaseServer
      */
     public function onShutdown(\swoole_server $server)
     {
-        $this->serverLog('server shutdown');
+        $this->serverLog("server shutdown");
     }
 
     /**
@@ -679,10 +712,10 @@ class BaseServer
             }
         }
         $name = $this->c('server.server_name');
-        if($workerId >= $server->setting['worker_num']) {
-            swoole_set_process_name("{$name}_task_worker");
+        if ($workerId >= $server->setting['worker_num']) {
+            swoole_set_process_name("{$name}_task");
         } else {
-            swoole_set_process_name("{$name}_event_worker");
+            swoole_set_process_name("{$name}_event");
         }
     }
 
@@ -754,7 +787,7 @@ class BaseServer
      *      1.7.2以上的版本，在onTask函数中 return字符串，表示将此内容返回给worker进程。
      *      worker进程中会触发onFinish函数，表示投递的task已完成
      * @param \swoole_server $server
-     * @param intv $taskId 任务ID，由swoole扩展内自动生成，用于区分不同的任务。$task_id和$from_id组合起来才是全局唯一的
+     * @param int $taskId 任务ID，由swoole扩展内自动生成，用于区分不同的任务。$task_id和$from_id组合起来才是全局唯一的
      * @param $fromId
      * @param $data
      */
@@ -880,6 +913,7 @@ class BaseServer
         }
         $signal = SIGTERM;
         shell_exec("kill -s {$signal} {$masterPid}");
+        echo "server is stopped\n";
     }
 
     /**
@@ -916,10 +950,13 @@ class BaseServer
 
     /**
      * 根据命令字执行对应的方法
-     * @param $method
      */
-    public function exec($method)
+    public function exec()
     {
+        $method = $GLOBALS['argv'][1];
+        if ($method == false) {
+            $method = 'start';
+        }
         $allowMethod = array('status', 'start', 'stop', 'restart', 'reload');
         if (in_array($method, $allowMethod) == false) {
             die("Usage: server {start|stop|restart|reload|status}\n");
