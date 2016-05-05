@@ -31,7 +31,7 @@ return array(
         'dispatch_mode' => 2,
 
         //是不是做为守护进程
-        'daemonize' => true,
+        'daemonize' => false,
 
         //Listen队列长度
         'backlog' => 128,
@@ -80,19 +80,16 @@ return array(
         //是否为debug模式
         'debug' => false,
 
-        /**
-         * 重定向Worker进程的文件系统根目录。
-         * 此设置可以使进程对文件系统的读写与实际的操作系统文件系统隔离。提升安全性。
-         */
-        'chroot' => '/tmp',
-
         'server_name' => 'swoole',
 
         //程序运行根目录
-        'base_dir' => __DIR__,
+        'base_dir' => __DIR__ . '/../runtime/swoole',
 
-        'php_env' => array(
-
-        ), //php环境配置
+        /**
+         * load_bee 表示是否加载bee框架代码
+         * bee_config表示框架主配置文件的路径
+         */
+        'load_bee' => false,
+        'bee_config' => array(), //没有配置
     ),
 );

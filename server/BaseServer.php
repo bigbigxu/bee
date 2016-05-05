@@ -35,10 +35,29 @@ class BaseServer
     protected $env; //当前运行环境
     protected $debug = 0;
 
-    const ENV_DEV = 0; //开发环境
-    const ENV_TEST = 1; //测试环境
-    const ENV_PRO = 2; //生产环境
+    const ENV_DEV = 'dev'; //开发环境
+    const ENV_TEST = 'test'; //测试环境
+    const ENV_PRO = 'pro'; //生产环境
 
+    /**
+     * 命令行选项
+     * c, config 指定配置文件
+     * h,host指定ip
+     * p,port指定端口
+     * d,daemon 是否后台运行。默认false
+     * s,表示相关的启动命令
+
+     * 通过命令行参数来设置相关选项
+     */
+    protected $cmdOpts = 'c:h:p:ds:';
+    protected $cmdLongOpts = array(
+        'config:',
+        'host:',
+        'port:',
+        'daemon',
+        'base_dir:',
+        'help'
+    );
     /**
      * 加载配置文件
      * BaseServer constructor.
@@ -47,16 +66,19 @@ class BaseServer
     public function __construct($configPath = '')
     {
         self::checkEnv();
-        if (!file_exists($configPath)) {
-            $configPath = __DIR__ . '/config.php';
+        if (is_array($configPath)) { //是一个数组
+            $this->config = $configPath;
+        } elseif (is_file($configPath)) { //是一个文件
+            $this->config = require($configPath);
+        } else {
+            $this->config = require __DIR__ . '/config.php';
         }
-        $this->config = require($configPath);
-        if ($this->c('server.base_dir') == false) {
-            die("请指定程序运行根目录\n");
+        if (is_writable($this->c('server.base_dir')) == false) {
+            die("server.base_dir 不可使用\n");
         }
 
         $this->debug = (int)$this->c('server.debug');
-        $this->env = (int)$this->c('server.env');
+        $this->env = $this->c('server.env');
         $this->baseDir = rtrim($this->c('server.base_dir'), '/');
         $this->c("server.run_dir", $this->baseDir . '/run'); //运行目录
         $this->c("server.log_dir", $this->baseDir . "/log"); //日志目录
@@ -77,10 +99,11 @@ class BaseServer
 
     /**
      * 设置php运行时的环境
+     * server.php_env配置节用于配置运行环境
      */
     public function setPhpEnv()
     {
-        $env = array_merge($this->getDefaultPhpEnv(), $this->c('server.php_env'));
+        $env = array_merge($this->getDefaultPhpEnv(), (array)$this->c('server.php_env'));
         foreach ($env as $key => $value) {
             ini_set($key, $value);
         }
@@ -717,6 +740,13 @@ class BaseServer
         } else {
             swoole_set_process_name("{$name}_event");
         }
+
+        //加载框架配置文件
+        if ($this->c('server.load_bee')) {
+            require __DIR__ . '/../App.php';
+            $configPath = $this->c('server.bee_config');
+            \App::getInstance($configPath);
+        }
     }
 
     /**
@@ -757,6 +787,7 @@ class BaseServer
      */
     public function onReceive(\swoole_server $server, $fd, $fromId, $data)
     {
+        $data = trim($data, $this->eof);
         $this->send($fd, $data, $fromId);
     }
 
@@ -953,7 +984,11 @@ class BaseServer
      */
     public function exec()
     {
-        $method = $GLOBALS['argv'][1];
+        $opts = getopt($this->cmdOpts, $this->cmdLongOpts);
+        if (isset($opts['help'])) {
+            $this->help();
+        }
+        $method = $opts['s'] ? $opts['s'] : 'start'; //启动命令选项
         if ($method == false) {
             $method = 'start';
         }
@@ -961,11 +996,53 @@ class BaseServer
         if (in_array($method, $allowMethod) == false) {
             die("Usage: server {start|stop|restart|reload|status}\n");
         }
+        if (isset($opts['c']) || isset($opts['config'])) { //设置配置文件选项
+            $configPath = $opts['c'] ? $opts['c'] : $opts['config'];
+            $this->__construct($configPath);
+        }
+        if ($opts['h'] || $opts['host']) { //设置主机
+            $this->c('server.host', $opts['h'] ? $opts['h'] : $opts['host']);
+        }
+        if ($opts['p'] || $opts['port']) { //设置端口
+            $this->c('server.port', $opts['p'] ? $opts['p'] : $opts['port']);
+        }
+        if (isset($opts['d']) || isset($opts['daemon'])) { //设置后台运行
+            $this->c('serverd.daemonize', true);
+        }
         $this->$method();
     }
 
     public function status()
     {
         echo "status\n";
+    }
+
+    /**
+     * 运行之前修改配置。
+     * 进行数组合并
+     * @param $config
+     * @return $this
+     */
+    public function setConfig($config)
+    {
+        $this->config = array_merge($this->config, $config);
+        return $this;
+    }
+
+    /**
+     * 输出命令行帮助
+     */
+    public function help()
+    {
+        $arr = array(
+            '-s，指定当前服务动作，start启动，stop停止，restart重启，reload重载',
+            '-c --config，指定启动的配置文件。如果未指定将加载默认配置',
+            '-d --daemon，指定服务以守护进程方式运行',
+            '-h --host， 指定服务监听IP，默认为0.0.0.0',
+            '-p --port，指定服务监听端口，默认为9501',
+            '--help，查看命令帮助'
+        );
+        $str = implode("\n", $arr) . "\n";
+        die($str);
     }
 }

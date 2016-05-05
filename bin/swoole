@@ -1,0 +1,9 @@
+#!/usr/local/php/bin/php
+<?php
+/**
+ * swoole 基类服务启动程序
+ */
+require __DIR__ . '/../server/BaseServer.php';
+$server = new \bee\server\BaseServer();
+$server->c('server.load_bee', true);
+$server->exec();

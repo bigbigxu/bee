@@ -49,10 +49,10 @@ class App
             //加载默认配置文件
             $configFile = $this->sysDir . '/../config/main.php';
             $this->config = include $configFile;
-        } elseif(is_file($config)) {
-            $this->config = include $config;
         } elseif(is_array($config)) {
             $this->config = $config;
+        } elseif(is_file($config)) {
+            $this->config = include $config;
         } else {
             throw new Exception('配置错误');
         }
@@ -74,8 +74,11 @@ class App
      */
     protected function init()
     {
-        PhpEnv::getInstance()
-            ->exec($this->env, (array)self::c('env_set.php')); //需要在对象实例化完成之后，进行环境配置
+        //如果显示的设置的环境变量。那么将使用框架的php环境配置
+        if ($this->env != false) {
+            PhpEnv::getInstance()->exec($this->env, (array)self::c('env_set'));
+        }
+
         $this->classMap = self::c('class_map'); //加载类地图
         $this->load(self::c('autoload')); //加载配置文件的包。
         $this->namespace = (array)$this->config['namespace'];
@@ -188,7 +191,7 @@ class App
     /**
      * 引入一个或多个包。
      * 目前不支持递归添加目录
-     * @param $package 包名称
+     * @param mixed $package 包名称
      * @return bool
      */
     public function loadPackage($package)
