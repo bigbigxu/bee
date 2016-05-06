@@ -34,30 +34,17 @@ class BaseServer
     protected $baseDir; //程序运行根目录
     protected $env; //当前运行环境
     protected $debug = 0;
+    protected $callback; //注册的回调函数
 
     const ENV_DEV = 'dev'; //开发环境
     const ENV_TEST = 'test'; //测试环境
     const ENV_PRO = 'pro'; //生产环境
 
-    /**
-     * 命令行选项
-     * c, config 指定配置文件
-     * h,host指定ip
-     * p,port指定端口
-     * d,daemon 是否后台运行。默认false
-     * s,表示相关的启动命令
+    const CMD_START = 'start';
+    const CMD_STOP = 'stop';
+    const CMD_RESTART = 'restart';
+    const CMD_RELOAD = 'reload';
 
-     * 通过命令行参数来设置相关选项
-     */
-    protected $cmdOpts = 'c:h:p:ds:';
-    protected $cmdLongOpts = array(
-        'config:',
-        'host:',
-        'port:',
-        'daemon',
-        'base_dir:',
-        'help'
-    );
     /**
      * 加载配置文件
      * BaseServer constructor.
@@ -73,12 +60,34 @@ class BaseServer
         } else {
             $this->config = require __DIR__ . '/config.php';
         }
+        $this->init(); //如果子类有其它初始化要求，重载init方法。
+        $this->_initConfig(); //配置server默认行为
+        $this->setPhpEnv(); //设置php运行环境
+    }
+
+    /**
+     * 创建server
+     */
+    private function _createServer()
+    {
+        $host = $this->c('server.host');
+        $port = $this->c('server.port');
+        $mode = $this->c('server.server_mode');
+        $type = $this->c('server.socket_type');
+        $this->s = new \swoole_server($host, $port, $mode, $type);
+    }
+
+    /**
+     * 根据配置文件生成server默认配置
+     */
+    private function _initConfig()
+    {
         if (is_writable($this->c('server.base_dir')) == false) {
             die("server.base_dir 不可使用\n");
         }
-
         $this->debug = (int)$this->c('server.debug');
         $this->env = $this->c('server.env');
+        $this->eof = $this->c('serverd.package_eof');
         $this->baseDir = rtrim($this->c('server.base_dir'), '/');
         $this->c("server.run_dir", $this->baseDir . '/run'); //运行目录
         $this->c("server.log_dir", $this->baseDir . "/log"); //日志目录
@@ -91,10 +100,6 @@ class BaseServer
         if ($this->c('serverd.log_file') == false) {
             $this->c("serverd.log_file", $this->baseDir . '/run/server.log');
         }
-
-        //设置php运行环境
-        $this->setPhpEnv();
-        $this->init();
     }
 
     /**
@@ -125,7 +130,7 @@ class BaseServer
 
     /**
      * 实例化一个对象
-     * @param $configPath
+     * @param mixed $configPath
      * @return static
      */
     public static function getInstance($configPath = '')
@@ -155,9 +160,14 @@ class BaseServer
         $methods = get_class_methods($this);
         foreach ($methods as $row) {
             if (preg_match('/^on(\w+)$/', $row, $ma)) {
-                $this->on($ma[1], array($this, $row));
+                if ($this->callback[$ma[1]]) {
+                    $this->s->on($ma[1], $this->callback[$ma[1]]);
+                } else {
+                    $this->s->on($ma[1], array($this, $row));
+                }
             }
         }
+        $this->callback = array();
     }
 
     /**
@@ -187,17 +197,11 @@ class BaseServer
      */
     public function start()
     {
-        $this->eof = $this->c('serverd.package_eof');
-        $host = $this->c('server.host');
-        $port = $this->c('server.port');
-        $mode = $this->c('server.server_mode');
-        $type = $this->c('server.socket_type');
-        $this->s = new \swoole_server($host, $port, $mode, $type);
-
+        $this->_createServer();
         $this->s->set($this->c('serverd'));
-        $this->registerCallback();
+        $this->registerCallback(); //注册回调函数
         echo "server is starting\n";
-        $this->s->start();
+        $this->s->start(); //启动服务
     }
 
     /**
@@ -269,7 +273,7 @@ class BaseServer
      */
     public function send($fd, $data, $fromId = 0)
     {
-        return $this->s->send($fd, $data . $this->eof, $fromId);
+        return $this->s->send($fd, "server：{$data}{$this->eof}", $fromId);
     }
 
     /**
@@ -475,13 +479,16 @@ class BaseServer
     }
 
     /**
-     * 注册事件回调函数
+     * 注册事件回调函数。这个不会真的注册。
      * @param string $event
      * @param mixed $callback
+     * @return $this
      */
     public function on($event, $callback)
     {
-        $this->s->on($event, $callback);
+        $event = ucfirst($event);
+        $this->callback[$event] = $callback;
+        return $this;
     }
 
     /**
@@ -980,13 +987,30 @@ class BaseServer
     }
 
     /**
-     * 根据命令字执行对应的方法
+     *
+     * 命令行选项
+     * c, config 指定配置文件
+     * h,host指定ip
+     * p,port指定端口
+     * d,daemon 是否后台运行。默认false
+     * s,表示相关的启动命令
+     * 通过命令行参数来设置相关选项
+     * @return array
      */
-    public function exec()
+    public static function getOpts()
     {
-        $opts = getopt($this->cmdOpts, $this->cmdLongOpts);
+        $cmdOpts = 'c:h:p:ds:';
+        $cmdLongOpts = array(
+            'config:',
+            'host:',
+            'port:',
+            'daemon',
+            'base_dir:',
+            'help'
+        );
+        $opts = getopt($cmdOpts, $cmdLongOpts);
         if (isset($opts['help'])) {
-            $this->help();
+            self::help();
         }
         $method = $opts['s'] ? $opts['s'] : 'start'; //启动命令选项
         if ($method == false) {
@@ -998,18 +1022,23 @@ class BaseServer
         }
         if (isset($opts['c']) || isset($opts['config'])) { //设置配置文件选项
             $configPath = $opts['c'] ? $opts['c'] : $opts['config'];
-            $this->__construct($configPath);
+        } else { //加载默认配置文件
+            $configPath =  __DIR__ . '/config.php';
         }
+        $config = require $configPath;
         if ($opts['h'] || $opts['host']) { //设置主机
-            $this->c('server.host', $opts['h'] ? $opts['h'] : $opts['host']);
+            $config['server']['host'] =  $opts['h'] ? $opts['h'] : $opts['host'];
         }
         if ($opts['p'] || $opts['port']) { //设置端口
-            $this->c('server.port', $opts['p'] ? $opts['p'] : $opts['port']);
+            $config['server']['port'] =  $opts['p'] ? $opts['p'] : $opts['port'];
         }
         if (isset($opts['d']) || isset($opts['daemon'])) { //设置后台运行
-            $this->c('serverd.daemonize', true);
+            $config['serverd']['daemonize'] =  true;
         }
-        $this->$method();
+        if ($opts['base_dir']) {
+            $config['serverd']['base_dir'] =  true;
+        }
+        return array($method, $config);
     }
 
     public function status()
@@ -1030,9 +1059,27 @@ class BaseServer
     }
 
     /**
+     * 返回swoole_server对象
+     * @return \swoole_server
+     */
+    public function getSwoole()
+    {
+        return $this->s;
+    }
+
+    /**
+     * 执行命令
+     * @param $cmd
+     */
+    public function run($cmd)
+    {
+        $this->$cmd();
+    }
+
+    /**
      * 输出命令行帮助
      */
-    public function help()
+    public static function help()
     {
         $arr = array(
             '-s，指定当前服务动作，start启动，stop停止，restart重启，reload重载',
@@ -1040,6 +1087,7 @@ class BaseServer
             '-d --daemon，指定服务以守护进程方式运行',
             '-h --host， 指定服务监听IP，默认为0.0.0.0',
             '-p --port，指定服务监听端口，默认为9501',
+            '--base_dir，指定server运行目录',
             '--help，查看命令帮助'
         );
         $str = implode("\n", $arr) . "\n";

@@ -66,12 +66,12 @@ class LogServer extends BaseServer
             $this->send($fd, 'token error');
             return null;
         }
-
+        $this->push($data);
     }
 
     public function push($data)
     {
-        $key = "{$data['db']}_{$data['table_name']}_{$data['op']}";
+        $key = $this->getQueueKey($data['db'], $data['table_name']);
         $this->redis->rPush($key, json_encode($data));
     }
 
