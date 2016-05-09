@@ -293,9 +293,6 @@ class CoreMysql
 	{
 		$this->setField();
 		foreach ($attr as $key => $row) {
-			if (!in_array($key, $this->fields[$this->tableName])) {
-				continue;
-			}
 			$this->andFilter($key, '=', $row);
 		}
 		if ($num == 1) {
