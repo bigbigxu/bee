@@ -95,7 +95,11 @@ class PhpEnv
                 'error_log' => CoreLog::getErrorLogFile()
             ),
         );
-        return $set[$this->env];
+        $r = $set[$this->env];
+        if ($r == false) {
+            $r = $set[App::ENV_DEV];
+        }
+        return $r;
     }
 
     /**
@@ -104,7 +108,7 @@ class PhpEnv
      * @param array $options
      * @return null
      */
-    public function exec($env = false,$options = array())
+    public function exec($env = false, $options = array())
     {
         if ($env !== false) {
             $this->env = $env;

@@ -1,0 +1,9 @@
+#!/usr/local/php/bin/php
+<?php
+/**
+ * swoole 基类服务启动程序
+ */
+require __DIR__ . '/../server/BaseServer.php';
+list($cmd, $config) = bee\server\BaseServer::getOpts();
+$server = new \bee\server\BaseServer($config);
+$server->run($cmd);

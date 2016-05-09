@@ -31,7 +31,7 @@ return array(
         'dispatch_mode' => 2,
 
         //是不是做为守护进程
-        'daemonize' => true,
+        'daemonize' => false,
 
         //Listen队列长度
         'backlog' => 128,
@@ -74,18 +74,22 @@ return array(
         //socket模式，默认为tcp
         'socket_type' => SWOOLE_SOCK_TCP,
 
-        //是不是开启debug模式。如果开启　不在后台运行
-        'debug' => false,
+        //开发环境类型
+        'env' => 'pro',
 
-        /**
-         * 重定向Worker进程的文件系统根目录。
-         * 此设置可以使进程对文件系统的读写与实际的操作系统文件系统隔离。提升安全性。
-         */
-        'chroot' => '/tmp',
+        //是否为debug模式
+        'debug' => false,
 
         'server_name' => 'swoole',
 
         //程序运行根目录
-        'base_dir' => __DIR__,
+        'base_dir' => __DIR__ . '/../runtime/swoole',
+
+        /**
+         * load_bee 表示是否加载bee框架代码
+         * bee_config表示框架主配置文件的路径
+         */
+        'load_bee' => false,
+        'bee_config' => array(), //没有配置
     ),
 );
