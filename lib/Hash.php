@@ -1,5 +1,5 @@
 <?php
-namespace iphp\struct;
+namespace bee\lib;
 /**
  * Created by PhpStorm.
  * User: 123
