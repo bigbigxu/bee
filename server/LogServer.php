@@ -33,14 +33,13 @@ class LogServer extends BaseServer
     );
 
     protected $maxQueue = 10; //队列个数
+    public $queueKey = 'test';
 
-    /**
-     * @var \CoreRedis
-     */
-    public $redis;
     public function onWorkerStart(\swoole_server $server, $workerId)
     {
-        $this->redis = \App::redis('db.main');
+        if ($workerId == 0) {
+            $this->tick(10, array($this, 'exec'));
+        }
         parent::onWorkerStart($server, $workerId);
     }
 
@@ -51,39 +50,38 @@ class LogServer extends BaseServer
 
     public function onReceive(\swoole_server $server, $fd, $fromId, $data)
     {
-        $data = json_decode(rtrim($data, $this->eof), true);
-        if (in_array($data['op'], $this->canOpType) == false) {
-            $this->send($fd, 'op type error');
-            return null;
-        }
-        if ($this->c('server.auth')) {
-            if ($this->c('server.token') != $data['token']);
-            $this->send($fd, 'token error');
-            return null;
-        }
-
-        if ($data['db'] == false || $data['table_name'] == false) {
-            $this->send($fd, 'token error');
-            return null;
-        }
-        $this->push($data);
+        \App::redis('redis.main')->lPush($this->queueKey, $data);
+        $this->send($fd, 'ok');
     }
 
-    public function push($data)
-    {
-        $key = $this->getQueueKey($data['db'], $data['table_name']);
-        $this->redis->rPush($key, json_encode($data));
-    }
 
-    public function d()
+    public function exec()
     {
-
-    }
-
-    public function getQueueKey($db, $table)
-    {
-        $num = sprintf('%u', crc32($db . $table));
-        $k = $num % $this->maxQueue;
-        return "queue_{$k}";
+        $redis = \App::redis('redis.main');
+        while (true) {
+            $str = $redis->lPop($this->queueKey);
+            if ($str === false) {
+                break;
+            }
+            $arr = json_decode($str, true);
+            $m = \App::m($arr['db'], $arr['table_name']);
+            try  {
+                switch ($arr['op']) {
+                    case self::OP_INSERT :
+                        $m->insert($arr['data']);
+                        break;
+                    case self::OP_UPDATE :
+                        $m->update($arr['data'], $arr['pk']);
+                        break;
+                    case self::OP_DEL :
+                        $m->delById($arr['pk']);
+                        break;
+                    default:
+                        break;
+                }
+            } catch (\PDOException $e) {
+                $this->errorLog($str . '：' . $e->getMessage());
+            }
+        }
     }
 }
