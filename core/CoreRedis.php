@@ -910,6 +910,38 @@ class CoreRedis
     }
 
     /**
+     * 返回以毫秒的过期时间
+     * @param $key
+     * @return int
+     */
+    public function pttl($key)
+    {
+        return $this->redis->pttl('pttl');
+    }
+
+    /**
+     * 以毫秒为单位设置 key 的生存时间
+     * @param $key
+     * @param $value
+     * @return bool
+     */
+    public function pExpire($key, $value)
+    {
+        return $this->redis->pExpire($key,$value);
+    }
+
+    /**
+     * 以毫秒为单位设置 key 的生存时间
+     * @param $key
+     * @param $value
+     * @return bool
+     */
+    public function pExpireAt($key, $value)
+    {
+        return $this->redis->pExpireAt($key,$value);
+    }
+
+    /**
      * 设定一个key什么时候过期，time为一个时间戳
      * @param  $key
      * @param  $time
@@ -1253,4 +1285,71 @@ class CoreRedis
     {
         return $this->redis->_prefix($key);
     }
+
+    /**
+     * 慢是志相关命令
+     * 得到10条慢查询：$redis->slowlog('get', 10);
+     * 提到默认数据量的慢查询：$redis->slowlog('get');
+     * 重置慢查询：$redis->slowlog('reset');
+     * 得到慢查询的数量：$redis->slowlog('len');
+     * @return mixed
+     */
+    public function slowLog()
+    {
+        $params = func_get_args();
+        $res = call_user_func_array(array($this->redis, 'slowlog'), $params);
+        return $res;
+    }
+
+    /**
+     * 执行一个客户端命令
+     * 得到客户端列表：$redis->client('list');
+     * 得到客户端名字：$redis->client('getname');
+     * 设置名字：$redis->client('setname', 'somename');
+     * 强制关闭一个链接：$redis->client('kill', <ip:port>);
+     * @param $command
+     * @param string $args
+     * @return mixed
+     */
+    public function client($command, $args = '')
+    {
+        return $this->redis->client($command, $args);
+    }
+
+    /**
+     * 得到或设置redis配置
+     * @param string $op get 或 set
+     * @param string $key 配置名称，可以使用通配符*
+     * @param null $value 如果op=set，则为设置的值
+     * @return array
+     */
+    public function config($op, $key, $value = null)
+    {
+        $res = $this->redis->config($op, $key, $value);
+        return $res;
+    }
+
+    /**
+     * 获取存储在redis的指定键数据的序列化版本。
+     * @param $key
+     * @return string
+     */
+    public function dump($key)
+    {
+        return $this->redis->dump($key);
+    }
+
+    /**
+     * 反序列化给定的序列化值，并将它和给定的 key 关联
+     * 参数 ttl 以毫秒为单位为 key 设置生存时间；如果 ttl 为 0 ，那么不设置生存时间。
+     * @param $key
+     * @param int $ttl
+     * @param $value
+     * @return bool
+     */
+    public function restore($key, $ttl = 0, $value)
+    {
+        return $this->redis->restore($key, $ttl, $value);
+    }
+
 }
