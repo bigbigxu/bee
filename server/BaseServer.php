@@ -273,7 +273,7 @@ class BaseServer
      */
     public function send($fd, $data, $fromId = 0)
     {
-        return $this->s->send($fd, "server：{$data}{$this->eof}", $fromId);
+        return $this->s->send($fd, $data . $this->eof, $fromId);
     }
 
     /**
@@ -795,7 +795,7 @@ class BaseServer
     public function onReceive(\swoole_server $server, $fd, $fromId, $data)
     {
         $data = trim($data, $this->eof);
-        $this->send($fd, $data, $fromId);
+        $this->send($fd, 'server:' . $data, $fromId);
     }
 
 
