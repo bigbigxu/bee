@@ -158,7 +158,7 @@ class App
      * @param string $db 数据库连接配置项
      * @return CoreMysql
      */
-    public static function m($name, $db= 'db.main')
+    public static function m($name, $db = 'db.main')
     {
         return CoreMysql::getInstance($db)->from($name);
     }
@@ -468,8 +468,8 @@ class App
             $objConfig = App::c($objConfig);
         }
         $className = $objConfig['class_name']; //类名
-        $params = $objConfig['params']; //构造函数参数
-        $config = $objConfig['config']; //对象属性配置
+        $params = (array)$objConfig['params']; //构造函数参数
+        $config = (array)$objConfig['config']; //对象属性配置
         $classFile = $objConfig['class_file']; //对象文件路径
 
         if ($single == true && is_object(self::$_container[$className])) {
