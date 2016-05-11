@@ -62,7 +62,7 @@ class CoreMysql
 		//这个超时参数，实际上mysql服务器上的配置为准的。这里用于什么时候重建对象
 		//说明如是设置了这个参数，如果不显式的将pdo设为null，可能造成连接资源在mysql上不被释放。
 		PDO::ATTR_TIMEOUT => 30,
-		PDO::ATTR_ERRMODE => PDO::ERRMODE_SILENT,
+		PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
 		PDO::ATTR_ORACLE_NULLS => PDO::NULL_NATURAL,
 		// PDO::ATTR_AUTOCOMMIT=>true,
 		PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -82,15 +82,7 @@ class CoreMysql
 	 */
 	private function __construct($config, $attr)
 	{
-		//索引数组合并不能使用merge
-		foreach ($this->attr as $key => $row) {
-			if (isset($attr[$key])) {
-				$this->attr[$key] = $attr[$key];
-			}
-		}
-		//如果是debug模式下，设置为异常模式
-		$this->attr[PDO::ATTR_ERRMODE] = PDO::ERRMODE_EXCEPTION;
-
+		$this->attr = $attr + $this->attr;
 		$this->_pdo = new PDO($config['dsn'], $config['username'], $config['password'], $this->attr);
 
 		if (isset($config['prefix']) && $config['prefix'] != '') {
@@ -153,7 +145,6 @@ class CoreMysql
 	{
 		$this->tableName = $this->prefix . $tableName;
 		$this->tableNameAlias = $alias;
-		//$this->setField();
 		return $this;
 	}
 
@@ -177,11 +168,12 @@ class CoreMysql
 	/**
 	 * 查找符合条件的所有记录
 	 * @param string $sql
+	 * @param array $params
 	 * @return array|bool
 	 */
-	public function all($sql = '')
+	public function all($sql = '', $params = array())
 	{
-		$stmt = $this->query($sql);
+		$stmt = $this->query($sql, $params);
 		if (!$stmt) {
 			return false;
 		}
@@ -191,14 +183,16 @@ class CoreMysql
 	/**
 	 * 查找一条记录
 	 * @param string $sql
+	 * @param array $params
 	 * @return bool|mixed
 	 */
-	public function one($sql = '')
+	public function one($sql = '', $params = array())
 	{
 		$this->sqlQuery['limit'] = 1;
-		$stmt = $this->query($sql);
-		if ($stmt === false)
+		$stmt = $this->query($sql, $params);
+		if (!$stmt) {
 			return false;
+		}
 		return $stmt->fetch();
 	}
 
@@ -314,7 +308,7 @@ class CoreMysql
 		if ($where != '') {
 			$this->sqlQuery['where'] = $where;
 		}
-		if (!empty($params)) {
+		if ($params != false) {
 			$this->sqlQuery['params'] = $params;
 		}
 		$sql = "delete from {$this->tableName} where {$this->sqlQuery['where']}";
@@ -460,7 +454,7 @@ class CoreMysql
 			return;
 		}
 		$sql = "desc {$this->tableName} ";
-		$res = $this->_pdo->query($sql)->fetchAll();
+		$res = $this->all($sql);
 		foreach ($res as $row) {
 			if ($row['Key'] == 'PRI') {
 				$this->fields[$this->tableName]['pk'] = $row['Field'];
@@ -482,17 +476,13 @@ class CoreMysql
 	public function count($where = '', $params = array())
 	{
 		$this->sqlQuery['field'] = 'count(*) as c';
-		if ($where != '') {
+		if ($where != false) {
 			$this->sqlQuery['where'] = $where;
 		}
-		if (!empty($params)) {
+		if ($params != false) {
 			$this->sqlQuery['params'] = $params;
 		}
-		$stmt = $this->query();
-		if (!$stmt) {
-			return false;
-		}
-		$res = $stmt->fetch();
+		$res = $this->one();
 		return intval($res['c']);
 	}
 
@@ -551,52 +541,56 @@ class CoreMysql
 	 * 扫行有结果集的查询，支持参数绑定
 	 * 如果你需要遍历数据库，请使用query方法，然后foreach 返回的stmt对象便可。
 	 * @param mixed $sql
+	 * @param array $params
 	 * @return boolean|PDOStatement
 	 */
-	public function query($sql = '')
+	public function query($sql = '', $params = array())
 	{
 		$sql = $this->joinSql($sql);
+		if ($params != false) {
+			$this->sqlQuery['params'] = $params;
+		}
+		$stmt = $this->_execForMysql($sql, $this->sqlQuery['params']);
+		return $stmt;
+	}
+
+	/**
+	 * 执行一个mysql语句
+	 * @param $sql
+	 * @param array $params
+	 * @return bool|PDOStatement
+	 */
+	private function _execForMysql($sql, $params = array())
+	{
 		$stmt = $this->_pdo->prepare($sql);
 		if ($stmt == false) {
 			$errorInfo = $this->_pdo->errorInfo();
 			$this->setError($errorInfo[2]);
 			return false;
 		}
-		$stmt->execute($this->sqlQuery['params']);
-		//清除sql缓存
+		$stmt->execute($params);
 		$this->clearSqlQuery();
 		$errorInfo = $stmt->errorInfo();
 		if ($errorInfo[0] != '00000') {
 			$this->setError($errorInfo[2]);
 			return false;
+		} else {
+			return $stmt;
 		}
-		return $stmt;
 	}
 
 	/**
 	 * 执行没有结果集的查询,支持参数绑定
 	 * @param string $sql
 	 * @param array $params
-	 * @return 返回受影响行数或false
+	 * @return bool|int 返回受影响行数或false
 	 */
 	public function exec($sql, $params = array())
 	{
-		$stmt = $this->_pdo->prepare($sql);
-		if ($stmt == false) {
-			$errorInfo = $this->_pdo->errorInfo();
-			$this->setError($errorInfo[2]);
-			return false;
-		}
-		if (!empty($params)) {
+		if ($params == false) {
 			$this->sqlQuery['params'] = $params;
 		}
-		$stmt->execute($this->sqlQuery['params']);
-		$this->clearSqlQuery();
-		$errorInfo = $stmt->errorInfo();
-		if ($errorInfo[0] != '00000') {
-			$this->setError($errorInfo[2]);
-			return false;
-		}
+		$stmt = $this->_execForMysql($sql, $this->sqlQuery['params']);
 		return $stmt->rowCount();
 	}
 
@@ -625,7 +619,7 @@ class CoreMysql
 	/**
 	 * 组合sql语句
 	 * @param mixed $sql
-	 * @return 返回组合的sql语句
+	 * @return string 返回组合的sql语句
 	 */
 	public function joinSql($sql)
 	{
@@ -848,7 +842,7 @@ class CoreMysql
 	}
 
 	/**
-	 * 有1种清况，sql语句出错。执行失败.sqlquer并不会自动清除
+	 * 有1种清况，sql语句出错。执行失败.sqlquery并不会自动清除
 	 * 清除sql缓存
 	 */
 	public function clearSqlQuery()
