@@ -88,9 +88,10 @@ class BaseServer
         $this->c("server.data_dir", $this->baseDir . "/data"); //数据目录
 
         //定义相关文件
-        $this->c("server.pid_file", $this->baseDir . '/run/server.pid');
-        $this->c("server.error_log", $this->baseDir . '/log/error.log');
-        $this->c("server.access_log", $this->baseDir . '/log/access.log');
+        $this->c("server.pid_file", $this->baseDir . '/run/server.pid'); //pid文件
+        $this->c("server.error_log", $this->baseDir . '/log/error.log'); //错误日志
+        $this->c("server.access_log", $this->baseDir . '/log/access.log'); //访问日志
+        $this->c("server.debug_log", $this->baseDir . '/log/debug.log'); //调试日志
         if ($this->c('serverd.log_file') == false) {
             $this->c("serverd.log_file", $this->baseDir . '/run/server.log');
         }
@@ -518,6 +519,8 @@ class BaseServer
      * 增加tick定时器，定时器仅在当前进程空间内有效，可以有间隔时间相同的定时器
      * $ms 最大不得超过 86400000
      * 定时器中，如果存在sleep或阻塞操作，会阻塞worker的onreceive，task进程的ontask
+     *
+     * 回调函数执行的时候，会传递2个参数。一个是timer_id，一个param参数
      * @param int $ms
      * @param mixed $callback
      * @param mixed $param
@@ -915,6 +918,16 @@ class BaseServer
     }
 
     /**
+     * 调试日志
+     * @param $msg
+     */
+    public function debugLog($msg)
+    {
+        $file = $this->c('server.debug_log');
+        $this->log($file, $msg);
+    }
+
+    /**
      * 记录日志。
      * @param $file
      * @param $msg
@@ -994,7 +1007,8 @@ class BaseServer
             'port:',
             'daemon',
             'base_dir:',
-            'help'
+            'help',
+            'debug'
         );
         $opts = getopt($cmdOpts, $cmdLongOpts);
         if (isset($opts['help'])) {
@@ -1024,7 +1038,10 @@ class BaseServer
             $config['serverd']['daemonize'] =  true;
         }
         if ($opts['base_dir']) {
-            $config['serverd']['base_dir'] =  true;
+            $config['serverd']['base_dir'] =  $opts['base_dir'];
+        }
+        if (isset($opts['debug'])) {
+            $config['server']['debug'] = 1;
         }
         return array($method, $config);
     }
@@ -1038,11 +1055,18 @@ class BaseServer
      * 运行之前修改配置。
      * 进行数组合并
      * 在执行start之前，必须先调用些方法设置配置文件
-     * @param $config
+     * @param mixed $config 可以是一个文件路径或数组
      * @return $this
      */
     public function setConfig($config)
     {
+        if (is_array($config)) {
+
+        } elseif(is_readable($config)) {
+            $config = require $config;
+        } else {
+            $config = array();
+        }
         $this->config = array_merge($this->config, $config);
         $this->_initConfig(); //配置server默认行为
         return $this;
@@ -1078,6 +1102,7 @@ class BaseServer
             '-h --host， 指定服务监听IP，默认为0.0.0.0',
             '-p --port，指定服务监听端口，默认为9501',
             '--base_dir，指定server运行目录',
+            '--debug，开启调试模式，将有更多的日志记录在debug.log中',
             '--help，查看命令帮助'
         );
         $str = implode("\n", $arr) . "\n";

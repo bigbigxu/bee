@@ -99,7 +99,9 @@ return array(
     'queue' => array(
         'redis' => 'redis.main', //此配置文件指向应用层的配置文件
         'key' => 'db_server_queue_key',
-        'qps' => 50, //每个进程每秒处理的队列数量
+        'qps' => 100, //每个进程每秒处理的队列数量
+        'tick' => 1000, //每多少秒执行一次定时器。单位毫秒。
+        'queue_mode' => 1, //消息队列方式。1绑定db,tablename, 2随机
         'use_trans' => 1, //是否使用事务来批量提交
     ),
 );

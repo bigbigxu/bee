@@ -33,6 +33,9 @@
  *
  * @desc db_server使用批量事务提交来优化Mysql 写入性能
  * 数据条数受qps配置影响
+ *
+ * 每个task进程一个队列，名称为key_{$workerId}
+ * 入队的方式使用crc32算法取余。这并不是平均策略，只是为了保证同一个表分配到同一个队列中。
  */
 namespace bee\server;
 class DbServer extends BaseServer
@@ -59,6 +62,9 @@ class DbServer extends BaseServer
     const ERR_SYNC_NO_FIND = 13;
     const ERR_NO_PK = 14;
 
+    const QUEUE_MODE_BIND = 1; //绑定db,tablename分配
+    const QUEUE_MODE_RANDOM = 2; //完全随机分配
+
     protected $errArr = array(
         self::ERR_NO => 'OK',
         self::ERR_DATA => '数据格式错误',
@@ -67,34 +73,56 @@ class DbServer extends BaseServer
         self::ERR_SYNC_NO_FIND => '异步模式下不能执行查询操作',
         self::ERR_NO_PK => '没有设置主键'
     );
-    protected $qps = 50; //每秒个进程每秒最多写入多少条数据。
+    protected $qps = 100; //每秒个进程每秒最多写入多少条数据。
+    protected $tick = 1000;
     protected $queueRedis; //使用那个redis配置
     protected $queueKey; //消息队列的key
     protected $serverName = 'db_server';
     protected $useTrans = 1; //是否使用事务
+    protected $queueMode = 1; //
 
     public function init()
     {
         $config = $this->c('queue');
-        $this->qps = $config['qps'] ? $config['qps'] : 50;
+        $this->qps = $config['qps'] ? $config['qps'] : 100;
         $this->queueRedis = $config['redis'] ? $config['redis'] : 'redis.main';
         $this->queueKey = $config['key'] ? $config['key'] : 'db_server_queue';
         $this->useTrans = intval($config['use_trans']);
+        $this->tick = $config['tick'] ? $config['tick'] : 1000;
+        $this->queueMode = $config['queue_mode'] ? $config['queue_mode'] : 1;
     }
 
     public function onWorkerStart(\swoole_server $server, $workerId)
     {
-        if ($workerId >= 0) {
-            $this->tick(1000, array($this, 'execQueue'));
+        if ($workerId >= $this->c('serverd.worker_num')) {
+            $this->tick($this->tick, array($this, 'execQueue'), array($this, $workerId));
         }
         parent::onWorkerStart($server, $workerId);
     }
 
     /**
      * 得到消息队列的Key。原则上一个task进程一个消息队列
+     * @param $db
+     * @param $tableName
      * @return string
      */
-    public function getQueueKey()
+    public function getQueueKeyByDb($db, $tableName)
+    {
+        if ($this->queueMode == self::QUEUE_MODE_BIND) {
+            $num = sprintf('%u', crc32($db . $tableName));
+        } else {
+            $num = \Functions::milliSecondTime();
+        }
+        $id = $num % $this->c('serverd.task_worker_num') + $this->c('serverd.worker_num');
+        $key = $this->queueKey . '_' . $id;
+        return $key;
+    }
+
+    /**
+     * 根据worker_id得到队列key
+     * @return string
+     */
+    public function getQueueKeyByWorkerId()
     {
         $key = $this->queueKey . '_' . $this->getWorkerId();
         return $key;
@@ -118,7 +146,7 @@ class DbServer extends BaseServer
         } else {
             if ($arr['async']) { //异步操作进入redis队列
                 $redis = $this->getQueueDriver();
-                $redis->rPush($this->getQueueKey(), $data);
+                $redis->rPush($this->getQueueKeyByDb($arr['db'], $arr['table_name']), $data);
                 $this->success($fd);
             } else { //同步操作直接执行
                 $res = $this->taskWait($arr);
@@ -148,6 +176,14 @@ class DbServer extends BaseServer
         return $errno;
     }
 
+    /**
+     * task 同步情况下执行sql,异步情况下定时器执行消息队列
+     * @param \swoole_server $server
+     * @param int $taskId
+     * @param $fromId
+     * @param $data
+     * @return array|bool|int|mixed|null
+     */
     public function onTask(\swoole_server $server, $taskId, $fromId, $data)
     {
         $r = array();
@@ -159,16 +195,20 @@ class DbServer extends BaseServer
         return $r;
     }
 
+
     /**
      * 消息队列方式执行
+     * @param $timerId
+     * @param $param
      * @return null
      */
-    public function execQueue()
+    public function execQueue($timerId, $param)
     {
         $redis = $this->getQueueDriver();
+        $queueKey = $this->getQueueKeyByWorkerId();
         $execArr = array();
         for ($i = 0; $i < $this->qps; $i++) {
-            $str = $redis->lPop($this->getQueueKey());
+            $str = $redis->lPop($queueKey);
             if ($str == false) { //当前队列已经没有数据了
                 break;
             }
@@ -181,9 +221,14 @@ class DbServer extends BaseServer
         if ($execArr == false) {
             return null;
         }
-
+        $num = 0;
         foreach ($execArr as $key => $dbArr) {
-            $db = \App::db($key);
+            try {
+                $db = \App::db($key);
+            } catch (\PDOException $e) {
+                $this->errorLog("{$key} 数据库配置不存在" . $e->getMessage());
+                continue;
+            }
             if ($this->useTrans) {
                 $db->beginTransaction();
             }
@@ -193,10 +238,17 @@ class DbServer extends BaseServer
                 } elseif ($row['api'] == self::API_SQL) {
                     $this->execBySql($row);
                 }
+                $num++;
             }
             if ($this->useTrans) {
                 $db->commit();
             }
+        }
+        if ($this->debug) {
+            $msg =  '当前key：' . $queueKey;
+            $msg .= "; 事务：{$this->useTrans}";
+            $msg .= "; 执行条数：{$num}";
+            $this->debugLog($msg);
         }
     }
 
@@ -207,9 +259,9 @@ class DbServer extends BaseServer
      */
     public function execByPk($data)
     {
-        $model = \App::m($data['table_name'], $data['db']);
         $r = 0;
         try  {
+            $model = \App::m($data['table_name'], $data['db']);
             switch ($data['op']) {
                 case self::OP_INSERT :
                     $r = $model->insert($data['data']);
@@ -240,9 +292,9 @@ class DbServer extends BaseServer
      */
     public function execBySql($data)
     {
-        $model = \App::m($data['db'], $data['table_name']);
-        $r = null;
+        $r = 0;
         try  {
+            $model = \App::m($data['db'], $data['table_name']);
             switch ($data['op']) {
                 case self::OP_FIND :
                     $r = $model->all($data['sql'], $data['params']);
@@ -252,7 +304,7 @@ class DbServer extends BaseServer
             }
         } catch (\PDOException $e) {
             $this->errorLog(\CoreJson::encode($data) . '：' . $e->getMessage());
-            return null;
+            return $r;
         }
         return $r;
     }
