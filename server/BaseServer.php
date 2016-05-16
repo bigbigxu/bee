@@ -1118,7 +1118,8 @@ class BaseServer
         $dir = $this->sysDir . '/config';
         $map = array(
             'swoole' => $dir . '/swoole.php',
-            'db_server' => $dir . '/db_server.php'
+            'db_server' => $dir . '/db_server.php',
+            'crontab_server' => $dir . '/crontab_server.php'
         );
         $path = $map[$this->serverName];
         if ($path == false) {
