@@ -53,7 +53,7 @@ class CoreLog
     private static function _log($file, $msg)
     {
         if(is_array($msg)) {
-            $msg = Corejson::encode($msg);
+            $msg = CoreJson::encode($msg);
         }
         $time = date('Y-m-d H:i:s');
         $ip = $_SERVER['REMOTE_ADDR'];
