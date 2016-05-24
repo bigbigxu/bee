@@ -241,6 +241,24 @@ class RedisMysqlModel extends CoreModel
         return true;
     }
 
+    /**
+     * 更新或插入数据。
+     * 这里只能支持主键的更新
+     * @param $data
+     * @return array|bool
+     */
+    public function cacheSave($data)
+    {
+        $pkName = $this->getPkName();
+        $pk = $data[$pkName];
+        if ($pk == false) {
+            $flag = $this->cacheInsert($data);
+        } else {
+            unset($data[$pkName]);
+            $flag = $this->cacheUpdate($pk, $data);
+        }
+        return $flag;
+    }
 
     /**
      * 基于主键删除一条记录
