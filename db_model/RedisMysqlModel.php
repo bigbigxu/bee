@@ -241,14 +241,36 @@ class RedisMysqlModel extends CoreModel
         return true;
     }
 
+    /**
+     * 更新或插入数据。
+     * 这里只能支持主键的更新
+     * @param $data
+     * @return array|bool
+     */
+    public function cacheSave($data)
+    {
+        $pkName = $this->getPkName();
+        $pk = $data[$pkName];
+        if ($pk == false) {
+            $flag = $this->cacheInsert($data);
+        } else {
+            unset($data[$pkName]);
+            $flag = $this->cacheUpdate($pk, $data);
+        }
+        return $flag;
+    }
 
     /**
      * 基于主键删除一条记录
      * @param $pk
+     * @throws Exception
      * @return bool|false|mixed
      */
     public function cacheDelete($pk)
     {
+        if ($pk == false) {
+            throw new Exception("没有可以使用的主键");
+        }
         $data = $this->cacheOne($pk);
         $indexField = $this->indexField();
         $groupField = $this->groupField();
@@ -287,10 +309,14 @@ class RedisMysqlModel extends CoreModel
      * @param array $data
      * @param int $op
      * @param $beforeData
+     * @throws Exception
      * @return array
      */
     private function _cache($pk, $data = array(), $op = self::OP_CACHE, $beforeData = array())
     {
+        if ($pk == false) {
+            throw new Exception("没有可以使用的主键");
+        }
         if ($data == false && $this->mysqlMode != self::MYSQL_NONE) {
             $data = $this->findById($pk);
         }

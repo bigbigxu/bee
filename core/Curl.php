@@ -398,13 +398,19 @@ class Curl
 
     /**
      * 设置请求代理
-     * @param $proxy
+     * @param string $ip 代理ip
+     * @param int $port 端口
+     * @param bool|string $auth 用户密码 a:b形势
      * @return $this
      */
-    public function proxy($proxy)
+    public function proxy($ip, $port = 3128, $auth = false)
     {
-        if ($proxy != false) {
-            $this->options[CURLOPT_PROXY] = $proxy;
+        if ($ip != false) {
+            $this->options[CURLOPT_PROXY] = $ip;
+            $this->options[CURLOPT_PROXYPORT] = $port;
+            if ($auth) {
+                $this->options[CURLOPT_PROXYUSERPWD] = $auth;
+            }
         }
         return $this;
     }

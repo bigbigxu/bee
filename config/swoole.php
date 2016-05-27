@@ -22,7 +22,7 @@ return array(
 
 
         //设置task进程的最大任务数
-        'task_max_request' => 1024,
+        'task_max_request' => 5000,
 
         //设置task的数据临时目录,如果投递的数据超过8192字节，将启用临时文件来保存数据
         'task_tmpdir' => '/tmp',
@@ -36,11 +36,10 @@ return array(
         //Listen队列长度
         'backlog' => 128,
 
-        //启用心跳检测，此选项表示每隔多久轮循一次
-        // 60秒没有向服务器发送任何数据，此连接将被强制关闭
+        //启用心跳检测，此选项表示每隔多久轮循一次，单位为秒
         'heartbeat_check_interval' => 60,
 
-        //与heartbeat_check_interval配合使用。表示连接最大允许空闲的时间
+        //表示连接最大允许空闲的时间
         'heartbeat_idle_time' => 60,
 
 
