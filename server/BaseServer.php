@@ -45,24 +45,17 @@ class BaseServer
     const CMD_RESTART = 'restart';
     const CMD_RELOAD = 'reload';
 
+    protected $sysDir; //框架根目录
+    protected $serverName = 'swoole'; //服务名称。默认值用于加载默认配置文件
+
     /**
-     * 加载配置文件
+     * 执行环境检查
      * BaseServer constructor.
-     * @param string $configPath
      */
-    public function __construct($configPath = '')
+    public function __construct()
     {
         self::checkEnv();
-        if (is_array($configPath)) { //是一个数组
-            $this->config = $configPath;
-        } elseif (is_file($configPath)) { //是一个文件
-            $this->config = require($configPath);
-        } else {
-            $this->config = require __DIR__ . '/config.php';
-        }
-        $this->init(); //如果子类有其它初始化要求，重载init方法。
-        $this->_initConfig(); //配置server默认行为
-        $this->setPhpEnv(); //设置php运行环境
+        $this->sysDir = realpath(__DIR__ . '/..');
     }
 
     /**
@@ -89,14 +82,16 @@ class BaseServer
         $this->env = $this->c('server.env');
         $this->eof = $this->c('serverd.package_eof');
         $this->baseDir = rtrim($this->c('server.base_dir'), '/');
+        $this->serverName = $this->c('server.server_name');
         $this->c("server.run_dir", $this->baseDir . '/run'); //运行目录
         $this->c("server.log_dir", $this->baseDir . "/log"); //日志目录
         $this->c("server.data_dir", $this->baseDir . "/data"); //数据目录
 
         //定义相关文件
-        $this->c("server.pid_file", $this->baseDir . '/run/server.pid');
-        $this->c("server.error_log", $this->baseDir . '/log/error.log');
-        $this->c("server.access_log", $this->baseDir . '/log/access.log');
+        $this->c("server.pid_file", $this->baseDir . '/run/server.pid'); //pid文件
+        $this->c("server.error_log", $this->baseDir . '/log/error.log'); //错误日志
+        $this->c("server.access_log", $this->baseDir . '/log/access.log'); //访问日志
+        $this->c("server.debug_log", $this->baseDir . '/log/debug.log'); //调试日志
         if ($this->c('serverd.log_file') == false) {
             $this->c("serverd.log_file", $this->baseDir . '/run/server.log');
         }
@@ -197,9 +192,12 @@ class BaseServer
      */
     public function start()
     {
+        $this->init(); //如果子类有其它初始化要求，重载init方法。
+        $this->setPhpEnv(); //设置php运行环境
         $this->_createServer();
         $this->s->set($this->c('serverd'));
         $this->registerCallback(); //注册回调函数
+        echo "你可使用--help查看命令更多选项\n";
         echo "server is starting\n";
         $this->s->start(); //启动服务
     }
@@ -397,7 +395,6 @@ class BaseServer
      * taskwait与task方法作用相同，用于投递一个异步的任务到task进程池去执行。
      * 与task不同的是taskwait是阻塞等待的，直到任务完成或者超时返回
      *
-     *
      * @param mixed $data
      * @param float $timeout
      * @param int $taskWorkerId
@@ -416,6 +413,7 @@ class BaseServer
      * swoole_server::finish是可选的。如果worker进程不关心任务执行的结果，不需要调用此函数
      * 在onTask回调函数中return字符串，等同于调用finish
      *
+     * 在onTask中，不能返回false或者null，不然swoole会认为task执行失败
      * @param string $data
      */
     public function finish($data)
@@ -518,19 +516,11 @@ class BaseServer
     }
 
     /**
-     * 增加tick定时器
-     * 可以自定义回调函数。此函数是swoole_timer_tick的别名
-     * worker进程结束运行后，所有定时器都会自动销毁
-     *
-     * 设置一个间隔时钟定时器，与after定时器不同的是tick定时器会持续触发，直到调用swoole_timer_clear清除。
-     * 与swoole_timer_add不同的是tick定时器可以存在多个相同间隔时间的定时器。
-     *
-     * 定时器仅在当前进程空间内有效
-     *
+     * 增加tick定时器，定时器仅在当前进程空间内有效，可以有间隔时间相同的定时器
      * $ms 最大不得超过 86400000
-     * tick定时器在1.7.14以上版本可用
-     * tick定时器即将要取代swoole_timer_add
+     * 定时器中，如果存在sleep或阻塞操作，会阻塞worker的onreceive，task进程的ontask
      *
+     * 回调函数执行的时候，会传递2个参数。一个是timer_id，一个param参数
      * @param int $ms
      * @param mixed $callback
      * @param mixed $param
@@ -787,6 +777,7 @@ class BaseServer
      * TCP协议是流式的，onReceive无法保证数据包的完整性，
      * 可能会同时收到多个请求包，也可能只收到一个请求包的一部分数据
      *
+     * 这里面添加的定时器也是整个进程周期内有销
      * @param \swoole_server $server
      * @param $fd
      * @param $fromId
@@ -927,6 +918,16 @@ class BaseServer
     }
 
     /**
+     * 调试日志
+     * @param $msg
+     */
+    public function debugLog($msg)
+    {
+        $file = $this->c('server.debug_log');
+        $this->log($file, $msg);
+    }
+
+    /**
      * 记录日志。
      * @param $file
      * @param $msg
@@ -997,7 +998,7 @@ class BaseServer
      * 通过命令行参数来设置相关选项
      * @return array
      */
-    public static function getOpts()
+    public function getOptsByCli()
     {
         $cmdOpts = 'c:h:p:ds:';
         $cmdLongOpts = array(
@@ -1006,7 +1007,8 @@ class BaseServer
             'port:',
             'daemon',
             'base_dir:',
-            'help'
+            'help',
+            'debug'
         );
         $opts = getopt($cmdOpts, $cmdLongOpts);
         if (isset($opts['help'])) {
@@ -1023,7 +1025,7 @@ class BaseServer
         if (isset($opts['c']) || isset($opts['config'])) { //设置配置文件选项
             $configPath = $opts['c'] ? $opts['c'] : $opts['config'];
         } else { //加载默认配置文件
-            $configPath =  __DIR__ . '/config.php';
+            $configPath =  $this->getDefaultConfigPath();
         }
         $config = require $configPath;
         if ($opts['h'] || $opts['host']) { //设置主机
@@ -1036,7 +1038,10 @@ class BaseServer
             $config['serverd']['daemonize'] =  true;
         }
         if ($opts['base_dir']) {
-            $config['serverd']['base_dir'] =  true;
+            $config['serverd']['base_dir'] =  $opts['base_dir'];
+        }
+        if (isset($opts['debug'])) {
+            $config['server']['debug'] = 1;
         }
         return array($method, $config);
     }
@@ -1049,12 +1054,21 @@ class BaseServer
     /**
      * 运行之前修改配置。
      * 进行数组合并
-     * @param $config
+     * 在执行start之前，必须先调用些方法设置配置文件
+     * @param mixed $config 可以是一个文件路径或数组
      * @return $this
      */
     public function setConfig($config)
     {
+        if (is_array($config)) {
+
+        } elseif(is_readable($config)) {
+            $config = require $config;
+        } else {
+            $config = array();
+        }
         $this->config = array_merge($this->config, $config);
+        $this->_initConfig(); //配置server默认行为
         return $this;
     }
 
@@ -1088,9 +1102,29 @@ class BaseServer
             '-h --host， 指定服务监听IP，默认为0.0.0.0',
             '-p --port，指定服务监听端口，默认为9501',
             '--base_dir，指定server运行目录',
+            '--debug，开启调试模式，将有更多的日志记录在debug.log中',
             '--help，查看命令帮助'
         );
         $str = implode("\n", $arr) . "\n";
         die($str);
+    }
+
+    /**
+     * 得到默认的server配置文件
+     * @return string
+     */
+    public  function getDefaultConfigPath()
+    {
+        $dir = $this->sysDir . '/config';
+        $map = array(
+            'swoole' => $dir . '/swoole.php',
+            'db_server' => $dir . '/db_server.php',
+            'crontab_server' => $dir . '/crontab_server.php'
+        );
+        $path = $map[$this->serverName];
+        if ($path == false) {
+            $path = $map['swoole'];
+        }
+        return $path;
     }
 }

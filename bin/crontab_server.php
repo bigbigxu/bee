@@ -1,10 +1,12 @@
 #!/usr/local/php/bin/php
 <?php
 /**
- * swoole 基类服务启动程序
+ * 定时器服务启动程序
  */
 require __DIR__ . '/../server/BaseServer.php';
-$server = new \bee\server\BaseServer();
+require __DIR__ . '/../server/CrontabServer.php';
+require __DIR__ . '/../common/LinuxCrontab.php';
+$server = new \bee\server\CrontabServer();
 list($cmd, $config) = $server->getOptsByCli();
 $server->setConfig($config);
 $server->run($cmd);
