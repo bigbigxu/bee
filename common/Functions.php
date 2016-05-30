@@ -408,4 +408,16 @@ class Functions
             return $rate;
         }
     }
+	/**
+	 *用于分页
+	 */
+	public static function page_limit($page, $size)
+	{
+		$page = (int) $page;
+		$page -= 1;
+		if($page <= 0) {
+			$page = 0;
+		}
+		return $page * $size . "," . $size;
+	}
 }

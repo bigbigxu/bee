@@ -43,17 +43,17 @@ class RedisMysqlModel extends CoreModel
      * 索引key的前缀
      * @var string
      */
-    protected $indexKeyPrefix = 'auto_index_';
+    protected $indexKeyPrefix = 'index';
     /**
      * 数据key的前缀
      * @var string
      */
-    protected $dataKeyPrefix = 'auto_data_';
+    protected $dataKeyPrefix = 'data';
     /**
      * 分组key的前缀
      * @var string
      */
-    protected $groupKeyPrefix = 'auto_group_';
+    protected $groupKeyPrefix = 'group';
     /**
      * 保存下一个自增长id的key
      * @var string
@@ -116,6 +116,16 @@ class RedisMysqlModel extends CoreModel
     protected $mysqlCallback;
     protected $redisCli = 'redis-cli'; //redis客户端命令路径
 
+    public function __construct()
+    {
+        $this->setErrMode(PDO::ERRMODE_SILENT); //设置errmode为静默处理。用于回滚cache
+        $this->db()->setAttr(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, true);
+        if ($this->redisKeyPrefix == false) {
+            $this->setRedisKeyPrefix(get_class($this)); //默认使用类名作为前缀
+        }
+        parent::__construct();
+    }
+
     /**
      * 定义数据字段，如果为空，表示所有字段
      * @return array
@@ -154,24 +164,6 @@ class RedisMysqlModel extends CoreModel
     public function defaultValue()
     {
         return array();
-    }
-
-    /**
-     * 初始化方法。
-     * 用于检查表名配置和设置redis全局前缀
-     * @throws Exception
-     */
-    public function init()
-    {
-        $name = $this->tableName();
-        if ($name == false) {
-            throw new Exception("请定义表名！");
-        }
-        if ($this->redisKeyPrefix == false) {
-            $this->redisKeyPrefix = $this->tableName() . '_';
-        }
-        $this->setErrMode(PDO::ERRMODE_SILENT); //设置errmode为静默处理。用于回滚cache
-        $this->db()->setAttr(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, true);
     }
 
     /**
@@ -360,7 +352,8 @@ class RedisMysqlModel extends CoreModel
                 $this->redis()->zRem($beforeCacheKey, $pk); //从旧的分组中删除
             }
 
-            $flag = $this->redis()->zAdd($cacheKey, $data[$score], $pk);
+            //此处不能判断false。元素存在，但分值改变，会返回int(0)
+            $this->redis()->zAdd($cacheKey, $data[$score], $pk);
             $this->redis()->expire($cacheKey, $this->indexExpire);
         }
         return $flag;
@@ -405,7 +398,7 @@ class RedisMysqlModel extends CoreModel
             }
             if ($beforeData[$field] != $data[$field]) { //新旧值不一样，才需要更新cache
                 $cacheKey = $this->cacheIndexKey($field);
-                $flag = $this->redis()->zAdd($cacheKey, $data[$field], $pk);
+                $this->redis()->zAdd($cacheKey, $data[$field], $pk);
                 $this->redis()->expire($cacheKey, $this->indexExpire);
             }
         }
@@ -419,12 +412,12 @@ class RedisMysqlModel extends CoreModel
      */
     public function cacheDataKey($id)
     {
-        return $this->redisKeyPrefix . $this->dataKeyPrefix . $id;
+        return $this->createRedisKey($this->dataKeyPrefix, $id);
     }
 
     public function cacheGroupKey($field, $value)
     {
-        return $this->redisKeyPrefix . $this->groupKeyPrefix . $field . "_" . $value;
+        return $this->createRedisKey($this->groupKeyPrefix, $field, $value);
     }
 
     /**
@@ -434,7 +427,7 @@ class RedisMysqlModel extends CoreModel
      */
     public function cacheIndexKey($field)
     {
-        return "{$this->redisKeyPrefix }{$this->indexKeyPrefix}{$field}";
+        return $this->createRedisKey($this->indexKeyPrefix, $field);
     }
 
 
@@ -581,6 +574,13 @@ class RedisMysqlModel extends CoreModel
         return $this;
     }
 
+    public function cacheScore($min, $max)
+    {
+        $this->redisQuery['min_score'] = $min;
+        $this->redisQuery['max_score'] = $max;
+        return $this;
+    }
+
     /**
      * 设置查询的字端
      * @param $field
@@ -721,6 +721,9 @@ class RedisMysqlModel extends CoreModel
     {
         $r = array();
         foreach ((array)$idArr as $id) {
+            if ($id == false) {
+                continue;
+            }
             $item = $this->cacheOne($id);
             if ($this->redisQuery['field']) {
                 $item = Functions::arrayFilterKey($item, $this->redisQuery['field']);

@@ -454,7 +454,8 @@ class CoreMysql
 			return;
 		}
 		$sql = "desc {$this->tableName} ";
-		$res = $this->all($sql);
+		//内部查询使用原生pdo方式。不然会执行clearQuery
+		$res = $this->_pdo->query($sql)->fetchAll();
 		foreach ($res as $row) {
 			if ($row['Key'] == 'PRI') {
 				$this->fields[$this->tableName]['pk'] = $row['Field'];

@@ -11,8 +11,7 @@ class CoreLog
     public static function error($msg)
     {
         $file = self::getErrorLogFile();
-        $time = date('Y-m-d H:i:s');
-        file_put_contents($file, "[{$time}] {$msg}\n",  FILE_APPEND);
+        self::_log($file, $msg);
     }
 
     /**
@@ -21,12 +20,8 @@ class CoreLog
      */
     public static function access($msg)
     {
-        if(is_array($msg)) {
-            $msg = json_encode($msg);
-        }
-        $msg = str_replace(array("\r", "\n"), '', $msg);
         $file = self::getAccessLogFile();
-        file_put_contents($file, "{$msg}\n", FILE_APPEND);
+        self::_log($file, $msg);
     }
 
     /**
@@ -36,8 +31,7 @@ class CoreLog
     public static function debug($msg)
     {
         $file = self::getDebugLogFile();
-        $time = date('Y-m-d H:i:s');
-        file_put_contents($file, "[{$time}] {$msg}\n", FILE_APPEND);
+        self::_log($file, $msg);
     }
 
     /**
@@ -47,12 +41,24 @@ class CoreLog
      */
     public static function log($fileName, $msg)
     {
-        $fileName = trim(App::getInstance()->getRuntimeDir()) . '/' . $fileName;
+        $file = trim(App::getInstance()->getRuntimeDir()) . '/' . $fileName;
+        self::_log($file, $msg);
+    }
+
+    /**
+     * 日志方法
+     * @param $file
+     * @param $msg
+     */
+    private static function _log($file, $msg)
+    {
         if(is_array($msg)) {
-            $msg = json_encode($msg);
+            $msg = CoreJson::encode($msg);
         }
         $time = date('Y-m-d H:i:s');
-        file_put_contents($fileName, "[{$time}] {$msg}\n", FILE_APPEND);
+        $ip = $_SERVER['REMOTE_ADDR'];
+        $prefix = "[{$time}] -- [{$ip}] -- ";
+        file_put_contents($file, "{$prefix} {$msg}\n",  FILE_APPEND);
     }
 
     /**
