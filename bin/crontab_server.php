@@ -7,6 +7,6 @@ require __DIR__ . '/../server/BaseServer.php';
 require __DIR__ . '/../server/CrontabServer.php';
 require __DIR__ . '/../common/LinuxCrontab.php';
 $server = new \bee\server\CrontabServer();
-list($cmd, $config) = $server->getOptsByCli();
+list($cmd, $config) = $server->getOptsByCli(__DIR__ . '/../config/crontab_server.php');
 $server->setConfig($config);
 $server->run($cmd);

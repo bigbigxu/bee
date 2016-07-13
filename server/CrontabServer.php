@@ -8,7 +8,7 @@
 namespace bee\server;
 class CrontabServer extends \bee\server\BaseServer
 {
-    protected $serverName = 'crontab_server';
+    protected $name = 'crontab_server';
     protected $openLog; //是否打开日志
     protected $crontabFile; //定时器何存的文件位置
     protected $lastCrontabTime;
