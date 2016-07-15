@@ -27,26 +27,71 @@ class BaseServer
      */
     protected $eof = '';
     /**
+     * 监听IP
+     * @var string
+     */
+    protected $host = '0.0.0.0';
+    /**
+     * 监听端口
+     * @var string
+     */
+    protected $port = '9501';
+    /**
+     * @var string server运行模式
+     */
+    protected $mode = SWOOLE_PROCESS;
+    /**
+     * 协议类型
+     * @var string
+     */
+    protected $protocol = self::PROTOCOL_TCP;
+    /**
      * server对象
      * @var BaseServer
      */
     private static $_instance;
-    protected $baseDir; //程序运行根目录
-    protected $env; //当前运行环境
+    /**
+     * @var string server 运行根目录
+     */
+    protected $baseDir;
+    /**
+     * @var string 当前运行环境
+     */
+    protected $env;
+    /**
+     * @var int 是否为调试模式
+     */
     protected $debug = 0;
-    protected $callback; //注册的回调函数
+    /**
+     * @var array 注册的回调函数
+     */
+    protected $callback = array();
+    /**
+     * bee框架地址
+     * @var string
+     */
+    protected $beeDir;
+    /**
+     * @var string 服务名称
+     */
+    protected $name = 'swoole';
 
+    //运行环境常量
     const ENV_DEV = 'dev'; //开发环境
     const ENV_TEST = 'test'; //测试环境
     const ENV_PRO = 'pro'; //生产环境
 
+    //server命令
     const CMD_START = 'start';
     const CMD_STOP = 'stop';
     const CMD_RESTART = 'restart';
     const CMD_RELOAD = 'reload';
 
-    protected $sysDir; //框架根目录
-    protected $serverName = 'swoole'; //服务名称。默认值用于加载默认配置文件
+    //协议类型常量
+    const PROTOCOL_TCP = 'tcp';
+    const PROTOCOL_UDP = 'udp';
+    const PROTOCOL_HTTP = 'http';
+    const PROTOCOL_WS = 'websocket';
 
     /**
      * 执行环境检查
@@ -55,7 +100,7 @@ class BaseServer
     public function __construct()
     {
         self::checkEnv();
-        $this->sysDir = realpath(__DIR__ . '/..');
+        $this->beeDir = realpath(__DIR__ . '/..');
     }
 
     /**
@@ -63,11 +108,11 @@ class BaseServer
      */
     private function _createServer()
     {
-        $host = $this->c('server.host');
-        $port = $this->c('server.port');
-        $mode = $this->c('server.server_mode');
-        $type = $this->c('server.socket_type');
-        $this->s = new \swoole_server($host, $port, $mode, $type);
+        $this->host = $this->c('server.host');
+        $this->port = $this->c('server.port');
+        $this->mode = $this->c('server.server_mode');
+        $this->protocol = $this->c('server.socket_type');
+        $this->s = new \swoole_server($this->host, $this->port, $this->mode, $this->protocol);
     }
 
     /**
@@ -82,7 +127,7 @@ class BaseServer
         $this->env = $this->c('server.env');
         $this->eof = $this->c('serverd.package_eof');
         $this->baseDir = rtrim($this->c('server.base_dir'), '/');
-        $this->serverName = $this->c('server.server_name');
+        $this->name = $this->c('server.server_name');
         $this->c("server.run_dir", $this->baseDir . '/run'); //运行目录
         $this->c("server.log_dir", $this->baseDir . "/log"); //日志目录
         $this->c("server.data_dir", $this->baseDir . "/data"); //数据目录
@@ -99,7 +144,7 @@ class BaseServer
 
     /**
      * 设置php运行时的环境
-     * server.php_env配置节用于配置运行环境
+     * server.php_env配置节用于在server运行修改php.ini的配置
      */
     public function setPhpEnv()
     {
@@ -117,7 +162,7 @@ class BaseServer
     {
         return array(
             'display_errors' => 0,
-            'error_reporting' => E_ALL & ~E_NOTICE,
+            'error_reporting' => E_ALL & ~E_NOTICE & ~E_STRICT & ~E_DEPRECATED,
             'log_errors' => 1,
             'error_log' => $this->c('server.error_log')
         );
@@ -171,16 +216,16 @@ class BaseServer
     public static function checkEnv()
     {
         if (strtolower(PHP_OS) != 'linux') {
-            die('请于linux下运行');
+            die("请于linux下运行\n");
         }
         if (!extension_loaded('swoole')) {
-            die('请安装swoole扩展');
+            die("请安装swoole扩展\n");
         }
         if (substr(php_sapi_name(), 0, 3) != 'cli') {
-            die("请以cli模式运行");
+            die("请以cli模式运行\n");
         }
         if (PHP_VERSION < '5.3') {
-            die('php版本不能小于5.3');
+            die("php版本不能小于5.3\n");
         }
     }
 
@@ -204,12 +249,10 @@ class BaseServer
 
     /**
      * 重启所有worker进程
-     *
-     *  重启所有worker进程 kill -SIGUSR1 主进程PID
-     *  仅重启task进程 kill -SIGUSR2 主进程PID
+     * 重启所有worker进程 kill -10 主进程PID，仅重启task进程 kill -12 主进程PID
      *
      * 平滑重启只对onWorkerStart或onReceive等在Worker进程中include/require的PHP文件有效，
-     * Server启动前就已经include/require的PHP文件，不能通过平滑重启重新加载
+     *  Server启动前就已经include/require的PHP文件，不能通过平滑重启重新加载
      *
      * 对于Server的配置即$serv->set()中传入的参数设置，必须关闭/重启整个Server才可以重新加载*
      * @return bool
@@ -222,7 +265,7 @@ class BaseServer
     /**
      * 关闭服务器
      * 此函数可以用在worker进程内。向主进程发送SIGTERM也可以实现关闭服务器。
-     * kill -SIGTERM 主进程PID
+     * kill -15 主进程PID
      * @return bool
      */
     public function shutdown()
@@ -996,9 +1039,10 @@ class BaseServer
      * d,daemon 是否后台运行。默认false
      * s,表示相关的启动命令
      * 通过命令行参数来设置相关选项
+     * @param string $defaultConfigPath 默认的配置文件路径。如果没有-c,--config选项，则要加载的配置的文件
      * @return array
      */
-    public function getOptsByCli()
+    public function getOptsByCli($defaultConfigPath = null)
     {
         $cmdOpts = 'c:h:p:ds:';
         $cmdLongOpts = array(
@@ -1014,18 +1058,17 @@ class BaseServer
         if (isset($opts['help'])) {
             self::help();
         }
-        $method = $opts['s'] ? $opts['s'] : 'start'; //启动命令选项
-        if ($method == false) {
-            $method = 'start';
-        }
+        $method = $opts['s'];
         $allowMethod = array('status', 'start', 'stop', 'restart', 'reload');
         if (in_array($method, $allowMethod) == false) {
             die("Usage: server {start|stop|restart|reload|status}\n");
         }
         if (isset($opts['c']) || isset($opts['config'])) { //设置配置文件选项
             $configPath = $opts['c'] ? $opts['c'] : $opts['config'];
-        } else { //加载默认配置文件
-            $configPath =  $this->getDefaultConfigPath();
+        } elseif ($defaultConfigPath != false) { //加载默认配置文件
+            $configPath = $defaultConfigPath;
+        } else {
+            $configPath = $this->getDefaultConfigPath('swoole');
         }
         $config = require $configPath;
         if ($opts['h'] || $opts['host']) { //设置主机
@@ -1056,9 +1099,10 @@ class BaseServer
      * 进行数组合并
      * 在执行start之前，必须先调用些方法设置配置文件
      * @param mixed $config 可以是一个文件路径或数组
+     * @param bool $merge 是否合并配置文件
      * @return $this
      */
-    public function setConfig($config)
+    public function setConfig($config, $merge = true)
     {
         if (is_array($config)) {
 
@@ -1067,7 +1111,11 @@ class BaseServer
         } else {
             $config = array();
         }
-        $this->config = array_merge($this->config, $config);
+        if ($merge == true) {
+            $this->config = array_merge($this->config, $config);
+        } else {
+            $this->config = $config;
+        }
         $this->_initConfig(); //配置server默认行为
         return $this;
     }
@@ -1111,20 +1159,30 @@ class BaseServer
 
     /**
      * 得到默认的server配置文件
+     * @param string $name
      * @return string
      */
-    public  function getDefaultConfigPath()
+    public  function getDefaultConfigPath($name)
     {
-        $dir = $this->sysDir . '/config';
+        $dir = $this->beeDir . '/config';
         $map = array(
             'swoole' => $dir . '/swoole.php',
             'db_server' => $dir . '/db_server.php',
             'crontab_server' => $dir . '/crontab_server.php'
         );
-        $path = $map[$this->serverName];
+        $path = $map[$name];
         if ($path == false) {
             $path = $map['swoole'];
         }
         return $path;
+    }
+
+    /**
+     * 返回当前是否为debug模式
+     * @return int
+     */
+    public function isDebug()
+    {
+        return $this->debug;
     }
 }
