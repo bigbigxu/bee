@@ -77,7 +77,7 @@ class DbServer extends BaseServer
     protected $tick = 1000;
     protected $queueRedis; //使用那个redis配置
     protected $queueKey; //消息队列的key
-    protected $serverName = 'db_server';
+    protected $name = 'db_server';
     protected $useTrans = 1; //是否使用事务
     protected $queueMode = 1; //
 

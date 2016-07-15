@@ -1352,4 +1352,15 @@ class CoreRedis
         return $this->redis->restore($key, $ttl, $value);
     }
 
+    /**
+     * 代理执行一个redis函数
+     * @return mixed
+     */
+    public function proxyExec()
+    {
+        $params = func_get_args();
+        $method = $params[0];
+        array_shift($params);
+        return call_user_func_array(array($this->redis, $method), $params);
+    }
 }
