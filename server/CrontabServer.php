@@ -26,15 +26,17 @@ class CrontabServer extends BaseServer
     }
 
     /**
-     * 执行定时器脚本。会动态加载config.php配置文件
+     * 执行定时器脚本
      */
     public function crontab()
     {
-        $config = require $this->baseDir . '/config.php';
+        if (date('i') == date('i', $this->lastCrontabTime)) {
+            return null;
+        }
         $this->lastCrontabTime = $time = time();
-        $timerTask = $config['timer_task'];
+        $timerTask = $this->config['timer_task'];
         $model = new \LinuxCrontab();
-        foreach ($timerTask['linux_crontab'] as $key => $row) {
+        foreach ((array)$timerTask['linux_crontab'] as $key => $row) {
             $tmp = preg_split('/[\s]+/', trim($row));
             $cron = implode(' ', array_slice($tmp, 0, 5));
             $cmd = implode(' ', array_slice($tmp, 5));
