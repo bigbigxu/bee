@@ -39,6 +39,7 @@
 class Timer
 {
     const DAY_SECOND = 86400; //1天的秒数
+    const MONTH_SECOND = 2592000; //1个月的秒数
     /**
      * 得到今天0点0分的时间戳
      * @return int

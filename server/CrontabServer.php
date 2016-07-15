@@ -6,17 +6,14 @@
  * Time: 15:40
  */
 namespace bee\server;
-class CrontabServer extends \bee\server\BaseServer
+class CrontabServer extends BaseServer
 {
     protected $name = 'crontab_server';
-    protected $openLog; //是否打开日志
-    protected $crontabFile; //定时器何存的文件位置
     protected $lastCrontabTime;
 
-    public function init()
+    public function onReceive(\swoole_server $server, $fd, $fromId, $data)
     {
-        $this->openLog = intval($this->c('server.open_log'));
-        $this->crontabFile = $this->c('server.crontab_file');
+        parent::onReceive($server, $fd, $fromId, $data);
     }
 
     public function onWorkerStart(\swoole_server $server, $workerId)
@@ -33,10 +30,11 @@ class CrontabServer extends \bee\server\BaseServer
      */
     public function crontab()
     {
-        $config = require $this->crontabFile;
+        $config = require $this->baseDir . '/config.php';
         $this->lastCrontabTime = $time = time();
+        $timerTask = $config['timer_task'];
         $model = new \LinuxCrontab();
-        foreach ($config['linux_crontab'] as $key => $row) {
+        foreach ($timerTask['linux_crontab'] as $key => $row) {
             $tmp = preg_split('/[\s]+/', trim($row));
             $cron = implode(' ', array_slice($tmp, 0, 5));
             $cmd = implode(' ', array_slice($tmp, 5));
@@ -47,7 +45,7 @@ class CrontabServer extends \bee\server\BaseServer
             if ($flag == true) {
                 $cmd = rtrim($cmd, '&') . ' &'; //添加&,将脚本后台执行。防止阻塞。
                 $str = shell_exec($cmd);
-                if ($this->openLog) {
+                if ($timerTask['open_log']) {
                     $this->crontabLog("定时器 [{$key}] 已经执行: {$str}");
                 }
             }

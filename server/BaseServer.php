@@ -216,16 +216,16 @@ class BaseServer
     public static function checkEnv()
     {
         if (strtolower(PHP_OS) != 'linux') {
-            die('请于linux下运行');
+            die("请于linux下运行\n");
         }
         if (!extension_loaded('swoole')) {
-            die('请安装swoole扩展');
+            die("请安装swoole扩展\n");
         }
         if (substr(php_sapi_name(), 0, 3) != 'cli') {
-            die("请以cli模式运行");
+            die("请以cli模式运行\n");
         }
         if (PHP_VERSION < '5.3') {
-            die('php版本不能小于5.3');
+            die("php版本不能小于5.3\n");
         }
     }
 
@@ -243,8 +243,8 @@ class BaseServer
         $this->s->set($this->c('serverd'));
         $this->registerCallback(); //注册回调函数
         echo "你可使用--help查看命令更多选项\n";
-        $this->s->start(); //启动服务
         echo "server is starting\n";
+        $this->s->start(); //启动服务
     }
 
     /**
@@ -1058,10 +1058,7 @@ class BaseServer
         if (isset($opts['help'])) {
             self::help();
         }
-        $method = $opts['s'] ? $opts['s'] : 'start'; //启动命令选项
-        if ($method == false) {
-            $method = 'start';
-        }
+        $method = $opts['s'];
         $allowMethod = array('status', 'start', 'stop', 'restart', 'reload');
         if (in_array($method, $allowMethod) == false) {
             die("Usage: server {start|stop|restart|reload|status}\n");
@@ -1178,5 +1175,14 @@ class BaseServer
             $path = $map['swoole'];
         }
         return $path;
+    }
+
+    /**
+     * 返回当前是否为debug模式
+     * @return int
+     */
+    public function isDebug()
+    {
+        return $this->debug;
     }
 }
