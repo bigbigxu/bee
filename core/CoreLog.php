@@ -120,7 +120,7 @@ class CoreLog
         if ($print) {
             echo $msg;
         } else {
-            return $msg;
+            self::error($msg);
         }
     }
 }

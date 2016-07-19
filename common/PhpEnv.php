@@ -78,13 +78,13 @@ class PhpEnv
         $set =  array(
             App::ENV_DEV => array(
                 'display_errors' => 1,
-                'error_reporting' => E_ALL & ~E_NOTICE,
+                'error_reporting' => E_ALL & ~E_NOTICE & ~E_STRICT & ~E_DEPRECATED,
                 'log_errors' => 1,
                 'error_log' => CoreLog::getErrorLogFile()
             ),
             App::ENV_TEST => array(
                 'display_errors' => 1,
-                'error_reporting' => E_ALL & ~E_NOTICE,
+                'error_reporting' => E_ALL & ~E_NOTICE & ~E_STRICT & ~E_DEPRECATED,
                 'log_errors' => 1,
                 'error_log' => CoreLog::getErrorLogFile()
             ),
