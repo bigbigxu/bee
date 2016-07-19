@@ -6,7 +6,7 @@
 require __DIR__ . '/../server/BaseServer.php';
 require __DIR__ . '/../server/DbServer.php';
 $server = new \bee\server\DbServer();
-list($cmd, $config) = $server->getOptsByCli();
+list($cmd, $config) = $server->getOptsByCli(__DIR__ . '/../config/db_server.php');
 $server->setConfig($config);
 $server->c('server.load_bee', true);
 
