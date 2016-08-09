@@ -2,40 +2,73 @@
 /**
  * Created by PhpStorm.
  * User: VigoXu
- * Date: 2016/5/12
- * Time: 9:58
+ * Date: 2016/8/11
+ * Time: 11:03
  */
 namespace bee\client;
 class BaseClient
 {
+    protected $host = ''; //主机地址
+    protected $port = 0; //端口
+    protected $protocol = ''; //当前协议类型
+    protected $async = 1; //是否异步
+    protected $uri = ''; //请求协议字符串
+    protected $callback = array();
+    private static $_instance = array();
     /**
      * @var \swoole_client
      */
-    protected $client;
-    protected $eof = ''; //结束符
-    protected $config = array(); //当前配置文件
-    protected $callback = array(); //缓存的回调函数
-    protected $isAsync = 0; //是否为异步
+    private $_fd = null;
 
-    /**
-     * BaseClient constructor.
-     * @desc 关于tcp_keep  加入SWOOLE_KEEP标志后，
-     *  创建的TCP连接在PHP请求结束或者调用$cli->close时并不会关闭。
-     *  下一次执行connect调用时会复用上一次创建的连接。
-     *  长连接保存的方式默认是以ServerHost:ServerPort为key的。
-     *  可以再第3个参数内指定key。
-     *  只允许用于同步客户端
-     *
-     * @param int $sock 指定socket的类型，支持TCP/UDP、TCP6/UDP64种
-     * @param int $sync SWOOLE_SOCK_SYNC/SWOOLE_SOCK_ASYNC  同步/异步
-     * @param string $key 用于长连接的Key，默认使用IP:PORT作为key。相同key的连接会被复用
-     */
-    public function __construct($sock = SWOOLE_TCP, $sync = SWOOLE_SOCK_SYNC, $key = '')
+    const PROTOCOL_TCP = 'tcp';
+    const PROTOCOL_UDP = 'udp';
+    const PROTOCOL_HTTP = 'http';
+    const PROTOCOL_WS = 'ws';
+
+    public function __construct($uri, $async = 1)
     {
-        $this->isAsync = $sync;
-        $this->client = new \swoole_client($sock, $sync, $key);
+        $this->uri = $uri;
+        $params = parse_url($uri);
+        $this->host = $params['host'];
+        $this->port = $params['port'];
+        $this->protocol = $params['scheme'];
+        $this->async = $async;
+        $this->_getFd();
     }
 
+    /**
+     * 返回一个实例对象
+     * @param $uri
+     * @param int $async
+     * @return mixed
+     */
+    public static function g($uri, $async = 1)
+    {
+        $key = md5($uri);
+        if (!self::$_instance[$key]) {
+            self::$_instance[$key] = new static($uri, $async);
+        }
+        return self::$_instance[$key];
+    }
+
+    protected function _getFd()
+    {
+        switch ($this->protocol) {
+            case self::PROTOCOL_TCP :
+                $this->_fd = new \swoole_client(SWOOLE_TCP, $this->async);
+                break;
+            case self::PROTOCOL_UDP :
+                $this->_fd = new \swoole_client(SWOOLE_UDP, $this->async);
+                break;
+            default:
+                throw new \Exception('目前不支持的协议');
+        }
+    }
+
+    public function init()
+    {
+
+    }
     /**
      * 设置客户端参数，必须在connect前执行
      * 主要用设置分包协议，和server的配置项一样。
@@ -44,7 +77,7 @@ class BaseClient
      */
     public function set($config)
     {
-        $this->client->set($config);
+        $this->_fd->set($config);
         return $this;
     }
 
@@ -69,16 +102,16 @@ class BaseClient
      */
     public function registerCallback()
     {
-        if ($this->isAsync == false) {
+        if ($this->async == false) {
             return null;
         }
         $methods = get_class_methods($this);
         foreach ($methods as $row) {
             if (preg_match('/^on(\w+)$/', $row, $ma)) {
                 if ($this->callback[$ma[1]]) {
-                    $this->client->on($ma[1], $this->callback[$ma[1]]);
+                    $this->_fd->on($ma[1], $this->callback[$ma[1]]);
                 } else {
-                    $this->client->on($ma[1], array($this, $row));
+                    $this->_fd->on($ma[1], array($this, $row));
                 }
             }
         }
@@ -98,10 +131,10 @@ class BaseClient
      * @param int $flag
      * @return bool
      */
-    public function connect($host, $port, $timeout = 0.1, $flag = 0)
+    public function connect($timeout = 0.1, $flag = 0)
     {
         $this->registerCallback();
-        return $this->client->connect($host, $port, $timeout, $flag);
+        return $this->_fd->connect($this->host, $this->port, $timeout, $flag);
     }
 
     /**
@@ -110,7 +143,7 @@ class BaseClient
      */
     public function isConnected()
     {
-        return $this->client->isConnected();
+        return $this->_fd->isConnected();
     }
 
     /**
@@ -119,7 +152,7 @@ class BaseClient
      */
     public function getsockname()
     {
-        return $this->client->getsockname();
+        return $this->_fd->getsockname();
     }
 
     /**
@@ -130,7 +163,7 @@ class BaseClient
      */
     public function getpeername()
     {
-        return $this->client->getpeername();
+        return $this->_fd->getpeername();
     }
 
     /**
@@ -140,7 +173,7 @@ class BaseClient
      */
     public function send($data)
     {
-        return $this->client->send($data);
+        return $this->_fd->send($data);
     }
 
     /**
@@ -151,7 +184,7 @@ class BaseClient
      */
     public function sendto($ip, $port, $data)
     {
-        $this->client->sendto($ip, $port, $data);
+        $this->_fd->sendto($ip, $port, $data);
     }
 
     /**
@@ -173,7 +206,7 @@ class BaseClient
      */
     public function recv($size = 65535, $flags = 0)
     {
-        return $this->client->recv($size, $flags);
+        return $this->_fd->recv($size, $flags);
     }
 
     /**
@@ -182,7 +215,7 @@ class BaseClient
      */
     public function close()
     {
-        return $this->client->close();
+        return $this->_fd->close();
     }
 
     /**
@@ -192,7 +225,7 @@ class BaseClient
      */
     public function sleep()
     {
-        $this->client->sleep();
+        $this->_fd->sleep();
     }
 
     /**
@@ -201,11 +234,12 @@ class BaseClient
      */
     public function wakeup()
     {
-        $this->client->wakeup();
+        $this->_fd->wakeup();
     }
 
     /**
      * 客户端连接服务器成功后会回调此函数
+     * 如果是异步方式，业务逻辑必须写在此回调中
      * @param \swoole_client $client
      */
     public function onConnect(\swoole_client $client)
@@ -221,57 +255,5 @@ class BaseClient
     public function onError(\swoole_client $client)
     {
 
-    }
-
-    /**
-     * 户端收到来自于服务器端的数据时会回调此函数
-     * swoole_client启用了eof/length检测后，onReceive一定会收到一个完整的数据包
-     * @param \swoole_client $client
-     * @param $data
-     */
-    public function onReceive(\swoole_client $client, $data)
-    {
-        echo $data;
-    }
-
-    /*
-     * Server端关闭或Client端主动关闭，都会触发onClose事件
-     */
-    public function onClose(\swoole_client $client)
-    {
-
-    }
-
-    /**
-     * errCode的值等于Linux errno。可使用socket_strerror将错误码转为错误信息。
-     * @return mixed
-     */
-    public function getErrCode()
-    {
-        return $this->client->errCode;
-    }
-
-    public function getErrMsg()
-    {
-        $code = $this->getErrCode();
-        return \swoole_strerror($code);
-    }
-
-    /**
-     * sock属性是此socket的文件描述符
-     * @return int
-     */
-    public function getSock()
-    {
-        return $this->client->sock;
-    }
-
-    /**
-     * 表示此连接是新创建的还是复用已存在的。与SWOOLE_KEEP配合使用
-     * @return mixed
-     */
-    public function isReuse()
-    {
-        return $this->client->reuse;
     }
 }

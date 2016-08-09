@@ -91,7 +91,7 @@ class BaseServer
     const PROTOCOL_TCP = 'tcp';
     const PROTOCOL_UDP = 'udp';
     const PROTOCOL_HTTP = 'http';
-    const PROTOCOL_WS = 'websocket';
+    const PROTOCOL_WS = 'ws';
 
     /**
      * 执行环境检查
