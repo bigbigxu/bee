@@ -103,7 +103,7 @@ class BaseClient
      * @param int $flag
      * @return bool
      */
-    public function connect($host, $port, $timeout = 0.1, $flag = 0)
+    public function connect($host, $port, $timeout = 10, $flag = 0)
     {
         $this->registerCallback();
         return $this->client->connect($host, $port, $timeout, $flag);
@@ -215,7 +215,7 @@ class BaseClient
      */
     public function onConnect(\swoole_client $client)
     {
-
+        echo 'connnet';
     }
 
     /**
