@@ -34,8 +34,13 @@ class BaseClient
     {
         $this->isAsync = $sync;
         $this->client = new \swoole_client($sock, $sync, $key);
+        $this->init();
     }
 
+    public function init()
+    {
+
+    }
     /**
      * 设置客户端参数，必须在connect前执行
      * 主要用设置分包协议，和server的配置项一样。
