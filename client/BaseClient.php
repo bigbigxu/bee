@@ -34,6 +34,7 @@ class BaseClient
         $this->protocol = $params['scheme'];
         $this->async = $async;
         $this->_getFd();
+        $this->init();
     }
 
     /**
@@ -69,6 +70,7 @@ class BaseClient
     {
 
     }
+
     /**
      * 设置客户端参数，必须在connect前执行
      * 主要用设置分包协议，和server的配置项一样。
