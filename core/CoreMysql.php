@@ -1192,7 +1192,7 @@ class CoreMysql
 	 */
 	public function label()
 	{
-		$res = $this->exec("show full fields from `{$this->tableName}`");
+		$res = $this->all("show full fields from `{$this->tableName}`");
 		$label = array();
 		foreach ($res as $row) {
 			$label[$row['Field']] = $row['Comment'];
