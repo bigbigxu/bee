@@ -43,7 +43,7 @@ Class Call
             return $this->_setErrno(self::ERR_METHOD);
         }
 
-        return call_user_func_array(array($class, $method), $params);
+        return call_user_func_array(array($object, $method), $params);
     }
 
     private function _setErrno($errno)
