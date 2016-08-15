@@ -74,6 +74,11 @@ class CoreMysql
 	 * @var string
 	 */
 	protected $autoBindPrefix = 'iphp_auto_';
+	/**
+	 *  当前程ID
+	 * @var int
+	 */
+	protected $pid = 0;
 
 	/**
 	 * 构造方法
@@ -946,6 +951,7 @@ class CoreMysql
 			if ($o instanceof self)
 				$o->close();
 		}
+		self::$_instance = array();
 	}
 
 	/**
