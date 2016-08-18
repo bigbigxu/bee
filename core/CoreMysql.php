@@ -421,6 +421,19 @@ class CoreMysql
 		return $this->andFilter($field, '=', $id)->update($data);
 	}
 
+	public function incr($find, $field, $value = null)
+	{
+		$res = $this->findByAttr($find, 0);
+		if (count($res) > 1) {
+			throw new Exception("incr不可以更新多条记录");
+		}
+		if ($res == false) {
+			return $this->insert(array_merge($find, $incr));
+		} else {
+			foreach ($incr as $key => $value)
+		}
+	}
+
 	/**
 	 * 根据属性值更新记录
 	 * @param $data

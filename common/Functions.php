@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Created by PhpStorm.
  * User: VigoXu
@@ -10,7 +11,7 @@ class Functions
     public static function numToChinese($num)
     {
         $num = intval($num);
-        if($num > 9) {
+        if ($num > 9) {
             return false;
         }
         $arr = array(
@@ -41,12 +42,12 @@ class Functions
      */
     public static function arrayMerge()
     {
-        if(func_num_args() == 0) {
+        if (func_num_args() == 0) {
             return array();
         }
         $params = func_get_args();
-        foreach($params as &$row) {
-            if(is_array($row) == false) {
+        foreach ($params as &$row) {
+            if (is_array($row) == false) {
                 $row = array();
             }
         }
@@ -61,7 +62,7 @@ class Functions
     public static function fullUrl()
     {
         $url = '';
-        if($_SERVER['HTTPS'] == 'on') {
+        if ($_SERVER['HTTPS'] == 'on') {
             $url .= 'https://';
         } else {
             $url .= 'http://';
@@ -80,7 +81,7 @@ class Functions
     {
         $agent = strtolower($_SERVER['HTTP_USER_AGENT']);
         $type = 'other';
-        if(strpos($agent, 'iphone') || strpos($agent, 'ipad')) {
+        if (strpos($agent, 'iphone') || strpos($agent, 'ipad')) {
             $type = 'ios';
         } else {
             $type = 'android';
@@ -98,11 +99,11 @@ class Functions
     public static function changeKey($res, $map, $save = true)
     {
         $data = array();
-        foreach($res as $key => $value) {
-            if(isset($map[$key])) {
+        foreach ($res as $key => $value) {
+            if (isset($map[$key])) {
                 $data[$map[$key]] = $value;
             } else {
-                if($save == true) {
+                if ($save == true) {
                     $data[$key] = $value;
                 }
             }
@@ -120,7 +121,7 @@ class Functions
     public static function changeArrayKey($arr, $map, $save = true)
     {
         $data = array();
-        foreach($arr as $key => $value) {
+        foreach ($arr as $key => $value) {
             $data[$key] = self::changeKey($value, $map, $save);
         }
         return $data;
@@ -135,11 +136,11 @@ class Functions
     //十六进制 转串
     public static function hex2asc($str)
     {
-        $data='';
+        $data = '';
         $str = join('', explode('\x', $str));
         $len = strlen($str);
-        for ($i = 0;$i < $len;$i += 2) {
-            $data .=chr(hexdec(substr($str, $i, 2)));
+        for ($i = 0; $i < $len; $i += 2) {
+            $data .= chr(hexdec(substr($str, $i, 2)));
         }
         return $data;
     }
@@ -334,7 +335,7 @@ class Functions
      * @param int $decimals 保留的小数位数
      * @return array
      */
-    public static function sizeFormat($byte, $unit = "B", $returnUnit='MB', $decimals = 2)
+    public static function sizeFormat($byte, $unit = "B", $returnUnit = 'MB', $decimals = 2)
     {
         $unit = strtoupper($unit);
         $returnUnit = strtoupper($returnUnit);
@@ -374,8 +375,7 @@ class Functions
         foreach ($ma[1] as $row) {
             if (preg_match('/$[10|192|172]/', $row)) {
                 continue;
-            }
-            else {
+            } else {
                 return $row;
             }
         }
@@ -408,16 +408,36 @@ class Functions
             return $rate;
         }
     }
-	/**
-	 *用于分页
-	 */
-	public static function page_limit($page, $size)
-	{
-		$page = (int) $page;
-		$page -= 1;
-		if($page <= 0) {
-			$page = 0;
-		}
-		return $page * $size . "," . $size;
-	}
+
+    /**
+     *用于分页
+     */
+    public static function page_limit($page, $size)
+    {
+        $page = (int)$page;
+        $page -= 1;
+        if ($page <= 0) {
+            $page = 0;
+        }
+        return $page * $size . "," . $size;
+    }
+
+    public static function time2second($seconds)
+    {
+        $seconds = (int)$seconds;
+        if ($seconds > 3600) {
+            $daysNum = '';
+            if ($seconds > 24 * 3600) {
+                $days = (int)($seconds / 86400);
+                $daysNum = $days . "天";
+                $seconds = $seconds % 86400;//取余
+            }
+            $hours = intval($seconds / 3600);
+            $minutes = $seconds % 3600;//取余下秒数
+            $time = $daysNum . $hours . "小时" . gmstrftime('%M分钟%S秒', $minutes);
+        } else {
+            $time = gmstrftime('%H小时%M分钟%S秒', $seconds);
+        }
+        return $time;
+    }
 }
