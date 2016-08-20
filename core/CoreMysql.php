@@ -421,16 +421,31 @@ class CoreMysql
 		return $this->andFilter($field, '=', $id)->update($data);
 	}
 
-	public function incr($find, $field, $value = null)
+	/**
+	 * 数据自增加。如果数据存在更新，否则插入
+	 * @param array $incr key为要增加的字段, value为值
+	 * @param array $find 查询条件
+	 * @param bool $multi 是否可以更新多条记录
+	 * @return bool|int
+	 * @throws Exception
+	 */
+	public function incrByAttr($incr, $find, $multi = false)
 	{
-		$res = $this->findByAttr($find, 0);
-		if (count($res) > 1) {
-			throw new Exception("incr不可以更新多条记录");
+		if ($find == false) {
+			return false;
+		}
+		$res = $this->findByAttr($find);
+		$data = array_merge($find, $incr);
+		if ($data == false) {
+			return false;
 		}
 		if ($res == false) {
-			return $this->insert(array_merge($find, $incr));
+			return $this->insert($data);
 		} else {
-			foreach ($incr as $key => $value)
+			foreach ($incr as $key => $value) {
+				$data[$key] += $res[$key];
+			}
+			return $this->updateByAttr($data, array_keys($find), $multi);
 		}
 	}
 
@@ -622,6 +637,17 @@ class CoreMysql
 	public function setAttr($name, $value)
 	{
 		return $this->_pdo->setAttribute($name, $value);
+	}
+
+	/**
+	 * 设置开启查询缓存。
+	 * 在使用游标读取记录，未读取完成又想进行其它操作
+	 * 必须开启此选项
+	 * @param bool $bool
+	 */
+	public function setQueryBuffer($bool = true)
+	{
+		$this->_pdo->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, $bool);
 	}
 
 	/**

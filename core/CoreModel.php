@@ -199,6 +199,11 @@ class CoreModel
         return $this->from()->updateById($data, $id);
     }
 
+    public function incrByAttr($incr, $find, $multi = false)
+    {
+        return $this->from()->incrByAttr($incr, $find, $multi);
+    }
+
     public function updateByAttr($data, $findAttr, $multi = false)
     {
         return $this->from()->updateByAttr($data, $findAttr, $multi);
