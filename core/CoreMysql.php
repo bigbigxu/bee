@@ -440,12 +440,17 @@ class CoreMysql
 			return false;
 		}
 		if ($res == false) {
-			return $this->insert($data);
+			$flag =  $this->insert($data);
 		} else {
 			foreach ($incr as $key => $value) {
 				$data[$key] += $res[$key];
 			}
-			return $this->updateByAttr($data, array_keys($find), $multi);
+			$flag = $this->updateByAttr($data, array_keys($find), $multi);
+		}
+		if ($flag === false) {
+			return $flag;
+		} else {
+			return $data;
 		}
 	}
 
