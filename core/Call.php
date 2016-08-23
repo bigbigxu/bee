@@ -4,6 +4,7 @@
  * User: VigoXu
  * Date: 2016/8/15
  * Time: 14:19
+ * 代理一个对象调用
  */
 Class Call
 {
@@ -11,6 +12,8 @@ Class Call
 
     const ERR_CLASS = 1;
     const ERR_METHOD = 2;
+
+    protected $object; //正在代理的对象
 
     public static function g()
     {
@@ -32,18 +35,33 @@ Class Call
         }
 
         if (method_exists($class, 'getInstance')) {
-            $object = $class::getInstance();
+            $this->object = $class::getInstance();
         } elseif (method_exists($class, 'g')){
-            $object = $class::g();
+            $this->object  = $class::g();
         } else {
-            $object = new $class;
+            $this->object  = new $class;
         }
 
-        if (method_exists($object, $method) == false) {
+        if (method_exists($this->object , $method) == false) {
             return $this->_setErrno(self::ERR_METHOD);
         }
 
-        return call_user_func_array(array($object, $method), $params);
+        //得到方法的参数列表
+        $methodParams = CoreReflection::getMethodParam(array($class, $method));
+        foreach ($methodParams as $key => $value) {
+            if ($params[$key] !== null) {
+                $methodParams[$key] = $params[$key];
+            }
+        }
+        return call_user_func_array(array($this->object , $method), $methodParams);
+    }
+
+    public function control($r, $params = array(), $sp = '.')
+    {
+        list($class, $method) = explode($sp, $r);
+        $class = $class . 'Controller';
+        $r = "{$class}{$sp}{$method}";
+        return $this->route($r, $params, $sp);
     }
 
     private function _setErrno($errno)
@@ -64,5 +82,28 @@ Class Call
             self::ERR_METHOD => '方法不存在'
         );
         return $map[$this->_errno];
+    }
+
+    public function getObject()
+    {
+        return $this->object;
+    }
+
+    public function getObjectErrno()
+    {
+        if (method_exists($this->object, 'getErrno')) {
+            return $this->object->getErrno();
+        } else {
+            return null;
+        }
+    }
+
+    public function getObjectErrmsg()
+    {
+        if (method_exists($this->object, 'getModelErrmsg')) {
+            return $this->object->getModelErrmsg();
+        } else {
+            return null;
+        }
     }
 }
