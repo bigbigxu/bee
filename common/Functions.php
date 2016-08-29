@@ -440,4 +440,14 @@ class Functions
         }
         return $time;
     }
+
+    public static function arrayFilterRecursive($input, $callback)
+    {
+        foreach ($input as &$value) {
+            if (is_array($value)) {
+                $value = self::arrayFilterRecursive($value, $callback);
+            }
+        }
+        return array_filter($input, $callback);
+    }
 }
