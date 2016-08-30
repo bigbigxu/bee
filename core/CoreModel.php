@@ -704,11 +704,12 @@ class CoreModel
     /**
      * 执行当前模型的事件
      * @param $name
+     * @param $data
      * @param Event $event
      */
-    public function trigger($name, $event = null)
+    public function trigger($name, $data = array(), $event = null)
     {
-        Event::trigger($this, $name, $event);
+        Event::trigger($this, $name, $data, $event);
     }
 
     public function setErrMode($mode)

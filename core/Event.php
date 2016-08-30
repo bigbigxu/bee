@@ -100,9 +100,10 @@ class Event extends Object
      * 执行事件，子类父类的事件都会别执行
      * @param $class
      * @param $name
+     * @param $data
      * @param Event $event
      */
-    public static function trigger($class, $name, $event = null)
+    public static function trigger($class, $name, $data = array(), $event = null)
     {
         if (empty(self::$_events[$name])) {
             return;
@@ -124,7 +125,12 @@ class Event extends Object
         do {
             if (!empty(self::$_events[$name][$class])) {
                 foreach (self::$_events[$name][$class] as $handler) {
-                    call_user_func($handler[0], $event);
+                    $event->data = $handler[1];
+                    $methodParam = CoreReflection::getMethodParam($handler[0]);
+                    if (current($methodParam) == 'event') {
+                        array_unshift($data, $event); //事件对象只在在参第一位
+                    }
+                    call_user_func_array($handler[0], $data);
                     if ($event->handled) {
                         return;
                     }
