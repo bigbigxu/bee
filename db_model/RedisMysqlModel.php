@@ -118,7 +118,6 @@ class RedisMysqlModel extends CoreModel
 
     public function __construct()
     {
-        $this->setErrMode(PDO::ERRMODE_SILENT); //设置errmode为静默处理。用于回滚cache
         $this->db()->setAttr(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, true);
         if ($this->redisKeyPrefix == false) {
             $this->setRedisKeyPrefix(get_class($this)); //默认使用类名作为前缀

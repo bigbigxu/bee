@@ -199,6 +199,11 @@ class CoreModel
         return $this->from()->updateById($data, $id);
     }
 
+    public function incrByAttr($incr, $find, $multi = false)
+    {
+        return $this->from()->incrByAttr($incr, $find, $multi);
+    }
+
     public function updateByAttr($data, $findAttr, $multi = false)
     {
         return $this->from()->updateByAttr($data, $findAttr, $multi);
@@ -699,11 +704,12 @@ class CoreModel
     /**
      * 执行当前模型的事件
      * @param $name
+     * @param $data
      * @param Event $event
      */
-    public function trigger($name, $event = null)
+    public function trigger($name, $data = array(), $event = null)
     {
-        Event::trigger($this, $name, $event);
+        Event::trigger($this, $name, $data, $event);
     }
 
     public function setErrMode($mode)

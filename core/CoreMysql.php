@@ -74,6 +74,11 @@ class CoreMysql
 	 * @var string
 	 */
 	protected $autoBindPrefix = 'iphp_auto_';
+	/**
+	 *  当前程ID
+	 * @var int
+	 */
+	protected $pid = 0;
 
 	/**
 	 * 构造方法
@@ -417,6 +422,39 @@ class CoreMysql
 	}
 
 	/**
+	 * 数据自增加。如果数据存在更新，否则插入
+	 * @param array $incr key为要增加的字段, value为值
+	 * @param array $find 查询条件
+	 * @param bool $multi 是否可以更新多条记录
+	 * @return bool|int
+	 * @throws Exception
+	 */
+	public function incrByAttr($incr, $find, $multi = false)
+	{
+		if ($find == false) {
+			return false;
+		}
+		$res = $this->findByAttr($find);
+		$data = array_merge($find, $incr);
+		if ($data == false) {
+			return false;
+		}
+		if ($res == false) {
+			$flag =  $this->insert($data);
+		} else {
+			foreach ($incr as $key => $value) {
+				$data[$key] += $res[$key];
+			}
+			$flag = $this->updateByAttr($data, array_keys($find), $multi);
+		}
+		if ($flag === false) {
+			return $flag;
+		} else {
+			return $data;
+		}
+	}
+
+	/**
 	 * 根据属性值更新记录
 	 * @param $data
 	 * @param array $findAttr 要查找的数组。值在data数组中
@@ -604,6 +642,17 @@ class CoreMysql
 	public function setAttr($name, $value)
 	{
 		return $this->_pdo->setAttribute($name, $value);
+	}
+
+	/**
+	 * 设置开启查询缓存。
+	 * 在使用游标读取记录，未读取完成又想进行其它操作
+	 * 必须开启此选项
+	 * @param bool $bool
+	 */
+	public function setQueryBuffer($bool = true)
+	{
+		$this->_pdo->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, $bool);
 	}
 
 	/**
@@ -946,6 +995,7 @@ class CoreMysql
 			if ($o instanceof self)
 				$o->close();
 		}
+		self::$_instance = array();
 	}
 
 	/**

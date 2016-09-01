@@ -246,7 +246,7 @@ class BaseClient
      */
     public function onConnect(\swoole_client $client)
     {
-
+        echo 'connnet';
     }
 
     /**

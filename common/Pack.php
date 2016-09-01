@@ -323,8 +323,7 @@ class Pack
             $this->readUnInt($key);
             $size = $this->recvArr[$key];
             unset($this->recvArr[$key]);
-            $temp = substr($this->recvBuffer, 0, $size);
-            $value = self::unpack("{$format}{$size}{$name}", $temp);
+            $value[$name] = substr($this->recvBuffer, 0, $size - 1);
         } else {
             $temp = substr($this->recvBuffer, 0, $size);
             $value = self::unpack("{$format}{$name}", $temp);

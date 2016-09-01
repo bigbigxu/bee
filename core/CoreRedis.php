@@ -969,6 +969,7 @@ class CoreRedis
             if ($o instanceof self)
                 $o->close();
         }
+        self::$_instance = array();
     }
 
     /**
