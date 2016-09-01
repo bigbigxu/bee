@@ -44,7 +44,8 @@ class CoreSocket
         if(!is_array($config)) {
             $config = App::c($config);
         }
-        $k = md5($config[0] . $config[1]);
+        $pid = intval(getmypid());
+        $k = md5($config[0] . $config[1] . $pid);
         if(!isset(self::$_instance[$k])){
             if($config[2] == false) {
                 //默认使用tcp协议
