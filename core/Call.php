@@ -12,6 +12,7 @@ Class Call
 
     const ERR_CLASS = 1;
     const ERR_METHOD = 2;
+    const ERR_DATA = 3;
 
     protected $object; //正在代理的对象
 
@@ -29,6 +30,10 @@ Class Call
      */
     public function route($r, $params = array(), $sp = '.')
     {
+        if ($r == false) {
+            return $this->_setErrno(self::ERR_DATA);
+        }
+
         list($class, $method) = explode($sp, $r);
         if (class_exists($class) == false) {
             return $this->_setErrno(self::ERR_CLASS);
@@ -79,7 +84,8 @@ Class Call
     {
         $map = array(
             self::ERR_CLASS => '类不存在',
-            self::ERR_METHOD => '方法不存在'
+            self::ERR_METHOD => '方法不存在',
+            self::ERR_DATA => '数据格式不正确'
         );
         return $map[$this->_errno];
     }
@@ -105,5 +111,30 @@ Class Call
         } else {
             return null;
         }
+    }
+
+    /**
+     * 执行一个
+     * @param $method
+     * @param $data
+     * @return array
+     */
+    public function exec($method, $data)
+    {
+        $return  = $this->route($method, $data);
+        if ($this->getErrno() != 0) {
+            $r = array(
+                'flag' => $this->getErrno(),
+                'msg' => $this->getErrmsg()
+            );
+        } else {
+            $r = array(
+                'flag' => $return == false ? $this->getObjectErrno() : 0,
+                'error' => $return == false ? $this->getObjectErrmsg() : '',
+                'data' => $return
+            );
+        }
+        return $r;
+
     }
 }
