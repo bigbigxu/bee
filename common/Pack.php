@@ -331,9 +331,6 @@ class Pack
         $this->recvArr[$name] = $value[$name];
         $this->recvBuffer = substr($this->recvBuffer, $size);
         $this->recvSize -= $size;
-        if ($value[$name] === null) {
-            CoreLog::trace();
-        }
         return $this;
     }
 
