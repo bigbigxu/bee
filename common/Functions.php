@@ -80,7 +80,6 @@ class Functions
     public static function getClientType()
     {
         $agent = strtolower($_SERVER['HTTP_USER_AGENT']);
-        $type = 'other';
         if (strpos($agent, 'iphone') || strpos($agent, 'ipad')) {
             $type = 'ios';
         } else {
@@ -99,6 +98,9 @@ class Functions
     public static function changeKey($res, $map, $save = true)
     {
         $data = array();
+        if (!is_array($res)) {
+            return array();
+        }
         foreach ($res as $key => $value) {
             if (isset($map[$key])) {
                 $data[$map[$key]] = $value;
@@ -121,6 +123,9 @@ class Functions
     public static function changeArrayKey($arr, $map, $save = true)
     {
         $data = array();
+        if (!is_array($arr)) {
+            return array();
+        }
         foreach ($arr as $key => $value) {
             $data[$key] = self::changeKey($value, $map, $save);
         }
@@ -160,6 +165,9 @@ class Functions
      */
     public static function arrayPage($arr, $page = 0, $pageSize = 20)
     {
+        if (!is_array($arr)) {
+            return array();
+        }
         $pageSize = $pageSize <= 0 ? 20 : $pageSize;
         $page = $page <= 0 ? 1 : $page;
         $offset = ($page - 1) * $pageSize;
@@ -228,6 +236,9 @@ class Functions
     public static function arrayFilterKey(&$res, $saveKey)
     {
         $r = array();
+        if (!is_array($res)) {
+            return array();
+        }
         foreach ($res as $key => $row) {
             if (in_array($key, $saveKey)) {
                 $r[$key] = $row;
@@ -297,6 +308,9 @@ class Functions
      */
     public static function sortByField($arr, $sort)
     {
+        if (!is_array($arr)) {
+            return array();
+        }
         //解析$sort 得到要排序的字段和排序方式
         $sortFieldArr = array();
         $sort = explode(',', $sort);
@@ -443,6 +457,9 @@ class Functions
 
     public static function arrayFilterRecursive($input, $callback)
     {
+        if (!is_array($input)) {
+            return array();
+        }
         foreach ($input as &$value) {
             if (is_array($value)) {
                 $value = self::arrayFilterRecursive($value, $callback);
