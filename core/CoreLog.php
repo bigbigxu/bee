@@ -70,7 +70,7 @@ class CoreLog
         $o = App::getInstance();
         $dir = $o->getRuntimeDir() . '/error_log/' . date('Y/m');
         if(!is_dir($dir)) {
-            mkdir($dir, 0664, true);
+            mkdir($dir, 0755, true);
         }
         $file = $dir . '/error_' . date('d') . '.log';
         if (!is_file($file)) {
