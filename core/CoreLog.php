@@ -69,10 +69,15 @@ class CoreLog
     {
         $o = App::getInstance();
         $dir = $o->getRuntimeDir() . '/error_log/' . date('Y/m');
+        $mode = umask() & 0666;
         if(!is_dir($dir)) {
-            mkdir($dir, 0755, true);
+            mkdir($dir, $mode, true);
         }
         $file = $dir . '/error_' . date('d') . '.log';
+        if (!is_file($file)) {
+            touch($file);
+            @chmod($file, $mode);
+        }
         return $file;
     }
 
