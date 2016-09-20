@@ -5,28 +5,36 @@
  * Date: 2015/7/22
  * Time: 9:48
  */
+namespace bee\db_model;
 class RedisAnalysis
 {
     /**
-     * @var CoreRedis
+     * @var \CoreRedis
      */
     protected $redis;
-    protected $keyArr;
+    protected $keyArr; //随机key
     protected $keyReg = '/^[0-9a-zA-Z]+[\-_|:]{1}/';//key前缀匹配正则表达式
 
-    public function setRedis(CoreRedis $redis)
+    /**
+     * @param array $config
+     * @return static
+     */
+    public static function getInstance($config)
     {
-        $this->redis = $redis;
-        return $this;
+        $o = new static();
+        $o->redis = \CoreRedis::getInstance($config);
+        return $o;
     }
 
     /**
      * 设定key前缀分析表达式
      * @param $reg
+     * @return $this
      */
     public function setKeyReg($reg)
     {
         $this->keyReg = $reg;
+        return $this;
     }
 
     /**
@@ -91,19 +99,19 @@ class RedisAnalysis
         $type = $this->redis->type($key);
         $r = array();
         switch($type) {
-            case REDIS::REDIS_STRING :
+            case \REDIS::REDIS_STRING :
                 $r = $this->showString($key);
                 break;
-            case REDIS::REDIS_LIST :
+            case \REDIS::REDIS_LIST :
                 $r = $this->showList($key);
                 break;
-            case REDIS::REDIS_SET :
+            case \REDIS::REDIS_SET :
                 $r = $this->showSet($key);
                 break;
-            case REDIS::REDIS_ZSET :
+            case \REDIS::REDIS_ZSET :
                 $r = $this->showZset($key);
                 break;
-            case REDIS::REDIS_HASH :
+            case \REDIS::REDIS_HASH :
                 $r = $this->showHash($key);
                 break;
         }
