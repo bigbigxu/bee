@@ -40,19 +40,33 @@
 namespace bee\server;
 class DbServer extends BaseServer
 {
-    const OP_INSERT = 'insert'; //插入数据
-    const OP_UPDATE = 'update'; //更新数据
-    const OP_DEL = 'delete'; //删除数据
-    const OP_FIND = 'find'; //查找数据
+    /**
+     * OP_INSERT 标识为一个数据插入
+     * OP_UPDATE 标识为一个数据更新
+     * OP_DELETE 标识为一个数据删除
+     * OP_SELECT 标识为一个数据查找
+     * OP_ERROR  标识为一个错误操作
+     * OP_REQUEST 标识为一个请求操作
+     */
+    const OP_INSERT = 'insert';
+    const OP_UPDATE = 'update';
+    const OP_DELETE = 'delete';
+    const OP_SELECT = 'select';
+    const OP_ERROR = 'error';
+    const OP_REQUEST = 'request';
 
-    const API_PK = 'by_pk';
+    /**
+     * API_PK 增加根据数组insert；修改，删除根据pk；查询根据pk
+     * API_SQL 复杂的请求，使用sql语句来执行
+     */
+    const API_PK = 'by_data';
     const API_SQL = 'by_sql';
 
     protected $canOpType = array(
         self::OP_INSERT,
         self::OP_UPDATE,
-        self::OP_DEL,
-        self::OP_FIND
+        self::OP_DELETE,
+        self::OP_SELECT
     );
 
     const ERR_NO = 0;
@@ -73,84 +87,70 @@ class DbServer extends BaseServer
         self::ERR_SYNC_NO_FIND => '异步模式下不能执行查询操作',
         self::ERR_NO_PK => '没有设置主键'
     );
-    protected $qps = 100; //每秒个进程每秒最多写入多少条数据。
-    protected $tick = 1000;
-    protected $queueRedis; //使用那个redis配置
-    protected $queueKey; //消息队列的key
+
+    /**
+     * 批量提交的数量，如果大于1，将使用事务批量提交。可以提高性能。
+     * @var int
+     */
+    protected $batchNum = 1;
+    /**
+     * 统计每个进程执行情况
+     * OP_REQUEST 收到的请求数量
+     * OP_INSERT 插入执行数量
+     * OP_SELECT 查询执行数量
+     * OP_UPDATE 更新执行数量
+     * OP_DELETE 删除执行数量
+     * OP_ERROR 错误sql执行数
+     * @var array
+     */
+    protected $runInfo = array(
+        self::OP_REQUEST => 0,
+        self::OP_INSERT => 0,
+        self::OP_SELECT => 0,
+        self::OP_UPDATE => 0,
+        self::OP_DELETE => 0,
+        self::OP_ERROR => 0,
+    );
+    /**
+     * 当前队列
+     * @var \SplQueue
+     */
+    protected $queue;
     protected $name = 'db_server';
-    protected $useTrans = 1; //是否使用事务
-    protected $queueMode = 1; //
+    protected $leastQueueTime = 15; //队列最少执行时间
+    protected $lastQueueTime = 0; //队列上一次执行时间
 
     public function init()
     {
         $config = $this->c('queue');
-        $this->qps = $config['qps'] ? $config['qps'] : 100;
-        $this->queueRedis = $config['redis'] ? $config['redis'] : 'redis.main';
-        $this->queueKey = $config['key'] ? $config['key'] : 'db_server_queue';
-        $this->useTrans = intval($config['use_trans']);
-        $this->tick = $config['tick'] ? $config['tick'] : 1000;
-        $this->queueMode = $config['queue_mode'] ? $config['queue_mode'] : 1;
-    }
-
-    public function onWorkerStart(\swoole_server $server, $workerId)
-    {
-        if ($workerId >= $this->c('serverd.worker_num')) {
-            $this->tick($this->tick, array($this, 'execQueue'), array($this, $workerId));
-        }
-        parent::onWorkerStart($server, $workerId);
-    }
-
-    /**
-     * 得到消息队列的Key。原则上一个task进程一个消息队列
-     * @param $db
-     * @param $tableName
-     * @return string
-     */
-    public function getQueueKeyByDb($db, $tableName)
-    {
-        if ($this->queueMode == self::QUEUE_MODE_BIND) {
-            $num = sprintf('%u', crc32($db . $tableName));
-        } else {
-            $num = \Functions::milliSecondTime();
-        }
-        $id = $num % $this->c('serverd.task_worker_num') + $this->c('serverd.worker_num');
-        $key = $this->queueKey . '_' . $id;
-        return $key;
-    }
-
-    /**
-     * 根据worker_id得到队列key
-     * @return string
-     */
-    public function getQueueKeyByWorkerId()
-    {
-        $key = $this->queueKey . '_' . $this->getWorkerId();
-        return $key;
-    }
-
-    /**
-     * 得到消息队驱动
-     * @return \CoreRedis
-     */
-    public function getQueueDriver()
-    {
-        $object = \CoreRedis::getInstance($this->queueRedis);
-        return $object;
+        $this->batchNum = $config['batch_num'] ? $config['batch_num'] : 1;
+        $this->queue = new \SplQueue();
+        $this->lastQueueTime = time();
     }
 
     public function onReceive(\swoole_server $server, $fd, $fromId, $data)
     {
+        $this->runInfo['request']++;
+        if ($this->isDebug()) {
+            $this->accessLog($data);
+        }
+
         $arr = json_decode($data, true);
         if (($errno = $this->check($arr)) !== 0) {
+            $this->runInfo['error']++;
             $this->error($fd, $errno);
         } else {
-            if ($arr['async']) { //异步操作进入redis队列
-                $redis = $this->getQueueDriver();
-                $redis->rPush($this->getQueueKeyByDb($arr['db'], $arr['table_name']), $data);
-                $this->success($fd);
-            } else { //同步操作直接执行
-                $res = $this->taskWait($arr);
+            if ($arr['sync']) { //同步操作
+                $res = $this->execOne($data);
                 $this->success($fd, $res);
+            } else { //异步操作
+                $this->queue->push($arr);
+                if ($this->queue->count() >= $this->batchNum
+                    || time() - $this->lastQueueTime >= $this->leastQueueTime) {
+                    $this->lastQueueTime = time();
+                    $this->execQueue();
+                }
+                $this->success($fd);
             }
         }
     }
@@ -166,7 +166,7 @@ class DbServer extends BaseServer
             $errno = self::ERR_DATA;
         } elseif ($data['db'] == false || $data['table_name'] == false) {
             $errno = self::ERR_DB_SET;
-        } elseif ($data['async'] && $data['op'] == self::OP_FIND) {
+        } elseif ($data['sync'] != 1 && $data['op'] == self::OP_SELECT) {
             $errno = self::ERR_SYNC_NO_FIND;
         } elseif ($data['api'] == self::API_PK && $data['op'] != self::OP_INSERT && $data['pk'] == false) {
             $errno = self::ERR_NO_PK;
@@ -176,15 +176,7 @@ class DbServer extends BaseServer
         return $errno;
     }
 
-    /**
-     * task 同步情况下执行sql,异步情况下定时器执行消息队列
-     * @param \swoole_server $server
-     * @param int $taskId
-     * @param $fromId
-     * @param $data
-     * @return array|bool|int|mixed|null
-     */
-    public function onTask(\swoole_server $server, $taskId, $fromId, $data)
+    public function execOne($data)
     {
         $r = array();
         if ($data['api'] == self::API_PK) {
@@ -195,24 +187,15 @@ class DbServer extends BaseServer
         return $r;
     }
 
-
     /**
      * 消息队列方式执行
-     * @param $timerId
-     * @param $param
      * @return null
      */
-    public function execQueue($timerId, $param)
+    public function execQueue()
     {
-        $redis = $this->getQueueDriver();
-        $queueKey = $this->getQueueKeyByWorkerId();
         $execArr = array();
-        for ($i = 0; $i < $this->qps; $i++) {
-            $str = $redis->lPop($queueKey);
-            if ($str == false) { //当前队列已经没有数据了
-                break;
-            }
-            $data = json_decode($str, true);
+        for ($i = 0; $i < $this->batchNum; $i++) {
+            $data = $this->queue->pop();
             if ($data == false) { //非法数据
                 continue;
             }
@@ -229,24 +212,15 @@ class DbServer extends BaseServer
                 $this->errorLog("{$key} 数据库配置不存在" . $e->getMessage());
                 continue;
             }
-            if ($this->useTrans) {
-                $db->beginTransaction();
-            }
+            $db->beginTransaction();
             foreach ($dbArr as $row) {
-                if ($row['api'] == self::API_PK) {
-                    $this->execByPk($row);
-                } elseif ($row['api'] == self::API_SQL) {
-                    $this->execBySql($row);
-                }
+                $this->execOne($row);
                 $num++;
             }
-            if ($this->useTrans) {
-                $db->commit();
-            }
+            $db->commit();
         }
-        if ($this->debug) {
-            $msg =  '当前key：' . $queueKey;
-            $msg .= "; 事务：{$this->useTrans}";
+        if ($this->isDebug()) {
+            $msg = '当前进程：' . getmypid();
             $msg .= "; 执行条数：{$num}";
             $this->debugLog($msg);
         }
@@ -269,18 +243,20 @@ class DbServer extends BaseServer
                 case self::OP_UPDATE :
                     $r = $model->updateById($data['data'], $data['pk']);
                     break;
-                case self::OP_DEL :
+                case self::OP_DELETE :
                     $r = $model->delById($data['pk']);
                     break;
-                case self::OP_FIND :
+                case self::OP_SELECT :
                     $r = $model->findById($data['pk']);
                     break;
                 default :
                     break;
             }
+            $this->runInfo[$data['op']]++;
         } catch (\PDOException $e) {
+            $this->runInfo[self::OP_ERROR]++;
             $this->errorLog(\CoreJson::encode($data) . '：' . $e->getMessage());
-            return 0;
+            return false;
         }
         return $r;
     }
@@ -296,13 +272,15 @@ class DbServer extends BaseServer
         try  {
             $model = \App::m($data['db'], $data['table_name']);
             switch ($data['op']) {
-                case self::OP_FIND :
+                case self::OP_SELECT :
                     $r = $model->all($data['sql'], $data['params']);
                     break;
                 default:
                     $r = $model->exec($data['data'], $data['params']);
             }
+            $this->runInfo[$data['op']]++;
         } catch (\PDOException $e) {
+            $this->runInfo[self::OP_ERROR]++;
             $this->errorLog(\CoreJson::encode($data) . '：' . $e->getMessage());
             return $r;
         }
