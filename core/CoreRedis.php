@@ -68,7 +68,8 @@ class CoreRedis
             $config = App::c($config);
         }
         $config['db_id'] = $config['db_id'] ? $config['db_id'] : 0;
-        $k = md5($config['host'] . $config['port'] . $config['db_id']);
+        $pid = intval(getmypid());
+        $k = md5($config['host'] . $config['port'] . $config['db_id'] . $pid);
         if (!(self::$_instance[$k] instanceof self) || time() > self::$_instance[$k]->expireTime) {
             self::$_instance[$k] = null;
             self::$_instance[$k] = new self($config);

@@ -60,13 +60,11 @@ class CoreMysql
 	//PDO链接属性数组
 	protected $attr = array(
 		//这个超时参数，实际上mysql服务器上的配置为准的。这里用于什么时候重建对象
-		//说明如是设置了这个参数，如果不显式的将pdo设为null，可能造成连接资源在mysql上不被释放。
 		PDO::ATTR_TIMEOUT => 30,
 		PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
 		PDO::ATTR_ORACLE_NULLS => PDO::NULL_NATURAL,
-		// PDO::ATTR_AUTOCOMMIT=>true,
 		PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-		PDO::ATTR_PERSISTENT => FALSE
+		PDO::ATTR_PERSISTENT => false //是否使用长链接
 	);
 	protected $paramCount = 0; //自定义参编号
 	/**
@@ -80,12 +78,19 @@ class CoreMysql
 	 */
 	protected $pid = 0;
 
+	/*
+	 * mysql常用错误码定义
+	 * 驱动错误码保存在 errInfo[1]中
+	*/
+	const ERR_DRIVER_TABLE = 1146; //表不存存
+	const ERR_DRIVER_CONN = 2006; //连接已经断开
+
 	/**
 	 * 构造方法
 	 * @param array $config 　配置文件
 	 * @param array $attr 数组选项
 	 */
-	private function __construct($config, $attr)
+	public function __construct($config, $attr)
 	{
 		$this->attr = $attr + $this->attr;
 		$this->_pdo = new PDO($config['dsn'], $config['username'], $config['password'], $this->attr);
@@ -128,7 +133,8 @@ class CoreMysql
 		if (!is_array($config)) {
 			$config = App::c($config);
 		}
-		$k = md5($config['dsn'] . $config['username'] . $config['password']);
+		$pid = intval(getmypid());
+		$k = md5($config['dsn'] . $config['username'] . $config['password'] . $pid);
 
 		//如果连接没有创建，或者连接已经失效
 		if (!(self::$_instance[$k] instanceof self) || time() > self::$_instance[$k]->expireTime) {

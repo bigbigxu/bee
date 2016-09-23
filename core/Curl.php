@@ -220,7 +220,11 @@ class Curl
         $data = $this->data;
         if ($data != false) {
             if ($this->options[CURLOPT_POST] == 1) {
-                $this->options[CURLOPT_POSTFIELDS] = $data;
+                if (is_array($data)) {
+                    $this->options[CURLOPT_POSTFIELDS] = http_build_query($data);
+                } else {
+                    $this->options[CURLOPT_POSTFIELDS] = $data;
+                }
             } else {
                 $this->url = self::createUrl($this->url, $data);
                 $this->options[CURLOPT_URL] = $this->url;

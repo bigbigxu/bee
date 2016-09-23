@@ -146,7 +146,8 @@ class Mongo
         if (!is_array($config)) {
             $config = \App::c($config);
         }
-        $k = md5(implode('', $config['server']));
+        $pid = intval(getmypid());
+        $k = md5(implode('', $config['server']) . $pid);
 
         //如果连接没有创建，或者连接已经失效
         if(!(self::$_instance[$k] instanceof self) || time() > self::$_instance[$k]->expireTime) {
