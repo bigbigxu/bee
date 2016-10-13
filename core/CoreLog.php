@@ -56,9 +56,13 @@ class CoreLog
             $msg = CoreJson::encode($msg);
         }
         $time = date('Y-m-d H:i:s');
-        $ip = $_SERVER['REMOTE_ADDR'];
-        $prefix = "[{$time}] -- [{$ip}] -- ";
-        file_put_contents($file, "{$prefix} {$msg}\n",  FILE_APPEND);
+        if (!PhpEnv::isCli()) {
+            $ip = $_SERVER['REMOTE_ADDR'];
+            $prefix = "[{$time}] -- [{$ip}] -- ";
+        } else {
+            $prefix = "[{$time}] ";
+        }
+        file_put_contents($file, "{$prefix}{$msg}\n",  FILE_APPEND);
     }
 
     /**
