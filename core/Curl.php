@@ -5,6 +5,7 @@
  * Date: 2015/9/25
  * Time: 15:28
  * curl操作类，支持链式操作。
+ * @desc 在php.ini 安全模式开局的情况下，CURLOPT_FOLLOWLOCATION不可用
  * @author xuen
  * @version 1.0
  */
@@ -20,7 +21,7 @@ class Curl
         CURLOPT_HTTPGET => 1, //设定为GET请求。
         CURLOPT_CONNECTTIMEOUT => 30, // 设置默认链接超时间为30秒
         CURLOPT_TIMEOUT => 30, //设置下载时间最多30秒。
-        CURLOPT_FOLLOWLOCATION => true, //自动跟踪重定向。
+        //CURLOPT_FOLLOWLOCATION => true, //自动跟踪重定向。
         CURLOPT_ENCODING => 'gzip',  // 设置客户端支持gzip压缩, 用于节省流量。
         CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 6.1; rv:23.0) Gecko/20100101 Firefox/23.0',
         CURLOPT_SSL_VERIFYPEER => false
