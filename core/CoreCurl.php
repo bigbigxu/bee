@@ -1,6 +1,7 @@
 <?php
 /**
  * 封装了的curl http请求类
+ * @desc 在php.ini 安全模式开局的情况下，CURLOPT_FOLLOWLOCATION不可用
  * @author xuen
  */
 class CoreCurl
@@ -20,7 +21,7 @@ class CoreCurl
         CURLOPT_CONNECTTIMEOUT => 30, // 设置默认链接超时间为30秒
         CURLOPT_TIMEOUT=>30,//设置下载时间最多30秒。
         // 自动跟踪重定向。
-        CURLOPT_FOLLOWLOCATION => false,
+        //CURLOPT_FOLLOWLOCATION => false,
         // 设置客户端支持gzip压缩,默认不开启，用于节省流量。
         CURLOPT_ENCODING => 'gzip',
         // 设定默认header头

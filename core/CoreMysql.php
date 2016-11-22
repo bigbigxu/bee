@@ -49,14 +49,15 @@ class CoreMysql
 	);
 	protected $fields = array();//得到当前表所有的字段名称
 	private static $_instance = array();
+
+	protected $driver;
 	protected $dbName; //当前表名
 	protected $username; //用户名
 	private $k; //当前数据库连接标识符
 	protected $password; //密码
-	protected $host; //主机名
-	protected $port; //端口号
-	//一个时间戳，表示当前链接在什么时候过期，过期后，将重建一个对象。
-	protected $expireTime;
+	protected $host = 'localhost'; //主机名
+	protected $port = '3306'; //端口号
+	protected $expireTime; //一个时间戳，表示当前链接在什么时候过期，过期后，将重建一个对象。
 	//PDO链接属性数组
 	protected $attr = array(
 		//这个超时参数，实际上mysql服务器上的配置为准的。这里用于什么时候重建对象
@@ -85,6 +86,12 @@ class CoreMysql
 	const ERR_DRIVER_TABLE = 1146; //表不存存
 	const ERR_DRIVER_CONN = 2006; //连接已经断开
 
+	/*
+	 * 定义驱动类型
+	 */
+	const DRIVER_MYSQL = 'mysql';
+	const DRIVER_SQLITE = 'sqlite';
+
 	/**
 	 * 构造方法
 	 * @param array $config 　配置文件
@@ -101,26 +108,39 @@ class CoreMysql
 		if (isset($config['charset']) && $config['charset'] != '') {
 			$this->charset = $config['charset'];
 		}
-		$this->_pdo->exec("set names {$this->charset}");
-
-		//保存当前数据库名称，主机，端口。
-		preg_match('/dbname=(\w+)/', $config['dsn'], $ma);
-		preg_match('/host=(.*?);/', $config['dsn'], $ma1);
-		preg_match('/port=(\w+)/', $config['dsn'], $ma2);
-		$this->dbName = $ma[1];
-		$this->host = $ma1[1];
-		$this->port = $ma2[1] ? $ma2[1] : 3306;
-
 		$this->username = $config['username'];
 		$this->password = $config['password'];
+		$this->setParamByDSN($config['dsn']);
+		$this->_pdo->exec("set names {$this->charset}");
 
-		//设置链接过期时间
+		/* 设置链接过期时间 */
 		$timeout = $this->attr[PDO::ATTR_TIMEOUT];
 		$this->expireTime = time() + $timeout;
 	}
 
-	private function __clone()
+	public function setParamByDSN($dsn)
 	{
+		list($this->driver, $str) = explode(':', $dsn);
+		$temp = explode(";", $str);
+		foreach ($temp as $row) {
+			list($key, $value) = explode('=', $row);
+			$key = strtolower(trim($key));
+			$value = trim($value);
+			if ($value === '') {
+				continue;
+			}
+			switch ($key) {
+				case 'host' :
+					$this->host = $value;
+					break;
+				case 'port' :
+					$this->port = $value;
+					break;
+				case 'dbname' :
+					$this->dbName = $value;
+					break;
+			}
+		}
 	}
 
 	/**

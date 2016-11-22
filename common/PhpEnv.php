@@ -12,6 +12,11 @@ class PhpEnv
     protected $options = array();
     private static $_instance;
 
+    const SAPI_CLI = 'cli'; //命令行运行模式
+    const SAPI_CGI = 'cgi'; //cgi模式
+    const SAPI_FPM = 'fpm';
+    const SAPI_APACHE = 'apache';
+
     /**
      * 实例化对象
      * @return static
@@ -118,5 +123,14 @@ class PhpEnv
             ini_set($key, $value);
         }
         return true;
+    }
+
+    public static function isCli()
+    {
+        if (substr(php_sapi_name(), 0, 3) != 'cli') {
+            return false;
+        } else {
+            return true;
+        }
     }
 }

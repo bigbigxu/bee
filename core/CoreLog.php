@@ -56,9 +56,13 @@ class CoreLog
             $msg = CoreJson::encode($msg);
         }
         $time = date('Y-m-d H:i:s');
-        $ip = $_SERVER['REMOTE_ADDR'];
-        $prefix = "[{$time}] -- [{$ip}] -- ";
-        file_put_contents($file, "{$prefix} {$msg}\n",  FILE_APPEND);
+        if (!PhpEnv::isCli()) {
+            $ip = $_SERVER['REMOTE_ADDR'];
+            $prefix = "[{$time}] -- [{$ip}] -- ";
+        } else {
+            $prefix = "[{$time}] ";
+        }
+        file_put_contents($file, "{$prefix}{$msg}\n",  FILE_APPEND);
     }
 
     /**
@@ -73,6 +77,10 @@ class CoreLog
             mkdir($dir, 0755, true);
         }
         $file = $dir . '/error_' . date('d') . '.log';
+        if (!is_file($file)) {
+            touch($file);
+            @chmod($file, 0664);
+        }
         return $file;
     }
 

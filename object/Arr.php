@@ -20,4 +20,16 @@ class Arr
         return new static($arr);
     }
 
+    public function avg()
+    {
+        if (!is_array($this->arr)) {
+            return 0;
+        }
+        $n = count($this->arr);
+        if ($n == 0) {
+            return 0;
+        }
+
+        return array_sum($this->arr) / $n;
+    }
 }
