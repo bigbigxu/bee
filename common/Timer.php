@@ -40,8 +40,8 @@ class Timer
 {
     const DAY_SECOND = 86400; //1天的秒数
     const WEEK_SECOND = 604800; // 1周的秒数
-    const MONTH_SECOND = 2592000; //1个月的秒数
-    const YEAR_SECOND = 31536000; //1年的秒数
+    const MONTH_SECOND = 2592000; //1个月的秒数，参考
+    const YEAR_SECOND = 31536000; //1年的秒数，参考
     /**
      * 得到今天0点0分的时间戳
      * @return int

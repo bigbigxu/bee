@@ -1355,14 +1355,108 @@ class CoreRedis
     }
 
     /**
-     * 代理执行一个redis函数
+     * 执行redis 代理方法
+     * @param $cmd
+     * @param $params
      * @return mixed
      */
-    public function proxyExec()
+    private function _execForRedis($cmd, $params)
     {
-        $params = func_get_args();
-        $method = $params[0];
-        array_shift($params);
-        return call_user_func_array(array($this->redis, $method), $params);
+        return call_user_func_array(array($this->redis, $cmd), $params);
+    }
+
+    /**
+     * @see Redis::rename()
+     * 重命名一个key
+     * 命令：rename srcKey dstKey
+     * 复杂度: O(1)
+     *
+     * @param string $srcKey 原来的key
+     * @param string $dstKey 重命名后的key
+     * @return mixed 成功返回true
+     */
+    public function rename($srcKey, $dstKey)
+    {
+        return $this->_execForRedis('rename', array($srcKey, $dstKey));
+    }
+
+    /**
+     * @see Redis::renameNx()
+     * 重命名一个key
+     * 命令：renamenx srcKey dstKey
+     * 复杂度: O(1)
+     *
+     * @param string $srcKey 原来的key
+     * @param string $dstKey 重命名后的key
+     * @return mixed 成功返回true, 如果dstKey存在返回false
+     */
+    public function renameNx($srcKey, $dstKey)
+    {
+        return $this->_execForRedis('rename', array($srcKey, $dstKey));
+    }
+
+
+    /**
+     * @see Redis::setBit()
+     * 设置一个二进制位的值
+     * 命令：setbit key offset value
+     * 复杂度: O(1)
+     *
+     * @param string $key redis key
+     * @param int $offset 偏移量
+     * @param int $value 值，0或1
+     * @return mixed 返回设置之前的值
+     */
+    public function setBit($key, $offset, $value)
+    {
+        return $this->_execForRedis('setBit', array($key, $offset, $value));
+    }
+
+    /**
+     * @see Redis::getBit()
+     * 获取一个二进制位的值
+     * 命令: getbit key offset
+     * 复杂度: O(1)
+     *
+     * @param string $key redis key
+     * @param int $offset 偏移量
+     * @return mixed 返会0或1
+     */
+    public function getBit($key, $offset)
+    {
+        return $this->_execForRedis('getBit', array($key, $offset));
+    }
+
+    /**
+     * @see Redis::bitCount()
+     * 计算给定字符串中，被设置为 1 的比特位的数量
+     * 命令: bitCount key
+     * 复杂度: O(N)
+     *
+     * @param string $key redis-key
+     * @param int $start 开始位置，以字节为单位(8bit)
+     * @param int $end 结束位置，以字节为单位(8bit)
+     * @return mixed 返回可以可以使用的二进制位数
+     */
+    public function bitCount($key, $start = null, $end = null)
+    {
+        return $this->_execForRedis('bitCount', func_get_args());
+    }
+
+    /**
+     * @see Redis::bitOp()
+     * 位运算
+     * 命令: bitop and retkey key1 key2
+     * 复杂度: O(N)
+     *
+     * @param string $op  操作类型 "AND", "OR", "NOT", "XOR"
+     * @param string $retKey 要改变得key
+     * @param string $keys 参数运算的key， 空的 key 也被看作是包含 0 的字符串序列
+     *                     除了 NOT 操作之外，其他操作都可以接受一个或多个 key 作为输入
+     * @return mixed $retKey大小, 输入 key 中最长的字符串长度相等
+     */
+    public function bitOp($op, $retKey, $keys)
+    {
+        return $this->_execForRedis('bitOp', func_get_args());
     }
 }
