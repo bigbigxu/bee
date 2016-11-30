@@ -58,12 +58,12 @@ class App
         }
 
         $this->isRun = 1;
-        $this->baseDir = $this->config['base_dir'];
-        $this->configDir = $this->config['config_dir'];
-        $this->isDebug = $this->config['debug'];
-        $this->crontabDir = $this->config['crontab_dir'];
-        $this->runtimeDir = $this->config['runtime_dir'];
-        $this->env = $this->config['env'];
+        $this->baseDir = $this->config['base_dir'] ?: $this->sysDir . '/../';
+        $this->configDir = $this->config['config_dir'] ?: $this->baseDir . '/config';
+        $this->isDebug = (int)$this->config['debug'];
+        $this->crontabDir = $this->config['crontab_dir'] ?: $this->baseDir . '/crontab';
+        $this->runtimeDir = $this->config['runtime_dir'] ?: $this->baseDir . '/runtime';
+        $this->env = $this->config['env'] ?: self::ENV_DEV;
         $this->loadCorePackage();
         //注册自动加载函数
         spl_autoload_register(array($this, 'autoLoad'));
