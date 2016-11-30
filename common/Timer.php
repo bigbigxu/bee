@@ -39,7 +39,9 @@
 class Timer
 {
     const DAY_SECOND = 86400; //1天的秒数
+    const WEEK_SECOND = 604800; // 1周的秒数
     const MONTH_SECOND = 2592000; //1个月的秒数
+    const YEAR_SECOND = 31536000; //1年的秒数
     /**
      * 得到今天0点0分的时间戳
      * @return int
@@ -227,5 +229,29 @@ class Timer
             $r[] = $n;
         }
         return $r;
+    }
+
+    /**
+     * 计算2个时间戳之间，有多少天
+     * @param $start
+     * @param $end
+     * @return int
+     */
+    public static function dayNum($start, $end)
+    {
+        $n = intval(($end - $start) / self::DAY_SECOND);
+        return $n;
+    }
+
+    /**
+     * 计算2个时间戳之间，有多少周
+     * @param $start
+     * @param $end
+     * @return int
+     */
+    public static function weekNum($start, $end)
+    {
+        $n = intval(($end - $start) / self::WEEK_SECOND);
+        return $n;
     }
 }
