@@ -9,8 +9,8 @@
 namespace bee\cache;
 interface Cache
 {
-    public function get($key, $value, $timeout);
-    public function set($key);
+    public function get($key);
+    public function set($key, $value, $timeout);
     public function exists($key);
     public function ttl($key);
 }

@@ -93,6 +93,12 @@ class CoreMysql
 	const DRIVER_SQLITE = 'sqlite';
 
 	/**
+	 * @var \bee\cache\Cache
+	 * mysql需要使用的cache组件
+	 */
+	public $cache;
+
+	/**
 	 * 构造方法
 	 * @param array $config 　配置文件
 	 * @param array $attr 数组选项
@@ -116,6 +122,9 @@ class CoreMysql
 		/* 设置链接过期时间 */
 		$timeout = $this->attr[PDO::ATTR_TIMEOUT];
 		$this->expireTime = time() + $timeout;
+		if ($config['cache']) {
+			$this->cache = App::createObject($config['cache'], false);
+		}
 	}
 
 	public function setParamByDSN($dsn)
@@ -517,15 +526,27 @@ class CoreMysql
 		if (is_array($this->fields[$this->tableName])) {
 			return;
 		}
-		$sql = "desc {$this->tableName} ";
-		//内部查询使用原生pdo方式。不然会执行clearQuery
-		$res = $this->_pdo->query($sql)->fetchAll();
-		foreach ($res as $row) {
-			if ($row['Key'] == 'PRI') {
-				$this->fields[$this->tableName]['pk'] = $row['Field'];
+		$field = null;
+		$key = "bee_db_field_cache_{$this->dbName}_{$this->tableName}";
+
+		/* 尝试从缓存中找到数据 */
+		if ($this->cache) {
+			$field = $this->cache->get($key);
+		}
+
+		/* 从db查数据，并保存缓存 */
+		if ($field == false) {
+			$sql = "desc {$this->tableName} ";
+			$res = $this->_pdo->query($sql)->fetchAll();
+			foreach ($res as $row) {
+				if ($row['Key'] == 'PRI') {
+					$field['pk'] = $row['Field'];
+				}
+				$field[] = $row['Field'];
 			}
 			$this->fields[$this->tableName][] = $row['Field'];
 		}
+		$this->fields[$this->tableName] = $field;
 	}
 
 	//得到当前操作表的字段信息

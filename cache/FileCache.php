@@ -48,6 +48,11 @@ class FileCache implements Cache
      * @var int
      */
     public $gcProbability = 10;
+    /**
+     * 默认的过期时间
+     * @var null
+     */
+    public $timeout = 0;
 
     public function __construct()
     {
@@ -103,8 +108,9 @@ class FileCache implements Cache
      * @param int $timeout
      * @return bool
      */
-    public function set($key, $value, $timeout = 0)
+    public function set($key, $value, $timeout = null)
     {
+        $timeout = $timeout === null ? $this->timeout : $timeout;
         $this->gc();
         $cacheFile = $this->getCacheFile($key);
         $dir = dirname($cacheFile);
@@ -146,7 +152,7 @@ class FileCache implements Cache
                 $value = @stream_get_contents($fp);
                 @flock($fp, LOCK_UN);
                 @fclose($fp);
-                $value = call_user_func($this->serializer[1], $value);
+                $value = call_user_func($this->serializer[1], $value, true);
                 return $value;
             }
         }
