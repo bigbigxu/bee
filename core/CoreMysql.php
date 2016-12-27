@@ -3,32 +3,20 @@
 /**
  * 数据库操作基类 基于pdo
  * @author xuen
- *    支持链式操作，支持参数绑定
+ *   支持链式操作，支持参数绑定
  *　说明1　只有在绑定了参数后，pdo才会自动处理单引号。
  *  说明2　关闭连接时，要设置pdo null
- *  说明3　在脚本处理完后，最好手动关闭连接。不然mysql并不一定会关闭连接。
- *  说明4 pdo绑定参数不能有2个两名参数
+ *  说明3 pdo绑定参数不能有2个两名参数
  *  update members_android set mid=:id1, progress = :t where mid=:id2
  *  就算id1,id2是同一个值。也要用2个参数名。
  *  如果相同。pdo不会报错。但是会执行失败。
- * @example
- *            $res=$db->all(array(
- * 'field'=>'ID,albumName,albumImage,
- * mainActor,directors,tags,info,area,
- * keywords,wflag,year,mod_version,totalDuration',
- * 'where'=>$where,
- * 'order'=>'flag desc,hit_count desc',
- * 'limit'=>"{$limit['offset']},{$limit['pagesize']}"
- * ));
- * $res=$db->field('ID,stitle,jisu,liuchang,gaoqing,chaoqing,
- * totalDuration,bTime,eTime')
- * ->where($where)
- * ->limit("{$limit['offset']},{$limit['pagesize']}")
- * ->all();
  * @TODO 所有关于主键的方法都不支持联合主键
  */
 class CoreMysql
 {
+	/**
+	 * @var PDO
+	 */
 	private $_pdo;
 	protected $tableName; //表示当前查询的主表名
 	protected $tableNameAlias = 't'; //当前主表的别名，默认为t
@@ -47,27 +35,33 @@ class CoreMysql
 		'union' => '',
 		'params' => array()
 	);
-	protected $fields = array();//得到当前表所有的字段名称
+	protected $fields = array(); /* 得到当前表所有的字段名称 */
 	private static $_instance = array();
 
-	protected $driver;
-	protected $dbName; //当前表名
-	protected $username; //用户名
-	private $k; //当前数据库连接标识符
-	protected $password; //密码
-	protected $host = 'localhost'; //主机名
-	protected $port = '3306'; //端口号
-	protected $expireTime; //一个时间戳，表示当前链接在什么时候过期，过期后，将重建一个对象。
-	//PDO链接属性数组
+	protected $driver; /* 驱动类型 */
+	protected $dbName; /* 当前数据库名 */
+	protected $username; /* 用户名 */
+	protected $dsn; /* 驱动dsn */
+	protected $k; /* 当前数据库连接标识符 */
+	protected $password; /* 密码 */
+	protected $host = 'localhost'; /* 主机名 */
+	protected $port = '3306'; /* 端口号 */
+	protected $expireTime; /*一个时间戳，表示当前链接在什么时候过期，过期后，将重建一个对象 */
+	/* PDO链接属性数组 */
 	protected $attr = array(
-		//这个超时参数，实际上mysql服务器上的配置为准的。这里用于什么时候重建对象
+		/* 这个超时参数，实际上mysql服务器上的配置为准的。这里用于什么时候重建对象 */
 		PDO::ATTR_TIMEOUT => 30,
 		PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
 		PDO::ATTR_ORACLE_NULLS => PDO::NULL_NATURAL,
 		PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-		PDO::ATTR_PERSISTENT => false //是否使用长链接
+		PDO::ATTR_PERSISTENT => false /* 是否使用长链接 */
 	);
-	protected $paramCount = 0; //自定义参编号
+	protected $paramCount = 0; /* 自定义参编号 */
+	/**
+	 * 实际完成sql执行的db
+	 * @var CoreMysql
+	 */
+	protected $realDb;
 	/**
 	 * 由本类自动生成的绑定参数前缀，用于区别用户绑定参数
 	 * @var string
@@ -99,34 +93,63 @@ class CoreMysql
 	public $cache;
 
 	/**
+	 * 从库配置文件。是一个标准的bee配置节。
+	 * 目前只支持了一主多从
+	 *
+	 * slave 会继承主库的配置（参数合并）
+	 * 如果slave为一个字符串，解析为配置的dsn选项，其他参数从主库继承。
+	 * 如果是一个数组，和主库参数进行合并。
+	 * @example
+	 *   slave_config => [
+	 *     'mysql:host=localhost;dbname=test',
+	 *     [
+	 * 			'dsn' => 'mysql:host=localhost;dbname=test'
+	 *          'username' => 'xx'
+	 * 	   ]
+	 * 	]
+	 * @var array
+	 */
+	public $slaveConfig = array();
+	public $dbConfig; /* 配置文件保存 */
+	public $cacheConfig; /* 缓存配置文件 */
+
+	/**
 	 * 构造方法
 	 * @param array $config 　配置文件
 	 * @param array $attr 数组选项
 	 */
 	public function __construct($config, $attr)
 	{
+		$this->dbConfig = $config;
 		$this->attr = $attr + $this->attr;
-		$this->_pdo = new PDO($config['dsn'], $config['username'], $config['password'], $this->attr);
-
-		if (isset($config['prefix']) && $config['prefix'] != '') {
-			$this->prefix = $config['prefix'];
-		}
-		if (isset($config['charset']) && $config['charset'] != '') {
-			$this->charset = $config['charset'];
-		}
+		$this->prefix = $config['prefix'] ?: '';
+		$this->charset = $config['charset'] ?: 'utf8';
+		$this->dsn = $config['dsn'];
 		$this->username = $config['username'];
 		$this->password = $config['password'];
-		$this->setParamByDSN($config['dsn']);
-		$this->_pdo->exec("set names {$this->charset}");
-
-		/* 设置链接过期时间 */
-		$timeout = $this->attr[PDO::ATTR_TIMEOUT];
-		$this->expireTime = time() + $timeout;
-		if ($config['cache']) {
-			$this->cache = App::createObject($config['cache'], false);
-		}
+		$this->slaveConfig = (array)$config['slaves'];
+		$this->cacheConfig = $config['cache'];
 	}
 
+	/**
+	 * 打开pdo mysql连接
+	 */
+	public function open()
+	{
+		if ($this->_pdo !== null && $this->expireTime > time()) {
+			return ; /* 连接已经打开 */
+		}
+
+		$this->setParamByDSN($this->dsn);
+		$this->_pdo = new PDO($this->dsn, $this->username, $this->password, $this->attr);
+		$this->_pdo->exec("set names {$this->charset}");
+		$this->expireTime = time() + $this->attr[PDO::ATTR_TIMEOUT];
+	}
+
+	/**
+	 * 从dsn中解析相关配置
+	 * @param $dsn
+	 */
 	public function setParamByDSN($dsn)
 	{
 		list($this->driver, $str) = explode(':', $dsn);
@@ -166,8 +189,7 @@ class CoreMysql
 		$k = md5($config['dsn'] . $config['username'] . $config['password'] . $pid);
 
 		//如果连接没有创建，或者连接已经失效
-		if (!(self::$_instance[$k] instanceof self) || time() > self::$_instance[$k]->expireTime) {
-			self::$_instance[$k] = null;
+		if (!(self::$_instance[$k] instanceof self)) {
 			self::$_instance[$k] = new self($config, $attr);
 			self::$_instance[$k]->k = $k;
 		}
@@ -527,24 +549,30 @@ class CoreMysql
 			return;
 		}
 		$field = null;
-		$key = "bee_db_field_cache_{$this->dbName}_{$this->tableName}";
-
+		$key = array(
+			__CLASS__,
+			$this->dbName,
+			$this->tableName
+		);
+		$cache = $this->getCache();
 		/* 尝试从缓存中找到数据 */
-		if ($this->cache) {
-			$field = $this->cache->get($key);
+		if ($cache) {
+			$field = $cache->get($key);
 		}
 
 		/* 从db查数据，并保存缓存 */
 		if ($field == false) {
 			$sql = "desc {$this->tableName} ";
-			$res = $this->_pdo->query($sql)->fetchAll();
+			$res = $this->_execForMysql($sql)->fetchAll();
 			foreach ($res as $row) {
 				if ($row['Key'] == 'PRI') {
 					$field['pk'] = $row['Field'];
 				}
 				$field[] = $row['Field'];
 			}
-			$this->fields[$this->tableName][] = $row['Field'];
+			if ($cache) {
+				$cache->set($key, $field);
+			}
 		}
 		$this->fields[$this->tableName] = $field;
 	}
@@ -637,6 +665,7 @@ class CoreMysql
 			$this->sqlQuery['params'] = $params;
 		}
 		$stmt = $this->_execForMysql($sql, $this->sqlQuery['params']);
+		$this->clearSqlQuery();
 		return $stmt;
 	}
 
@@ -648,14 +677,21 @@ class CoreMysql
 	 */
 	private function _execForMysql($sql, $params = array())
 	{
-		$stmt = $this->_pdo->prepare($sql);
+		if ($this->isReadSql($sql)) {
+			$db = $this->getSlaveDb();
+		} else {
+			$db = $this->getMasterDb();
+		}
+		$this->realDb = $db;
+		$db->open();
+		$pdo = $db->getPdo();
+		$stmt = $pdo->prepare($sql);
 		if ($stmt == false) {
-			$errorInfo = $this->_pdo->errorInfo();
+			$errorInfo = $pdo->errorInfo();
 			$this->setError($errorInfo[2]);
 			return false;
 		}
 		$stmt->execute($params);
-		$this->clearSqlQuery();
 		$errorInfo = $stmt->errorInfo();
 		if ($errorInfo[0] != '00000') {
 			$this->setError($errorInfo[2]);
@@ -677,6 +713,7 @@ class CoreMysql
 			$this->sqlQuery['params'] = $params;
 		}
 		$stmt = $this->_execForMysql($sql, $this->sqlQuery['params']);
+		$this->clearSqlQuery();
 		return $stmt->rowCount();
 	}
 
@@ -1295,5 +1332,64 @@ class CoreMysql
 			$label[$row['Field']] = $row['Comment'];
 		}
 		return $label;
+	}
+
+	/**
+	 * 判断一个sql是否为读取操作
+	 * @param $sql
+	 * @return bool
+	 */
+	public function isReadSql($sql)
+	{
+		$pattern = '/^\s*(SELECT|SHOW|DESCRIBE|DESC)\b/i';
+		return preg_match($pattern, $sql) > 0;
+	}
+
+	/**
+	 * 获取主库
+	 * @return $this
+	 */
+	public function getMasterDb()
+	{
+		return $this;
+	}
+
+	/**
+	 * 得到从库
+	 * 从库会继承主库的配置文件选项。
+	 * @return $this|CoreMysql
+	 */
+	public function getSlaveDb()
+	{
+		if ($this->slaveConfig == false) {
+			return $this; /* 没有配置从库 */
+		}
+		$config = $this->slaveConfig[array_rand($this->slaveConfig)];
+		if (is_string($config)) {
+			/* 如果为一个字符串，认为是一个dsn */
+			$config = ['dsn' => $config];
+		}
+		/* 合并主库和从库的配置文件 */
+		$config = array_merge($this->dbConfig, $config);
+		unset($config['slaves']);
+		$db = self::getInstance($config, $this->attr);
+		return $db;
+	}
+
+	public function getCache()
+	{
+		if ($this->cache === null && $this->cacheConfig) {
+			$this->cache = App::createObject($this->cacheConfig, false);
+		}
+		return $this->cache;
+	}
+
+	/**
+	 * 获取实际执行的db
+	 * @return CoreMysql
+	 */
+	public function getDb()
+	{
+		return $this->realDb;
 	}
 }

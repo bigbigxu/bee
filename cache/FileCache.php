@@ -27,7 +27,7 @@ class FileCache implements Cache
      * 目录等级
      * @var int
      */
-    public $dirLevel = 1;
+    public $dirLevel = 0;
     /**
      * 数据结构化函数
      * @var string
@@ -56,12 +56,6 @@ class FileCache implements Cache
 
     public function __construct()
     {
-        $this->init();
-    }
-
-    public function init()
-    {
-        $this->cachePath = \App::getInstance()->getRuntimeDir() . '/cache';
     }
 
     /**
@@ -96,8 +90,9 @@ class FileCache implements Cache
             }
             $file = $base . DIRECTORY_SEPARATOR . $key . $this->cacheFileSuffix;
         } else {
-            $file = $this->cachePath . DIRECTORY_SEPARATOR . $this->cacheFileSuffix;
+            $file = $this->cachePath . DIRECTORY_SEPARATOR . $key . $this->cacheFileSuffix;
         }
+
         return $file;
     }
 
@@ -110,7 +105,8 @@ class FileCache implements Cache
      */
     public function set($key, $value, $timeout = null)
     {
-        $timeout = $timeout === null ? $this->timeout : $timeout;
+
+        $timeout = $timeout == 0 ? $this->timeout : $timeout;
         $this->gc();
         $cacheFile = $this->getCacheFile($key);
         $dir = dirname($cacheFile);
