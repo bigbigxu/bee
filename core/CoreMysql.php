@@ -100,7 +100,7 @@ class CoreMysql
 	 * 如果slave为一个字符串，解析为配置的dsn选项，其他参数从主库继承。
 	 * 如果是一个数组，和主库参数进行合并。
 	 * @example
-	 *   slave_config => [
+	 *   slaves => [
 	 *     'mysql:host=localhost;dbname=test',
 	 *     [
 	 * 			'dsn' => 'mysql:host=localhost;dbname=test'
@@ -551,6 +551,7 @@ class CoreMysql
 		$field = null;
 		$key = array(
 			__CLASS__,
+			$this->dsn,
 			$this->dbName,
 			$this->tableName
 		);

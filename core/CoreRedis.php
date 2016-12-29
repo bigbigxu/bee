@@ -1365,4 +1365,28 @@ class CoreRedis
         array_shift($params);
         return call_user_func_array(array($this->redis, $method), $params);
     }
+
+    /**
+     * 通过lua来执行任意redis命令
+     * @example
+     *   $redis->evalCmd('set', 'test', 1);
+     * 如果命令执行失败，返回空。
+     * 调用getLastError 获得错误消息。
+     * @param $cmd
+     * @return mixed
+     */
+    public function evalCmd($cmd)
+    {
+        $params = preg_split('/\s+/', trim($cmd));
+        $params = array_map(function($v) {
+           return "'{$v}'";
+        }, $params);
+        $str = "return redis.pcall(" . implode(',', $params) . ")";
+        return $this->proxyExec('evaluate', $str);
+    }
+
+    public function getLastError()
+    {
+        return $this->proxyExec('getLastError');
+    }
 }

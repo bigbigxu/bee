@@ -75,6 +75,18 @@ class BaseServer
      * @var string 服务名称
      */
     protected $name = 'swoole';
+    /**
+     * server类型
+     * @var string
+     */
+    protected $serverType = self::SERVER_BASE;
+    /**
+     * 进程运行相关情况统计。
+     * 每隔一定时间，定时器会将内容写到 run/stats 文件中。
+     * BaseServer 默认不提供定时器，需要在子类中自行添加。
+     * @var array
+     */
+    protected $stats = [];
 
     //运行环境常量
     const ENV_DEV = 'dev'; //开发环境
@@ -87,11 +99,17 @@ class BaseServer
     const CMD_RESTART = 'restart';
     const CMD_RELOAD = 'reload';
 
-    //协议类型常量
+    /* 协议类型常量 */
     const PROTOCOL_TCP = 'tcp';
     const PROTOCOL_UDP = 'udp';
     const PROTOCOL_HTTP = 'http';
     const PROTOCOL_WS = 'ws';
+
+    /* server 类型常量 */
+    const SERVER_BASE = '\swoole_server'; /* 基础swoole server */
+    const SERVER_HTTP = '\swoole_http_server'; /* http swoole server */
+    const SERVER_WEBSOCKET = '\swoole_websocket_server'; /* websocket server */
+    const SERVER_REDIS = '\swoole_redis_server'; /* redis 协议server */
 
     /**
      * 执行环境检查
@@ -112,7 +130,8 @@ class BaseServer
         $this->port = $this->c('server.port');
         $this->mode = $this->c('server.server_mode');
         $this->protocol = $this->c('server.socket_type');
-        $this->s = new \swoole_server($this->host, $this->port, $this->mode, $this->protocol);
+        $type = $this->serverType;
+        $this->s = new $type($this->host, $this->port, $this->mode, $this->protocol);
     }
 
     /**
@@ -137,6 +156,7 @@ class BaseServer
         $this->c("server.error_log", $this->baseDir . '/log/error.log'); //错误日志
         $this->c("server.access_log", $this->baseDir . '/log/access.log'); //访问日志
         $this->c("server.debug_log", $this->baseDir . '/log/debug.log'); //调试日志
+        $this->c("server.stats_log", $this->baseDir . '/run/stats.log'); //运行统计日志
         if ($this->c('serverd.log_file') == false) {
             $this->c("serverd.log_file", $this->baseDir . '/run/server.log');
         }
@@ -170,14 +190,13 @@ class BaseServer
 
     /**
      * 实例化一个对象
-     * @param mixed $configPath
      * @return static
      */
-    public static function getInstance($configPath = '')
+    public static function getInstance()
     {
         $name = get_called_class();
         if (!isset(self::$_instance)) {
-            self::$_instance = new $name($configPath);
+            self::$_instance = new $name();
         }
         return self::$_instance;
     }
@@ -200,12 +219,14 @@ class BaseServer
         $methods = get_class_methods($this);
         foreach ($methods as $row) {
             if (preg_match('/^on(\w+)$/', $row, $ma)) {
-                if ($this->callback[$ma[1]]) {
-                    $this->s->on($ma[1], $this->callback[$ma[1]]);
-                } else {
-                    $this->s->on($ma[1], array($this, $row));
+                $event = ucfirst($ma[1]);
+                if (!isset($this->callback[$event])) {
+                    $this->callback[$event] = array($this, $row);
                 }
             }
+        }
+        foreach ($this->callback as $event => $fun) {
+            $this->s->on($event, $fun);
         }
         $this->callback = array();
     }
@@ -224,8 +245,8 @@ class BaseServer
         if (substr(php_sapi_name(), 0, 3) != 'cli') {
             die("请以cli模式运行\n");
         }
-        if (PHP_VERSION < '5.3') {
-            die("php版本不能小于5.3\n");
+        if (PHP_VERSION < '5.4') {
+            die("php版本不能小于5.4\n");
         }
     }
 
@@ -520,7 +541,7 @@ class BaseServer
     }
 
     /**
-     * 注册事件回调函数。这个不会真的注册。
+     * 注册事件回调函数
      * @param string $event
      * @param mixed $callback
      * @return $this
@@ -1064,18 +1085,21 @@ class BaseServer
             die("Usage: server {start|stop|restart|reload|status}\n");
         }
         if (isset($opts['c']) || isset($opts['config'])) { //设置配置文件选项
-            $configPath = $opts['c'] ? $opts['c'] : $opts['config'];
+            $config = require ($opts['c'] ?: $opts['config']);
         } elseif ($defaultConfigPath != false) { //加载默认配置文件
-            $configPath = $defaultConfigPath;
+            if (is_array($defaultConfigPath)) {
+                $config = $defaultConfigPath;
+            } else {
+                $config = require $defaultConfigPath;
+            }
         } else {
-            $configPath = $this->getDefaultConfigPath('swoole');
+            die("必须指定必要的配置\n");
         }
-        $config = require $configPath;
         if ($opts['h'] || $opts['host']) { //设置主机
-            $config['server']['host'] =  $opts['h'] ? $opts['h'] : $opts['host'];
+            $config['server']['host'] =  $opts['h'] ?: $opts['host'];
         }
         if ($opts['p'] || $opts['port']) { //设置端口
-            $config['server']['port'] =  $opts['p'] ? $opts['p'] : $opts['port'];
+            $config['server']['port'] =  $opts['p'] ?: $opts['port'];
         }
         if (isset($opts['d']) || isset($opts['daemon'])) { //设置后台运行
             $config['serverd']['daemonize'] =  true;
@@ -1091,7 +1115,9 @@ class BaseServer
 
     public function status()
     {
-        echo "status\n";
+        $file = $this->c('server.stats_log');
+        $str = file_get_contents($file);
+        die($str);
     }
 
     /**
@@ -1158,31 +1184,28 @@ class BaseServer
     }
 
     /**
-     * 得到默认的server配置文件
-     * @param string $name
-     * @return string
-     */
-    public  function getDefaultConfigPath($name)
-    {
-        $dir = $this->beeDir . '/config';
-        $map = array(
-            'swoole' => $dir . '/swoole.php',
-            'db_server' => $dir . '/db_server.php',
-            'crontab_server' => $dir . '/crontab_server.php'
-        );
-        $path = $map[$name];
-        if ($path == false) {
-            $path = $map['swoole'];
-        }
-        return $path;
-    }
-
-    /**
      * 返回当前是否为debug模式
      * @return int
      */
     public function isDebug()
     {
         return $this->debug;
+    }
+
+    /**
+     * 将server运行统计数据写入文件。
+     */
+    public function writeStats()
+    {
+        $file = $this->c('server.stats_log');
+        $str = file_get_contents($file);
+        $res = json_decode($str, true);
+        $workerId = $this->getWorkerId();
+        foreach ($this->stats as $key => $row) {
+            $res[$workerId][$key] += $row;
+        }
+
+        file_put_contents($file, json_encode($res));
+        $this->stats = [];
     }
 }
