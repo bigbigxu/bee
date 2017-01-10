@@ -8,17 +8,7 @@
 namespace bee\server;
 class WebSocketServer extends BaseServer
 {
-    public function start()
-    {
-        $this->eof = $this->c('serverd.package_eof');
-        $host = $this->c('server.host');
-        $port = $this->c('server.port');
-        $this->s = new \swoole_websocket_server($host, $port);
-
-        $this->s->set($this->c('serverd'));
-        $this->registerCallback();
-        return $this->s->start();
-    }
+    public $serverType = self::SERVER_WEBSOCKET;
 
     /**
      * 当WebSocket客户端与服务器建立连接并完成握手后会回调此函数

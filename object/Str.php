@@ -19,4 +19,13 @@ class Str
     {
         return new static($str);
     }
+
+    public static function dFalse($set, $default)
+    {
+        if ($set == false) {
+            return $default;
+        } else {
+            return $set;
+        }
+    }
 }
