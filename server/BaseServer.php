@@ -1088,7 +1088,7 @@ class BaseServer
             $config = require ($opts['c'] ?: $opts['config']);
         } elseif (is_array($defaultConfigPath)) {
             $config = $defaultConfigPath;
-        } elseif (is_file($defaultConfigPath)) {
+        } elseif (is_string($defaultConfigPath)) {
             $config = require $defaultConfigPath;
         } else {
             $config = array();

@@ -409,14 +409,20 @@ class Config
 
     /**
      * 载入一个配置文件
+     * 类会使用一些默认配置，如果你不想使用这些默认配置
+     * 可以先执行$this->loadConfig([])
      * @param $config
+     * @return $this
      */
     public function loadConfig($config)
     {
         if (is_string($config)) { /* 字符串被认为是一个配置文件路径 */
             $config = require $config;
+        } else {
+            $config = (array)$config;
         }
         $this->c = $config;
+        return $this;
     }
 
     /**
