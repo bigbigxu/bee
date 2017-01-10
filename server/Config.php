@@ -416,7 +416,7 @@ class Config
      */
     public function loadConfig($config)
     {
-        if (is_file($config)) { /* 字符串被认为是一个配置文件路径 */
+        if (is_string($config)) { /* 字符串被认为是一个配置文件路径 */
             $config = require $config;
         } else {
             $config = (array)$config;
