@@ -9,37 +9,37 @@
 namespace bee\server;
 class Config
 {
-    /**
-     * 运行时配置。swoole::set需要设置的参数
-     * @var array
-     */
-    public $serverd = [
-        'worker_num' => 4,
-        'max_request' => 100240,
-        'max_conn' => 10240,
-        'task_worker_num' => 4,
-        'task_max_request' => 100240,
-        'task_tmpdir' => '/tmp',
-        'dispatch_mode' => 2,
-        'daemonize' => false,
-        'backlog' => 128,
-        'heartbeat_check_interval' => 60,
-        'heartbeat_idle_time' => 60,
-    ];
-    /**
-     * server实例化和其他自定义参数
-     * @var array
-     */
-    public $server = [
-        'host' => '0.0.0.0',
-        'port' => 9501,
-        'server_mode' => SWOOLE_PROCESS,
-        'socket_type' => SWOOLE_SOCK_TCP,
-        'env' => 'pro',
-        'debug' => false,
-        'server_name' => 'swoole',
-        'base_dir' => __DIR__,
-        'server_type' => BaseServer::SERVER_BASE
+    protected $c = [
+        /**
+         * 运行时配置。swoole::set需要设置的参数
+         */
+        'serverd' => [
+            'worker_num' => 4,
+            'max_request' => 100240,
+            'max_conn' => 10240,
+            'task_worker_num' => 4,
+            'task_max_request' => 100240,
+            'task_tmpdir' => '/tmp',
+            'dispatch_mode' => 2,
+            'daemonize' => false,
+            'backlog' => 128,
+            'heartbeat_check_interval' => 60,
+            'heartbeat_idle_time' => 60,
+        ],
+
+        /**
+         * server实例化和其他自定义参数
+         */
+        'server' => [
+            'host' => '0.0.0.0',
+            'port' => 9501,
+            'server_mode' => SWOOLE_PROCESS,
+            'socket_type' => SWOOLE_SOCK_TCP,
+            'env' => 'pro',
+            'debug' => false,
+            'server_name' => 'swoole',
+            'base_dir' => '',
+        ]
     ];
 
     /**
@@ -49,7 +49,7 @@ class Config
      */
     public function setWorkerNum($num)
     {
-        $this->serverd['worker_num'] = $num;
+        $this->c['serverd']['worker_num'] = $num;
         return $this;
     }
 
@@ -59,7 +59,7 @@ class Config
      */
     public function getWorkerNum()
     {
-        return $this->serverd['worker_num'];
+        return $this->c['serverd']['worker_num'];
     }
 
     /**
@@ -70,13 +70,13 @@ class Config
      */
     public function setMaxRequest($num)
     {
-        $this->serverd['max_request'] = $num;
+        $this->c['serverd']['max_request'] = $num;
         return $this;
     }
 
     public function getMaxRequest()
     {
-        return $this->serverd['max_request'];
+        return $this->c['serverd']['max_request'];
     }
 
     /**
@@ -86,13 +86,13 @@ class Config
      */
     public function setMaxConn($num)
     {
-        $this->serverd['max_conn'] = $num;
+        $this->c['serverd']['max_conn'] = $num;
         return $this;
     }
 
     public function getMaxConn()
     {
-        return $this->serverd['max_conn'];
+        return $this->c['serverd']['max_conn'];
     }
 
     /**
@@ -102,13 +102,13 @@ class Config
      */
     public function setTaskWorkerNum($num)
     {
-        $this->serverd['task_worker_num'] = $num;
+        $this->c['serverd']['task_worker_num'] = $num;
         return $this;
     }
 
     public function getTaskWorkerNum()
     {
-        return $this->serverd['task_worker_num'];
+        return $this->c['serverd']['task_worker_num'];
     }
 
     /**
@@ -118,13 +118,13 @@ class Config
      */
     public function setTaskMaxRequest($num)
     {
-        $this->serverd['task_max_request'] = $num;
+        $this->c['serverd']['task_max_request'] = $num;
         return $this;
     }
 
     public function getTaskMaxRequest()
     {
-        return $this->serverd['task_max_request'];
+        return $this->c['serverd']['task_max_request'];
     }
 
     /**
@@ -134,13 +134,13 @@ class Config
      */
     public function setTaskTmpdir($dir)
     {
-        $this->serverd['task_tmpdir'] = $dir;
+        $this->c['serverd']['task_tmpdir'] = $dir;
         return $this;
     }
 
     public function getTaskTmpdir()
     {
-        return $this->serverd['task_tmpdir'];
+        return $this->c['serverd']['task_tmpdir'];
     }
 
     /**
@@ -158,13 +158,13 @@ class Config
      */
     public function setDisPatchMode($mode)
     {
-        $this->serverd['dispatch_mode'] = $mode;
+        $this->c['serverd']['dispatch_mode'] = $mode;
         return $this;
     }
 
     public function getDisPatchMode()
     {
-        return $this->serverd['dispatch_mode'];
+        return $this->c['serverd']['dispatch_mode'];
     }
 
     /**
@@ -174,13 +174,13 @@ class Config
      */
     public function setDaemonize($bool)
     {
-        $this->serverd['daemonize'] = (bool)$bool;
+        $this->c['serverd']['daemonize'] = (bool)$bool;
         return $this;
     }
 
     public function getDaemonize()
     {
-        return $this->serverd['daemonize'];
+        return $this->c['serverd']['daemonize'];
     }
 
     /**
@@ -190,7 +190,7 @@ class Config
      */
     public function setBacklog($num)
     {
-        $this->serverd['backlog'] = $num;
+        $this->c['serverd']['backlog'] = $num;
         return $this;
     }
 
@@ -202,16 +202,16 @@ class Config
      */
     public function setHeartbeat($roundTime, $idleTime)
     {
-        $this->serverd['heartbeat_check_interval'] = $roundTime;
-        $this->serverd['heartbeat_idle_time'] = $idleTime;
+        $this->c['serverd']['heartbeat_check_interval'] = $roundTime;
+        $this->c['serverd']['heartbeat_idle_time'] = $idleTime;
         return $this;
     }
 
     public function getHeartbeat()
     {
         return array(
-            $this->serverd['heartbeat_check_interval'],
-            $this->serverd['heartbeat_idle_time']
+            $this->c['serverd']['heartbeat_check_interval'],
+            $this->c['serverd']['heartbeat_idle_time']
         );
     }
 
@@ -223,16 +223,16 @@ class Config
      */
     public function setUser($user, $group)
     {
-        $this->serverd['user'] = $user;
-        $this->serverd['group'] = $group;
+        $this->c['serverd']['user'] = $user;
+        $this->c['serverd']['group'] = $group;
         return $this;
     }
 
     public function getUser()
     {
         return array(
-            $this->serverd['user'],
-            $this->serverd['group']
+            $this->c['serverd']['user'],
+            $this->c['serverd']['group']
         );
     }
 
@@ -244,9 +244,9 @@ class Config
      */
     public function setEofCheck($eof, $split = false)
     {
-        $this->serverd['open_eof_check'] = true;
-        $this->serverd['package_eof'] = $eof;
-        $this->serverd['open_eof_split'] = $split;
+        $this->c['serverd']['open_eof_check'] = true;
+        $this->c['serverd']['package_eof'] = $eof;
+        $this->c['serverd']['open_eof_split'] = $split;
         return $this;
     }
 
@@ -259,10 +259,10 @@ class Config
      */
     public function setLengthCheck($type, $lengthOffset = 0, $bodyOffset = 0)
     {
-        $this->serverd['open_length_check'] = true;
-        $this->serverd['package_length_type'] = $type;
-        $this->serverd['package_length_offset'] = $lengthOffset;
-        $this->serverd['package_body_offset'] = $bodyOffset;
+        $this->c['serverd']['open_length_check'] = true;
+        $this->c['serverd']['package_length_type'] = $type;
+        $this->c['serverd']['package_length_offset'] = $lengthOffset;
+        $this->c['serverd']['package_body_offset'] = $bodyOffset;
         return $this;
     }
 
@@ -273,7 +273,7 @@ class Config
      */
     public function setPackageMaxLength($num)
     {
-        $this->serverd['package_max_length'] = $num;
+        $this->c['serverd']['package_max_length'] = $num;
         return $this;
     }
 
@@ -284,7 +284,7 @@ class Config
      */
     public function setLogFile($file)
     {
-        $this->serverd['log_file'] = $file;
+        $this->c['serverd']['log_file'] = $file;
         return $this;
     }
 
@@ -301,7 +301,7 @@ class Config
      */
     public function setLogLevel($level)
     {
-        $this->serverd['log_level'] = $level;
+        $this->c['serverd']['log_level'] = $level;
         return $this;
     }
 
@@ -313,8 +313,8 @@ class Config
      */
     public function setListen($host, $port)
     {
-        $this->server['host'] = $host;
-        $this->server['port'] = $port;
+        $this->c['server']['host'] = $host;
+        $this->c['server']['port'] = $port;
         return $this;
     }
 
@@ -327,7 +327,7 @@ class Config
      */
     public function setServerMode($mode)
     {
-        $this->server['server_mode'] = $mode;
+        $this->c['server']['server_mode'] = $mode;
         return $this;
     }
 
@@ -338,7 +338,7 @@ class Config
      */
     public function setSocketType($type)
     {
-        $this->server['socket_type'] = $type;
+        $this->c['server']['socket_type'] = $type;
         return $this;
     }
 
@@ -349,7 +349,7 @@ class Config
      */
     public function setEnv($env)
     {
-        $this->server['env'] = $env;
+        $this->c['server']['env'] = $env;
         return $this;
     }
 
@@ -360,7 +360,7 @@ class Config
      */
     public function setDebug($debug)
     {
-        $this->server['debug'] = $debug;
+        $this->c['server']['debug'] = $debug;
         return $this;
     }
 
@@ -371,7 +371,7 @@ class Config
      */
     public function setServerName($name)
     {
-        $this->server['server_name'] = $name;
+        $this->c['server']['server_name'] = $name;
         return $this;
     }
 
@@ -382,7 +382,7 @@ class Config
      */
     public function setBaseDir($dir)
     {
-        $this->server['base_dir'] = $dir;
+        $this->c['server']['base_dir'] = $dir;
         return $this;
     }
 
@@ -393,8 +393,8 @@ class Config
      */
     public function setBeeConfig($config)
     {
-        $this->server['load_bee'] = true;
-        $this->server['bee_config'] = $config;
+        $this->c['server']['load_bee'] = true;
+        $this->c['server']['bee_config'] = $config;
         return $this;
     }
 
@@ -404,10 +404,7 @@ class Config
      */
     public function exportConfig()
     {
-        return array(
-            'serverd' => $this->serverd,
-            'server' => $this->server
-        );
+        return $this->c;
     }
 
     /**
@@ -419,8 +416,29 @@ class Config
         if (is_string($config)) { /* 字符串被认为是一个配置文件路径 */
             $config = require $config;
         }
-        $this->serverd = $config['serverd'];
-        $this->server = $config['server'];
+        $this->c = $config;
+    }
+
+    /**
+     * 获取或设置任意一个配置参数
+     * @param string $path
+     * @param null $value
+     * @return array|mixed|null
+     */
+    public function c($path = '', $value = null)
+    {
+        if ($path == '') {
+            return $this->c;
+        }
+        $pathArr = explode('.', $path);
+        $tmp = &$this->c;
+        foreach ($pathArr as &$row) {
+            $tmp = &$tmp[$row];
+        }
+        if ($value !== null) {
+            $tmp = $value;
+        }
+        return $tmp;
     }
 
     /**

@@ -1086,14 +1086,12 @@ class BaseServer
         }
         if (isset($opts['c']) || isset($opts['config'])) { //设置配置文件选项
             $config = require ($opts['c'] ?: $opts['config']);
-        } elseif ($defaultConfigPath != false) { //加载默认配置文件
-            if (is_array($defaultConfigPath)) {
-                $config = $defaultConfigPath;
-            } else {
-                $config = require $defaultConfigPath;
-            }
+        } elseif (is_array($defaultConfigPath)) {
+            $config = $defaultConfigPath;
+        } elseif (is_file($defaultConfigPath)) {
+            $config = require $defaultConfigPath;
         } else {
-            die("必须指定必要的配置\n");
+            $config = array();
         }
         if ($opts['h'] || $opts['host']) { //设置主机
             $config['server']['host'] =  $opts['h'] ?: $opts['host'];
@@ -1105,7 +1103,7 @@ class BaseServer
             $config['serverd']['daemonize'] =  true;
         }
         if ($opts['base_dir']) {
-            $config['serverd']['base_dir'] =  $opts['base_dir'];
+            $config['server']['base_dir'] =  $opts['base_dir'];
         }
         if (isset($opts['debug'])) {
             $config['server']['debug'] = 1;
@@ -1138,7 +1136,7 @@ class BaseServer
             $config = array();
         }
         if ($merge == true) {
-            $this->config = array_merge($this->config, $config);
+            $this->config = array_merge_recursive($this->config, $config);
         } else {
             $this->config = $config;
         }
