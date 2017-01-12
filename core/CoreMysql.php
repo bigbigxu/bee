@@ -18,12 +18,13 @@ class CoreMysql
 	 * @var PDO
 	 */
 	private $_pdo;
-	protected $tableName; //表示当前查询的主表名
-	protected $tableNameAlias = 't'; //当前主表的别名，默认为t
-	private $_sql; //当前执行的SQL语句
-	protected $error = ''; //当前执行sql的错误消息
-	protected $prefix = ''; //表前缀
+	protected $tableName; /* 表示当前查询的主表名 */
+	protected $tableNameAlias = 't'; /* 当前主表的别名，默认为t */
+	private $_sql; /* 当前执行的SQL语句 */
+	protected $error = ''; /* 当前执行sql的错误消息 */
+	protected $prefix = ''; /* 表前缀 */
 	protected $charset = 'utf8';
+	protected $forWrite = false; /* 当前是否在执行事务 */
 	public $sqlQuery = array(
 		'field' => '*',
 		'where' => '1',
@@ -129,6 +130,8 @@ class CoreMysql
 		$this->password = $config['password'];
 		$this->slaveConfig = (array)$config['slaves'];
 		$this->cacheConfig = $config['cache'];
+		/* 设置连接过期时间 */
+		$this->expireTime = time() + $this->attr[PDO::ATTR_TIMEOUT];
 	}
 
 	/**
@@ -136,14 +139,13 @@ class CoreMysql
 	 */
 	public function open()
 	{
-		if ($this->_pdo !== null && $this->expireTime > time()) {
+		if ($this->_pdo !== null) {
 			return ; /* 连接已经打开 */
 		}
 
 		$this->setParamByDSN($this->dsn);
 		$this->_pdo = new PDO($this->dsn, $this->username, $this->password, $this->attr);
 		$this->_pdo->exec("set names {$this->charset}");
-		$this->expireTime = time() + $this->attr[PDO::ATTR_TIMEOUT];
 	}
 
 	/**
@@ -189,7 +191,7 @@ class CoreMysql
 		$k = md5($config['dsn'] . $config['username'] . $config['password'] . $pid);
 
 		//如果连接没有创建，或者连接已经失效
-		if (!(self::$_instance[$k] instanceof self)) {
+		if (!(self::$_instance[$k] instanceof self) || time() > self::$_instance[$k]->expireTime) {
 			self::$_instance[$k] = new self($config, $attr);
 			self::$_instance[$k]->k = $k;
 		}
@@ -678,7 +680,8 @@ class CoreMysql
 	 */
 	private function _execForMysql($sql, $params = array())
 	{
-		if ($this->isReadSql($sql)) {
+		/* 事务状态下，只能在主库执行 */
+		if ($this->forWrite == false && $this->isReadSql($sql)) {
 			$db = $this->getSlaveDb();
 		} else {
 			$db = $this->getMasterDb();
@@ -722,11 +725,12 @@ class CoreMysql
 	 * 设置pdo的相关属性
 	 * @param $name
 	 * @param $value
-	 * @return bool
+	 * @return $this
 	 */
 	public function setAttr($name, $value)
 	{
-		return $this->_pdo->setAttribute($name, $value);
+		$this->attr[$name] = $value;
+		return $this;
 	}
 
 	/**
@@ -734,10 +738,12 @@ class CoreMysql
 	 * 在使用游标读取记录，未读取完成又想进行其它操作
 	 * 必须开启此选项
 	 * @param bool $bool
+	 * @return $this
 	 */
 	public function setQueryBuffer($bool = true)
 	{
-		$this->_pdo->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, $bool);
+		$this->attr[PDO::MYSQL_ATTR_USE_BUFFERED_QUERY] = $bool;
+		return $this;
 	}
 
 	/**
@@ -1155,8 +1161,11 @@ class CoreMysql
 	 */
 	public function beginTransaction()
 	{
+		$this->open();
 		$this->_pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-		return $this->_pdo->beginTransaction();
+		$flag = $this->_pdo->beginTransaction();
+		$this->forWrite = true;
+		return $flag;
 	}
 
 	/**
@@ -1165,7 +1174,9 @@ class CoreMysql
 	 */
 	public function commit()
 	{
-		return $this->_pdo->commit();
+		$flag = $this->_pdo->commit();
+		$this->forWrite = false;
+		return $flag;
 	}
 
 	/**
@@ -1174,7 +1185,9 @@ class CoreMysql
 	 */
 	public function rollBack()
 	{
-		return $this->_pdo->rollBack();
+		$flag = $this->_pdo->rollBack();
+		$this->forWrite = false;
+		return $flag;
 	}
 
 	/**
