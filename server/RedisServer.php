@@ -6,7 +6,7 @@
  * Time: 11:09
  *
  * redis server 不支持onReceive回调。
- * 只可以设置命令处理函数。
+ * 只可以设置命令处理函数。提供默认的set, get命令处理函数
  * @example
  * public function handlerSet($fd, $data)
  * {
@@ -120,16 +120,15 @@ class RedisServer extends BaseServer
      * 此函数需要在命令处理器自行调用
      *
      * 此代码只做示例用。应该在业务server重写此方法，来决定key的回调函数。
+     * @param $key
      * @param $data
      * @return bool|mixed
      */
-    public function keyCallback($data)
+    public function keyCallback($key, $data)
     {
         if ($this->c('server.load_bee') == false) {
             return null;
         }
-        $key = $data[0];
-        $data = array_slice($data, 1);
         $callback = \App::c('redis_key_callback.' . $key);
         if ($callback == false) {
             return true; /* 无回调返回true */
@@ -152,4 +151,52 @@ class RedisServer extends BaseServer
         $res = $this->s->stats();
         return $this->format(self::REPLY_MAP, $res);
     }
+
+    /**
+     * SET 命令处理函数
+     * @param $fd
+     * @param $data
+     * @return mixed
+     */
+    public function handlerSet($fd, $data)
+    {
+        $key = $data[0];
+        $data = array_slice($data, 1);
+        if ($key == false) { /* 参数不足 */
+            return $this->format(self::REPLY_ERROR, "ERR wrong number of arguments for 'GET' command");
+        }
+        $res = $this->keyCallback($key, $data);
+        if ($res != false) {
+            return $this->format(self::REPLY_STATUS, 'ok');
+        } else {
+            return $this->format(self::REPLY_ERROR, 'set error');
+        }
+    }
+
+    /**
+     * GET 命令处理函数
+     * @param $fd
+     * @param $data
+     * @return mixed
+     */
+    public function handlerGet($fd, $data)
+    {
+        $key = $data[0];
+        $data = array_slice($data, 1);
+        if ($key == false) {
+            return $this->format(self::REPLY_ERROR, "ERR wrong number of arguments for 'SET' command");
+        }
+        $r = $this->keyCallback($key, $data);
+        if ($r == false) {
+            return $this->format(self::REPLY_NIL);
+        } else {
+            if (is_array($r)) {
+                $r = json_encode($r);
+            } else {
+                $r = (string)$r;
+            }
+            return $this->format(self::REPLY_STRING, $r);
+        }
+    }
+
 }
