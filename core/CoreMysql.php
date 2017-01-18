@@ -192,6 +192,7 @@ class CoreMysql
 
 		//如果连接没有创建，或者连接已经失效
 		if (!(self::$_instance[$k] instanceof self) || time() > self::$_instance[$k]->expireTime) {
+			self::$_instance[$k] = null;
 			self::$_instance[$k] = new self($config, $attr);
 			self::$_instance[$k]->k = $k;
 		}
