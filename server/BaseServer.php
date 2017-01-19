@@ -87,6 +87,11 @@ class BaseServer
      * @var array
      */
     protected $stats = [];
+    /*
+     * 进程全局数据。使用的时候必须注意oom问题
+     * 此数据会在进程启动时从文件载入， 停止时写入文件
+     */
+    protected $data = [];
 
     //运行环境常量
     const ENV_DEV = 'dev'; //开发环境
@@ -786,6 +791,14 @@ class BaseServer
      */
     public function onWorkerStart(\swoole_server $server, $workerId)
     {
+        /* 清理可能的 apc，opcache缓存 */
+        if (function_exists('apc_clear_cache')) {
+            apc_clear_cache();
+        }
+        if (function_exists('opcache_reset')) {
+            opcache_reset();
+        }
+
         if ($workerId == 0) {
             if (is_dir($this->c('server.log_dir')) == false) {
                 mkdir($this->c('server.log_dir'));
@@ -808,6 +821,7 @@ class BaseServer
             $configPath = $this->c('server.bee_config');
             \App::getInstance($configPath);
         }
+        $this->loadTaskData();
     }
 
     /**
@@ -817,7 +831,7 @@ class BaseServer
      */
     public function onWorkerStop(\swoole_server $server, $workerId)
     {
-
+        $this->saveTaskData();
     }
 
     /**
@@ -1205,5 +1219,25 @@ class BaseServer
 
         file_put_contents($file, json_encode($res));
         $this->stats = [];
+    }
+
+    /**
+     * 保存进程数据
+     */
+    public function saveTaskData()
+    {
+        $file = $this->c('server.run_dir') . '/data_' . $this->getWorkerId();
+        file_put_contents($file, serialize($this->data));
+    }
+
+    /**
+     * 载入进程数据
+     */
+    public function loadTaskData()
+    {
+        $file = $this->c('server.run_dir') . '/data_' . $this->getWorkerId();
+        $str = file_get_contents($file);
+        $this->data = unserialize($str);
+        @unlink($file);
     }
 }

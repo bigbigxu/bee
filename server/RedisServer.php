@@ -120,24 +120,23 @@ class RedisServer extends BaseServer
      * 此函数需要在命令处理器自行调用
      *
      * 此代码只做示例用。应该在业务server重写此方法，来决定key的回调函数。
-     * @param $key
      * @param $data
      * @return bool|mixed
      */
-    public function keyCallback($key, $data)
+    public function keyCallback($data)
     {
         if ($this->c('server.load_bee') == false) {
             return null;
         }
-        $callback = \App::c('redis_key_callback.' . $key);
+        $callback = \App::c('redis_server_callback.' . $data[0]);
         if ($callback == false) {
             return true; /* 无回调返回true */
         }
         if (!is_callable($callback)) {
-            \CoreLog::error("redis-server：{$key} 的回调函数 {$callback} 不可用");
+            \CoreLog::error("redis-server：{$data[0]} 的回调函数 {$callback} 不可用");
             return false;
         }
-        return call_user_func($callback, $key, $data);
+        return call_user_func($callback, $data);
     }
 
     /**
@@ -160,12 +159,10 @@ class RedisServer extends BaseServer
      */
     public function handlerSet($fd, $data)
     {
-        $key = $data[0];
-        $data = array_slice($data, 1);
-        if ($key == false) { /* 参数不足 */
+        if ($data[0] == false) { /* 参数不足 */
             return $this->format(self::REPLY_ERROR, "ERR wrong number of arguments for 'GET' command");
         }
-        $res = $this->keyCallback($key, $data);
+        $res = $this->keyCallback($data);
         if ($res != false) {
             return $this->format(self::REPLY_STATUS, 'ok');
         } else {
@@ -181,12 +178,10 @@ class RedisServer extends BaseServer
      */
     public function handlerGet($fd, $data)
     {
-        $key = $data[0];
-        $data = array_slice($data, 1);
-        if ($key == false) {
+        if ($data[0] == false) {
             return $this->format(self::REPLY_ERROR, "ERR wrong number of arguments for 'SET' command");
         }
-        $r = $this->keyCallback($key, $data);
+        $r = $this->keyCallback($data);
         if ($r == false) {
             return $this->format(self::REPLY_NIL);
         } else {
@@ -198,5 +193,4 @@ class RedisServer extends BaseServer
             return $this->format(self::REPLY_STRING, $r);
         }
     }
-
 }
