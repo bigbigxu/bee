@@ -59,10 +59,12 @@ class CoreMysql
 	);
 	protected $paramCount = 0; /* 自定义参编号 */
 	/**
-	 * 实际完成sql执行的db
-	 * @var CoreMysql
+	 * 实际完成sql执行的db的key。
+	 * 这里不直接保存对象，是因为对象的循环引用会引起对象无发释放，
+	 * 导致内存泄漏和mysql连截无法关闭
+	 * @var string
 	 */
-	protected $realDb;
+	protected $realDbKey;
 	/**
 	 * 由本类自动生成的绑定参数前缀，用于区别用户绑定参数
 	 * @var string
@@ -687,7 +689,7 @@ class CoreMysql
 		} else {
 			$db = $this->getMasterDb();
 		}
-		$this->realDb = $db;
+		$this->realDbKey = $db->k;
 		$db->open();
 		$pdo = $db->getPdo();
 		$stmt = $pdo->prepare($sql);
@@ -1405,6 +1407,6 @@ class CoreMysql
 	 */
 	public function getDb()
 	{
-		return $this->realDb;
+		return self::$_instance[$this->realDbKey];
 	}
 }
