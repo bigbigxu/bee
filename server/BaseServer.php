@@ -177,6 +177,7 @@ class BaseServer
         foreach ($env as $key => $value) {
             ini_set($key, $value);
         }
+        register_shutdown_function(array($this, 'shutdownFunction'));
     }
 
     /**
@@ -1236,8 +1237,15 @@ class BaseServer
     public function loadTaskData()
     {
         $file = $this->c('server.run_dir') . '/data_' . $this->getWorkerId();
-        $str = file_get_contents($file);
-        $this->data = unserialize($str);
-        @unlink($file);
+        if (is_file($file)) {
+            $str = file_get_contents($file);
+            $this->data = unserialize($str);
+            @unlink($file);
+        }
+    }
+
+    public function shutdownFunction()
+    {
+        $this->saveTaskData();
     }
 }
