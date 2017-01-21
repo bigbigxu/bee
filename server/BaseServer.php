@@ -1301,7 +1301,7 @@ class BaseServer
         if (!is_file($file)) {
             return null;
         }
-        $copyDir = $this->varDir . '/history_' . date('Y-m-d#H-i-s');
+        $copyDir = $this->varDir . '/history' ;
         if (!is_dir($copyDir)) {
             mkdir($copyDir);
         }
