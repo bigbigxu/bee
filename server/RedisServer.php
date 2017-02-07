@@ -115,28 +115,35 @@ class RedisServer extends BaseServer
     }
 
     /**
-     * 调用key的回调函数。
-     * 需要加载bee框架代码。在redis_key_callback配置节中配置回调函数。
-     * 此函数需要在命令处理器自行调用
+     * 将redis 的key 当做路由来解析，进行控制器调用。
      *
-     * 此代码只做示例用。应该在业务server重写此方法，来决定key的回调函数。
-     * @param $data
+     * @param int $fd
+     * @param array $data
      * @return bool|mixed
      */
-    public function keyCallback($data)
+    public function route($fd, $data)
     {
         if ($this->c('server.load_bee') == false) {
             return null;
         }
-        $callback = \App::c('redis_server_callback.' . $data[0]);
-        if ($callback == false) {
-            return true; /* 无回调返回true */
-        }
-        if (!is_callable($callback)) {
-            \CoreLog::error("redis-server：{$data[0]} 的回调函数 {$callback} 不可用");
+        $key = $data[0];
+        $data = array_slice($data, 1);
+
+        /* redis key 被认为是一个路由 */
+        list($class, $method) = explode('.', $key);
+        $class .= 'Controller';
+        if (!class_exists($class)) {
+            $this->errorLog("redis-server：{$class}不存在");
             return false;
         }
-        return call_user_func($callback, $data);
+        $object = new $class;
+        $object->fd = $fd;
+        $object->server = $this;
+        if (!method_exists($object, $method)) {
+            $this->errorLog("redis-server：{$class}.{$method}不存在");
+            return false;
+        }
+        return $class->$method($data);
     }
 
     /**
@@ -147,8 +154,11 @@ class RedisServer extends BaseServer
      */
     public function handlerInfo($fd, $data)
     {
+        $this->beforeAction($fd, $data);
         $res = $this->s->stats();
-        return $this->format(self::REPLY_MAP, $res);
+        $reply =  $this->format(self::REPLY_MAP, $res);
+        $this->afterAction($fd, $reply);
+        return $reply;
     }
 
     /**
@@ -159,15 +169,20 @@ class RedisServer extends BaseServer
      */
     public function handlerSet($fd, $data)
     {
+        $this->beforeAction($fd, $data);
         if ($data[0] == false) { /* 参数不足 */
-            return $this->format(self::REPLY_ERROR, "ERR wrong number of arguments for 'GET' command");
-        }
-        $res = $this->keyCallback($data);
-        if ($res != false) {
-            return $this->format(self::REPLY_STATUS, 'ok');
+            $reply = $this->format(self::REPLY_ERROR, $this->getErrorParamMsg('SET'));
         } else {
-            return $this->format(self::REPLY_ERROR, 'set error');
+            $res = $this->route($fd, $data);
+            if ($res != false) {
+                $reply = $this->format(self::REPLY_STATUS, 'ok');
+            } else {
+                $reply =  $this->format(self::REPLY_ERROR, 'set error');
+            }
         }
+
+        $this->afterAction($fd, $data);
+        return $reply;
     }
 
     /**
@@ -178,19 +193,52 @@ class RedisServer extends BaseServer
      */
     public function handlerGet($fd, $data)
     {
+        $this->beforeAction($fd, $data);
         if ($data[0] == false) {
-            return $this->format(self::REPLY_ERROR, "ERR wrong number of arguments for 'SET' command");
-        }
-        $r = $this->keyCallback($data);
-        if ($r == false) {
-            return $this->format(self::REPLY_NIL);
+            $reply = $this->format(self::REPLY_ERROR, $this->getErrorParamMsg('GET'));
         } else {
-            if (is_array($r)) {
-                $r = json_encode($r);
+            $r = $this->route($fd, $data);
+            if ($r == false) {
+                $reply = $this->format(self::REPLY_NIL);
             } else {
-                $r = (string)$r;
+                if (is_array($r)) {
+                    $r = json_encode($r);
+                } else {
+                    $r = (string)$r;
+                }
+                $reply = $this->format(self::REPLY_STRING, $r);
             }
-            return $this->format(self::REPLY_STRING, $r);
         }
+        $this->afterAction($fd, $data);
+        return $reply;
+    }
+
+    /**
+     * 命令处理函数调用前的方法。 用于打印日志
+     * @param $fd
+     * @param $data
+     */
+    public function beforeAction($fd, $data)
+    {
+        if ($this->isDebug()) {
+            $this->accessLog("fd={$fd}, request=" . json_encode($data));
+        }
+    }
+
+    /**
+     * 命令处理函数调用后的方法。 用于打印日志
+     * @param $fd
+     * @param $data
+     */
+    public function afterAction($fd, $data)
+    {
+        if ($this->isDebug()) {
+            $this->accessLog("fd={$fd}, response=" . json_encode($data));
+        }
+    }
+
+    public function getErrorParamMsg($cmd)
+    {
+        return "ERR wrong number of arguments for '{$cmd}' command";
     }
 }
