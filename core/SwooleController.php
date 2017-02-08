@@ -16,4 +16,8 @@ class SwooleController
      * @var int 当前fd
      */
     public $fd;
+    /**
+     * @var mixed 参数
+     */
+    public $data;
 }

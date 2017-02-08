@@ -142,8 +142,8 @@ class RedisServer extends BaseServer
             return false;
         }
         $object = new $class;
-        $object->fd = $fd;
         $object->server = $this;
+        $object->fd = $fd;
         if (!method_exists($object, $method)) {
             $this->errorLog("redis-server：{$class}.{$method}不存在");
             return false;
@@ -249,6 +249,7 @@ class RedisServer extends BaseServer
 
     /**
      * 从路由中解析 class method。
+     * 这个方法用于将route 转换为Call需要的形式。并且可以在这里做权限控制。
      * @param $route
      * @return array
      */
