@@ -148,7 +148,7 @@ class RedisServer extends BaseServer
             $this->errorLog("redis-server：{$class}.{$method}不存在");
             return false;
         }
-        return $class->$method($data);
+        return $object->$method($data);
     }
 
     /**

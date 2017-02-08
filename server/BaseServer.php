@@ -220,6 +220,9 @@ class BaseServer
         if ($this->c('serverd.log_file') == false) {
             $this->c("serverd.log_file", $this->logFile);
         }
+        if ($this->c('serverd.daemonize') == false) {
+            unset($this->config['serverd']['log_file']);
+        }
     }
 
     /**
@@ -1059,6 +1062,7 @@ class BaseServer
 
     /**
      * 记录日志。
+     * 非守护进程运行，echo 日志。
      * @param $file
      * @param $msg
      */
@@ -1066,7 +1070,11 @@ class BaseServer
     {
         $time = date('Y-m-d H:i:s');
         $msg = "[{$time}] {$msg}" . PHP_EOL;
-        file_put_contents($file, $msg, FILE_APPEND);
+        if ($this->c('serverd.daemonize') == false) {
+            echo basename($file) . '    ' . $msg;
+        } else {
+            file_put_contents($file, $msg, FILE_APPEND);
+        }
     }
 
     /********************以下为管理进程相关命令*******************/
