@@ -41,6 +41,13 @@
  *    php redis 扩展在连接swoole redis server的时候，会发送一个quit命令“QUIT\r\nGET\r\n$1\r\nx\r\n”
  *    此命令 swoole redis server 会解析失败，但是连接可以正常关闭，
  *    报一个“redis protocol error” 错误。此错误不影响使用
+ *
+ * 使用说明
+ *   redis 协议中的key被当做路由， 调用parseRoute解析路由，得到控制器名称和方法。默认的形式为'A.b'；
+ *   的route方法中，会实例化控制器，通知方法，并将参赛传递（除key以外的所有参赛，一个是一个数组）；
+ *   GET，SET命令用于处理实时请求。
+ *   RPUSH 命令用于处理日志，异步入库或其他。
+ *
  */
 namespace bee\server;
 class RedisServer extends BaseServer
@@ -56,6 +63,20 @@ class RedisServer extends BaseServer
     const REPLY_SET = 5; /* 多条批量回复，必须为索引数组*/
     const REPLY_MAP = 6; /* 多条批量回复，必须为关联数组*/
 
+    public function onWorkerStart(\swoole_server $server, $workerId)
+    {
+        parent::onWorkerStart($server, $workerId);
+
+        /**
+         * task 进程加一个定时器，用来处理日志数据。
+         */
+        if ($this->isTaskWorker()) {
+            if (!($this->processData['tick_list'] instanceof \SplQueue)) {
+                $this->processData['tick_list'] = new \SplQueue();
+            }
+            $this->tick(1000, array($this, 'tickList'));
+        }
+    }
     /**
      * 注册回调函数和命令处理句柄
      */
@@ -180,9 +201,9 @@ class RedisServer extends BaseServer
         } else {
             $res = $this->route($fd, $data);
             if ($res != false) {
-                $reply = $this->format(self::REPLY_STATUS, 'ok');
+                $reply = $this->format(self::REPLY_STATUS, 'OK');
             } else {
-                $reply =  $this->format(self::REPLY_ERROR, 'set error');
+                $reply = $this->format(self::REPLY_ERROR, 'SET ERROR');
             }
         }
 
@@ -216,6 +237,45 @@ class RedisServer extends BaseServer
         }
         $this->afterAction($fd, $data);
         return $reply;
+    }
+
+    /**
+     * rpush 命令处理函数。通常用于日志异步处理
+     * @param $fd
+     * @param $data
+     * @return mixed
+     */
+    public function handlerRpush($fd, $data)
+    {
+        $this->beforeAction($fd, $data);
+        if ($data[0] == false || $data[1] == false) {
+            $reply =  $this->format(self::REPLY_ERROR, $this->getErrorParamMsg('RPUSH'));
+        } else {
+            $this->task($data);
+            $reply = $this->format(self::REPLY_INT, 1);
+        }
+        $this->afterAction($fd, $reply);
+        return $reply;
+    }
+
+    public function onTask(\swoole_server $server, $taskId, $fromId, $data)
+    {
+        /* @var  \SplQueue $spl */
+        $spl = $this->processData['tick_list'];
+        $spl->push($data);
+    }
+
+    /*
+     * 定时器处理key回调函数
+     */
+    public function tickList()
+    {
+        /* @var  \SplQueue $spl */
+        $spl = $this->processData['tick_list'];
+        $n = $spl->count();
+        for ($i = 0; $i < $n; $i++) {
+            $this->route(0, $spl->pop());
+        }
     }
 
     /**

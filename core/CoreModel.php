@@ -693,4 +693,9 @@ class CoreModel
         $key = implode($this->cacheKeySeparator, $params);
         return $key;
     }
+
+    public function fieldInfo()
+    {
+        return $this->from()->fieldInfo();
+    }
 }

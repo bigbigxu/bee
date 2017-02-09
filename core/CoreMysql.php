@@ -1409,4 +1409,26 @@ class CoreMysql
 	{
 		return self::$_instance[$this->realDbKey];
 	}
+
+	/**
+	 * 获取字段描述信息。
+	 * 这个是个给代码生成器用的。
+	 * @return array
+	 */
+	public function fieldInfo()
+	{
+		$res = $this->all("show full fields from `{$this->tableName}`");
+		$data = array();
+		foreach ($res as $row) {
+			$data['label'][$row['Field']] = $row['Comment'];
+			if ($row['Key'] == 'PRI') {
+				$data['pk'] = $row['Field'];
+			}
+			if ($row['Default']) {
+				$data['default'][$row['Field']] = $row['Default'];
+			}
+		}
+
+		return $data;
+	}
 }
