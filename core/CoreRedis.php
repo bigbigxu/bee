@@ -1360,7 +1360,7 @@ class CoreRedis
      * @param $params
      * @return mixed
      */
-    private function _execForRedis($cmd, $params)
+    private function _execForRedis($cmd, $params = [])
     {
         return call_user_func_array(array($this->redis, $cmd), $params);
     }
@@ -1464,13 +1464,6 @@ class CoreRedis
      * 代理执行一个redis函数
      * @return mixed
      */
-    public function proxyExec()
-    {
-        $params = func_get_args();
-        $method = $params[0];
-        array_shift($params);
-        return call_user_func_array(array($this->redis, $method), $params);
-    }
 
     /**
      * 通过lua来执行任意redis命令
@@ -1488,11 +1481,11 @@ class CoreRedis
            return "'{$v}'";
         }, $params);
         $str = "return redis.pcall(" . implode(',', $params) . ")";
-        return $this->proxyExec('evaluate', $str);
+        return $this->_execForRedis('evaluate', $str);
     }
 
     public function getLastError()
     {
-        return $this->proxyExec('getLastError');
+        return $this->_execForRedis('getLastError');
     }
 }
