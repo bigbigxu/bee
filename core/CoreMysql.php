@@ -24,7 +24,7 @@ class CoreMysql
 	protected $error = ''; /* 当前执行sql的错误消息 */
 	protected $prefix = ''; /* 表前缀 */
 	protected $charset = 'utf8';
-	protected $forWrite = false; /* 当前是否在执行事务 */
+	protected $forTransaction = false; /* 当前是否在执行事务 */
 	public $sqlQuery = array(
 		'field' => '*',
 		'where' => '1',
@@ -37,6 +37,9 @@ class CoreMysql
 		'params' => array()
 	);
 	protected $fields = array(); /* 得到当前表所有的字段名称 */
+	/**
+	 * @var static[]
+	 */
 	private static $_instance = array();
 
 	protected $driver; /* 驱动类型 */
@@ -47,10 +50,9 @@ class CoreMysql
 	protected $password; /* 密码 */
 	protected $host = 'localhost'; /* 主机名 */
 	protected $port = '3306'; /* 端口号 */
-	protected $expireTime; /*一个时间戳，表示当前链接在什么时候过期，过期后，将重建一个对象 */
 	/* PDO链接属性数组 */
 	protected $attr = array(
-		/* 这个超时参数，实际上mysql服务器上的配置为准的。这里用于什么时候重建对象 */
+		/* 这个超时参数，实际上mysql服务器上的配置为准的 */
 		PDO::ATTR_TIMEOUT => 30,
 		PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
 		PDO::ATTR_ORACLE_NULLS => PDO::NULL_NATURAL,
@@ -80,8 +82,12 @@ class CoreMysql
 	 * mysql常用错误码定义
 	 * 驱动错误码保存在 errInfo[1]中
 	*/
-	const ERR_DRIVER_TABLE = 1146; //表不存存
-	const ERR_DRIVER_CONN = 2006; //连接已经断开
+	const ERR_DRIVER_TABLE = 1146; /* 表不存存 */
+	const ERR_DRIVER_CONN = 2006; /* 连接已经断开 */
+	const ERR_DRIVER_INTERRUP = 70100; /* 查询执行被中断 */
+
+	const DB_MASTER = 'master'; /* 主DB */
+	const DB_SLAVE = 'slave'; /* 从DB */
 
 	/*
 	 * 定义驱动类型
@@ -121,10 +127,10 @@ class CoreMysql
 	 * @param array $config 　配置文件
 	 * @param array $attr 数组选项
 	 */
-	public function __construct($config, $attr)
+	public function __construct($config, $attr = [])
 	{
 		$this->dbConfig = $config;
-		$this->attr = $attr + $this->attr;
+		$this->attr = $attr + (array)$config['attr'] + $this->attr;
 		$this->prefix = $config['prefix'] ?: '';
 		$this->charset = $config['charset'] ?: 'utf8';
 		$this->dsn = $config['dsn'];
@@ -132,22 +138,23 @@ class CoreMysql
 		$this->password = $config['password'];
 		$this->slaveConfig = (array)$config['slaves'];
 		$this->cacheConfig = $config['cache'];
-		/* 设置连接过期时间 */
-		$this->expireTime = time() + $this->attr[PDO::ATTR_TIMEOUT];
 	}
 
 	/**
-	 * 打开pdo mysql连接
+	 * 打开pdo mysql连接，并且返回pdo对象
+	 * @param bool $force 是否强制重新打开连接
+	 * @return PDO
 	 */
-	public function open()
+	public function connect($force = false)
 	{
-		if ($this->_pdo !== null) {
-			return ; /* 连接已经打开 */
+		if ($this->_pdo !== null && $force == false) {
+			return $this->_pdo; /* 连接已经打开 */
 		}
-
+		$this->_pdo = null;
 		$this->setParamByDSN($this->dsn);
 		$this->_pdo = new PDO($this->dsn, $this->username, $this->password, $this->attr);
 		$this->_pdo->exec("set names {$this->charset}");
+		return $this->_pdo;
 	}
 
 	/**
@@ -192,8 +199,8 @@ class CoreMysql
 		$pid = intval(getmypid());
 		$k = md5($config['dsn'] . $config['username'] . $config['password'] . $pid);
 
-		//如果连接没有创建，或者连接已经失效
-		if (!(self::$_instance[$k] instanceof self) || time() > self::$_instance[$k]->expireTime) {
+		/* 如果连接没有创建 */
+		if (!(self::$_instance[$k] instanceof self)) {
 			self::$_instance[$k] = null;
 			self::$_instance[$k] = new self($config, $attr);
 			self::$_instance[$k]->k = $k;
@@ -684,22 +691,41 @@ class CoreMysql
 	private function _execForMysql($sql, $params = array())
 	{
 		/* 事务状态下，只能在主库执行 */
-		if ($this->forWrite == false && $this->isReadSql($sql)) {
+		if ($this->forTransaction == false && $this->isReadSql($sql)) {
 			$db = $this->getSlaveDb();
 		} else {
 			$db = $this->getMasterDb();
 		}
 		$this->realDbKey = $db->k;
-		$db->open();
-		$pdo = $db->getPdo();
-		$stmt = $pdo->prepare($sql);
-		if ($stmt == false) {
-			$errorInfo = $pdo->errorInfo();
-			$this->setError($errorInfo[2]);
-			return false;
+
+		try {
+			$pdo = $db->connect();
+			$stmt = $pdo->prepare($sql);
+			$stmt->execute($params);
+			$errorInfo = $stmt->errorInfo();
+
+			/* 此处用于静默错误模式下的断线重连 */
+			if ($pdo->getAttribute(PDO::ATTR_ERRMODE) == PDO::ERRMODE_SILENT && $errorInfo[0] != '00000') {
+				if ($errorInfo[0] == self::ERR_DRIVER_CONN) {
+					$e = new PDOException('mysql server has gone away');
+					$e->errorInfo = $stmt->errorInfo();
+					throw $e;
+				} else {
+					$this->setError($errorInfo[2]);
+					return false;
+				}
+			}
+		} catch(PDOException $e) {
+			/* 事务状态下，不可以使用断线重连。应该直接报错，rollback事务。 */
+			if ($this->forTransaction == false && $e->errorInfo[1] == self::ERR_DRIVER_CONN) {
+				$pdo = $db->connect(true);
+				$stmt = $pdo->prepare($sql);
+				$stmt->execute($params);
+				$errorInfo = $stmt->errorInfo();
+			} else {
+				throw $e;
+			}
 		}
-		$stmt->execute($params);
-		$errorInfo = $stmt->errorInfo();
 		if ($errorInfo[0] != '00000') {
 			$this->setError($errorInfo[2]);
 			return false;
@@ -721,6 +747,9 @@ class CoreMysql
 		}
 		$stmt = $this->_execForMysql($sql, $this->sqlQuery['params']);
 		$this->clearSqlQuery();
+		if ($stmt == false) {
+			return false;
+		}
 		return $stmt->rowCount();
 	}
 
@@ -1164,10 +1193,10 @@ class CoreMysql
 	 */
 	public function beginTransaction()
 	{
-		$this->open();
+		$this->connect();
 		$this->_pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 		$flag = $this->_pdo->beginTransaction();
-		$this->forWrite = true;
+		$this->forTransaction = true;
 		return $flag;
 	}
 
@@ -1178,7 +1207,7 @@ class CoreMysql
 	public function commit()
 	{
 		$flag = $this->_pdo->commit();
-		$this->forWrite = false;
+		$this->forTransaction = false;
 		return $flag;
 	}
 
@@ -1189,7 +1218,7 @@ class CoreMysql
 	public function rollBack()
 	{
 		$flag = $this->_pdo->rollBack();
-		$this->forWrite = false;
+		$this->forTransaction = false;
 		return $flag;
 	}
 
@@ -1383,8 +1412,7 @@ class CoreMysql
 		}
 		$config = $this->slaveConfig[array_rand($this->slaveConfig)];
 		if (is_string($config)) {
-			/* 如果为一个字符串，认为是一个dsn */
-			$config = ['dsn' => $config];
+			$config = ['dsn' => $config]; /* 如果为一个字符串，认为是一个dsn */
 		}
 		/* 合并主库和从库的配置文件 */
 		$config = array_merge($this->dbConfig, $config);
@@ -1430,5 +1458,32 @@ class CoreMysql
 		}
 
 		return $data;
+	}
+
+	/**
+	 * 获取一个db实例
+	 * @param string $type
+	 * @param int $k
+	 * @return CoreMysql
+	 */
+	public function selectDB($type = self::DB_MASTER, $k = 0)
+	{
+		if ($type == self::DB_MASTER || $this->slaveConfig == false) {
+			$db = self::getInstance($this->dbConfig, $this->attr);
+		} else {
+			$config = $this->slaveConfig[$k];
+			if ($config == false) {
+				return false;
+			}
+			if (is_string($config)) {
+				/* 如果为一个字符串，认为是一个dsn */
+				$config = ['dsn' => $config];
+			}
+			/* 合并主库和从库的配置文件 */
+			$config = array_merge($this->dbConfig, $config);
+			unset($config['slaves']);
+			$db = self::getInstance($config, $this->attr);
+		}
+		return $db;
 	}
 }

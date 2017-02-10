@@ -32,20 +32,13 @@ class CoreJson
         return $json;
     }
 
-    /**
-     * 解码json字符串
-     * @param string $str json字符串
-     * @param mixed $default 如果json解析失败，返回这个默认值
-     * @param bool $returnArr 是否返回一个数组
-     * @return bool|mixed
+    /*
+     * json编码，json_decode不存在unicode问题
+     * 默认返回对象
      */
-    public static function decode($str, $default = false, $returnArr = true)
+    public static function decode($str, $returnArray = false)
     {
-        $arr = json_decode($str, $returnArr);
-        if ($arr === false && $default !== false) {
-            $arr = $default;
-        }
-        return $arr;
+        return json_decode($str, $returnArray);
     }
 
     /**

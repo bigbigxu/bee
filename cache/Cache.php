@@ -13,4 +13,5 @@ interface Cache
     public function set($key, $value, $timeout);
     public function exists($key);
     public function ttl($key);
+    public function gc($force = false, $expiredOnly = true);
 }
