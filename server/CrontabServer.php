@@ -56,7 +56,7 @@ class CrontabServer extends BaseServer
 
     public function crontabLog($msg)
     {
-        $file = $this->c("server.log_dir") . '/crontab.log';
+        $file = $this->logDir . '/crontab.log';
         $this->log($file, $msg);
     }
 }
