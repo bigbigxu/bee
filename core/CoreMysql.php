@@ -1038,6 +1038,7 @@ class CoreMysql
 				$this->sqlQuery[$key] = '';
 			}
 		}
+		$this->paramCount = 0; /* 防止常驻内存无限增加，超过PHP_INT_MAX */
 	}
 
 	/**
