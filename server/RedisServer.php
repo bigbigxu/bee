@@ -165,11 +165,12 @@ class RedisServer extends BaseServer
         $object = new $class;
         $object->server = $this;
         $object->fd = $fd;
-        if (!method_exists($object, $method)) {
-            $this->errorLog("redis-server：{$class}.{$method}不存在");
+        if (!is_callable(array($object, $method))) {
+            $this->errorLog("redis-server：{$class}.{$method}不可调用");
             return false;
         }
-        return $object->$method($data);
+        /* 按照redis 命令顺序传递参数 */
+        return call_user_func_array(array($object, $method), $data);
     }
 
     /**
