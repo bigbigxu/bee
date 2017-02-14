@@ -1285,7 +1285,7 @@ class BaseServer
     public function saveTaskData()
     {
         $workerId = $this->getWorkerId();
-        if ($workerId == false) {
+        if ($workerId === null || $workerId === false) {
             return null;
         } else {
             $workerId = sprintf('%03d',$workerId);
@@ -1300,7 +1300,7 @@ class BaseServer
     public function loadTaskData()
     {
         $workerId = $this->getWorkerId();
-        if ($workerId == false) {
+        if ($workerId === null || $workerId === false) {
             return null;
         } else {
             $workerId = sprintf('%03d',$workerId);
