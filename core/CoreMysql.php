@@ -25,7 +25,7 @@ class CoreMysql
 	protected $prefix = ''; /* 表前缀 */
 	protected $charset = 'utf8';
 	protected $forTransaction = false; /* 当前是否在执行事务 */
-	public $sqlQuery = array(
+	protected $sqlQuery = array(
 		'field' => '*',
 		'where' => '1',
 		'join' => '',
@@ -36,6 +36,7 @@ class CoreMysql
 		'union' => '',
 		'params' => array()
 	);
+	protected $lastSqlQuery = []; /* 保存上一次执行申请sql参 */
 	protected $fields = array(); /* 得到当前表所有的字段名称 */
 	/**
 	 * @var static[]
@@ -677,8 +678,9 @@ class CoreMysql
 		if ($params != false) {
 			$this->sqlQuery['params'] = $params;
 		}
-		$stmt = $this->_execForMysql($sql, $this->sqlQuery['params']);
+		$params = $this->sqlQuery['params'];
 		$this->clearSqlQuery();
+		$stmt = $this->_execForMysql($sql, $params);
 		return $stmt;
 	}
 
@@ -742,11 +744,12 @@ class CoreMysql
 	 */
 	public function exec($sql, $params = array())
 	{
-		if ($params == false) {
+		if ($params != false) {
 			$this->sqlQuery['params'] = $params;
 		}
-		$stmt = $this->_execForMysql($sql, $this->sqlQuery['params']);
+		$params = $this->sqlQuery['params'];
 		$this->clearSqlQuery();
+		$stmt = $this->_execForMysql($sql, $params);
 		if ($stmt == false) {
 			return false;
 		}
@@ -1015,18 +1018,17 @@ class CoreMysql
 	}
 
 	/**
-	 * 有1种清况，sql语句出错。执行失败.sqlquery并不会自动清除
 	 * 清除sql缓存
 	 */
 	public function clearSqlQuery()
 	{
-		//清除缓存前，先保存当前sql语句。
+		/* 清除缓存前，先保存当前sql语句 */
 		if (!empty($this->sqlQuery['params'])) {
 			foreach ($this->sqlQuery['params'] as $key => $param) {
 				$this->_sql = str_replace($key, '"' . $param . '"', $this->_sql);
 			}
 		}
-		//$this->sql=nl2br($this->sql);
+		$this->lastSqlQuery = $this->sqlQuery;
 		foreach ($this->sqlQuery as $key => $row) {
 			if ($key == 'where') {
 				$this->sqlQuery[$key] = '1';
@@ -1038,7 +1040,6 @@ class CoreMysql
 				$this->sqlQuery[$key] = '';
 			}
 		}
-		$this->paramCount = 0; /* 防止常驻内存无限增加，超过PHP_INT_MAX */
 	}
 
 	/**
@@ -1283,6 +1284,10 @@ class CoreMysql
 	 */
 	public function getAutoBindParam()
 	{
+		/* 防止常驻内存无限增加，超过PHP_INT_MAX */
+		if ($this->paramCount >= 1000000) {
+			$this->paramCount = 0;
+		}
 		$bind = ":{$this->autoBindPrefix}{$this->paramCount}";
 		$this->paramCount++;
 		return $bind;
@@ -1486,5 +1491,10 @@ class CoreMysql
 			$db = self::getInstance($config, $this->attr);
 		}
 		return $db;
+	}
+
+	public function getLastSqlQuery()
+	{
+		return $this->lastSqlQuery;
 	}
 }
