@@ -8,30 +8,32 @@
  *
  * 协议说明，一个json字符串。格式如下
  * array(
- *      'file' => '文件名',
- *      'log' => '日志内容',
- *      'level' => '日志等级'
+ *      'dir' => '日志标识',
+ *      'msg' => '日志内容',
+ *      'time' => '日志时间'
  * )
+ *
+ * 日志保存于 $this->dateDir目录下。
+ * dir：日志标识，解析为日志目录。 'a/b',认为是多极目录
+ * msg: 消息内容，回自动加上时间和换行符。
+ * time: 日志时间，时间戳格式。
+ *
+ * 关于错误日志等级，附加在msg上。
  */
 namespace bee\server;
 class LogServer extends BaseServer
 {
     public $serverType = self::SERVER_BASE;
-
-    const LOG_NOTICE = 'notice'; /* 普通日志 */
-    const LOG_WARN = 'warn'; /* 警告日志 */
-    const LOG_INFO = 'info'; /* 描述信息日志 */
-    const LOG_ERROR = 'error'; /* 错误日志 */
-    const LOG_DEBUG = 'debug'; /* 调试日志 */
-
+    protected $fdMap = []; /* 文件描述符表 */
+    protected $fdCount = 0; /* 当前文件总数 */
     public $config = array(
         /**
          * 运行时配置。swoole::set需要设置的参数
          */
         'serverd' => [
-            'worker_num' => 4,
+            'worker_num' => 2,
             'max_request' => 100240,
-            'max_conn' => 10240,
+            'max_conn' => 1000,
             'dispatch_mode' => 2,
             'daemonize' => true,
             'backlog' => 128,
@@ -58,17 +60,75 @@ class LogServer extends BaseServer
             $this->errorLog("{$data} json解析失败：". json_last_error_msg());
             return null;
         }
-        $file = trim($arr['file']);
-        if ($file == false) {
+        $dir = trim($arr['dir'], ' \t\n\r\0\X0B/\\');
+        $time = $arr['time'] ?: time();
+        $msg = $data['msg'];
+        if ($dir == false || $msg == false) {
+            $this->errorLog("receive：{$data} 缺少参数");
+            return null;
         }
-        $realFile = $this->c('server.data_dir') . '/' . $file;
-        $dir = dirname($realFile);
-        if (!is_dir($dir)) {
-            if (mkdir($dir, 0755, true) == false) {
-                $this->errorLog("{$dir} 目录创建失败");
-                return null;
+        $this->log($dir, $time, $msg);
+    }
+
+    /**
+     * 记录日志。
+     * @param string $dir 目录
+     * @param int $time 时间戳
+     * @param string $msg 日志内容
+     * @return null
+     */
+    public function log($dir, $time, $msg)
+    {
+        $dir = sprintf("%s/%s/%s", $this->dataDir, $dir, date('Y/m', $time));
+        $file = sprintf("%s/%s.log", $dir, date('d', $time));
+        $fd = $this->getFd($file);
+        if ($fd == false) {
+            return null;
+        }
+        $msg = sprintf("[%s]  %s\n", date('Y-m-d H:i:s'), $msg);
+        fwrite($fd, $msg);
+    }
+
+    /**
+     * 获取一个文件描述符。
+     * @param $file
+     * @return bool|resource
+     */
+    public function getFd($file)
+    {
+        $file = sprintf("%s/%s", $this->baseDir, $file);
+        if ($this->fdMap[$file]) {
+            return $this->fdMap[$file];
+        }
+
+        /* 目录不存在，创建目录 */
+        $dir = dirname($file);
+        if(!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $fd = fopen($file, 'a+');
+        if ($fd == false) {
+            return false;
+        }
+        $this->gc();
+        $this->fdMap[$file] = $fd;
+        $this->fdCount++;
+        return $fd;
+    }
+
+    /**
+     * 回收文件描述符。防止无线增加。
+     * 最大可以打开100个文件。
+     */
+    public function gc()
+    {
+        if ($this->fdCount >= 100) {
+            foreach ($this->fdMap as $fd) {
+                fclose($fd);
             }
+            $this->fdMap = [];
+            $this->fdCount = 0;
         }
-        file_put_contents($file, $arr['log'], FILE_APPEND);
     }
 }
