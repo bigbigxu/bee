@@ -134,14 +134,6 @@ class RedisServer extends BaseServer
     }
 
     /**
-     * 返回nil
-     */
-    public function replyNil()
-    {
-        return $this->format(self::REPLY_NIL);
-    }
-
-    /**
      * 将redis 的key 当做路由来解析，进行控制器调用。
      *
      * @param int $fd
@@ -162,6 +154,7 @@ class RedisServer extends BaseServer
             $this->errorLog("redis-server：{$class}不存在");
             return false;
         }
+        /* @var $object \SwooleController */
         $object = new $class;
         $object->server = $this;
         $object->fd = $fd;
@@ -190,6 +183,7 @@ class RedisServer extends BaseServer
 
     /**
      * SET 命令处理函数
+     * set 命令只能返回成功和失败，无法返回数据。
      * @param $fd
      * @param $data
      * @return mixed
@@ -197,23 +191,23 @@ class RedisServer extends BaseServer
     public function handlerSet($fd, $data)
     {
         $this->beforeAction($fd, $data);
-        if ($data[0] == false) { /* 参数不足 */
+        if (count($data) != 2) { /* 参数不足 */
             $reply = $this->format(self::REPLY_ERROR, $this->getErrorParamMsg('SET'));
         } else {
             $res = $this->route($fd, $data);
-            if ($res != false) {
-                $reply = $this->format(self::REPLY_STATUS, 'OK');
-            } else {
+            if ($res === false || $res === null) {
                 $reply = $this->format(self::REPLY_ERROR, 'SET ERROR');
+            } else {
+                $reply = $this->format(self::REPLY_STATUS, 'OK');
             }
         }
-
         $this->afterAction($fd, $data);
         return $reply;
     }
 
     /**
      * GET 命令处理函数
+     * get 命令只有一个KEY参数，无法携带其他数据。
      * @param $fd
      * @param $data
      * @return mixed
@@ -221,11 +215,11 @@ class RedisServer extends BaseServer
     public function handlerGet($fd, $data)
     {
         $this->beforeAction($fd, $data);
-        if ($data[0] == false) {
+        if (count($data) != 1) {
             $reply = $this->format(self::REPLY_ERROR, $this->getErrorParamMsg('GET'));
         } else {
             $r = $this->route($fd, $data);
-            if ($r == false) {
+            if ($r === false || $r === null) {
                 $reply = $this->format(self::REPLY_NIL);
             } else {
                 if (is_array($r)) {
@@ -249,11 +243,41 @@ class RedisServer extends BaseServer
     public function handlerRpush($fd, $data)
     {
         $this->beforeAction($fd, $data);
-        if ($data[0] == false || $data[1] == false) {
-            $reply =  $this->format(self::REPLY_ERROR, $this->getErrorParamMsg('RPUSH'));
+        if (count($data) != 2) {
+            $reply = $this->format(self::REPLY_ERROR, $this->getErrorParamMsg('RPUSH'));
         } else {
             $this->task($data);
             $reply = $this->format(self::REPLY_INT, 1);
+        }
+        $this->afterAction($fd, $reply);
+        return $reply;
+    }
+
+    /**
+     * HGET 命令，可以接受一个参数并返回参数。
+     * 此命令可以满足大多数业务需求。
+     * 接受一个字符串，并返回一个字符串
+     * @param $fd
+     * @param $data
+     * @return mixed
+     */
+    public function handlerHGet($fd, $data)
+    {
+        $this->beforeAction($fd, $data);
+        if (count($data) != 3) {
+            $reply = $this->format(self::REPLY_ERROR, $this->getErrorParamMsg('HGET'));
+        } else {
+            $r = $this->route($fd, $data);
+            if ($r === false || $r === null) {
+                $reply = $this->format(self::REPLY_NIL);
+            } else {
+                if (is_array($r)) {
+                    $r = json_encode($r);
+                } else {
+                    $r = (string)$r;
+                }
+                $reply = $this->format(self::REPLY_STRING, $r);
+            }
         }
         $this->afterAction($fd, $reply);
         return $reply;
