@@ -322,9 +322,13 @@ class App
                 . '/'
                 . str_replace('\\', '/', $baseName)
                 . '.php';
-            $this->classMap[$className] = $file;
-            require $file;
-            return true;
+            if (is_file($file)) {
+                $this->classMap[$className] = $file;
+                require $file;
+                return true;
+            } else {
+                return false;
+            }
         } else { //非命名空间，遍历目录
             foreach($this->packageMap as $package) {
                 $file = $className . '.php';
