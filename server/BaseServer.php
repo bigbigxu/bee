@@ -1139,12 +1139,12 @@ class BaseServer
      */
     public function getOptsByCli($defaultConfigPath = null)
     {
-        $cmdOpts = 'c:h:p:ds:';
+        $cmdOpts = 'c:h:p:d:s:';
         $cmdLongOpts = array(
             'config:',
             'host:',
             'port:',
-            'daemon',
+            'daemon:',
             'base_dir:',
             'help',
             'debug'
@@ -1153,12 +1153,14 @@ class BaseServer
         if (isset($opts['help'])) {
             self::help();
         }
+
         $method = $opts['s'];
-        $allowMethod = array('status', 'start', 'stop', 'restart', 'reload');
+        $allowMethod = array('start', 'stop', 'restart', 'reload');
         if (in_array($method, $allowMethod) == false) {
-            die("Usage: server {start|stop|restart|reload|status}\n");
+            die("Usage: ./server -s {start|stop|restart|reload}\n");
         }
-        if (isset($opts['c']) || isset($opts['config'])) { //设置配置文件选项
+
+        if (isset($opts['c']) || isset($opts['config'])) { /* 设置配置文件选项 */
             $config = require ($opts['c'] ?: $opts['config']);
         } elseif (is_array($defaultConfigPath)) {
             $config = $defaultConfigPath;
@@ -1167,21 +1169,32 @@ class BaseServer
         } else {
             $config = array();
         }
-        if ($opts['h'] || $opts['host']) { //设置主机
+
+        if ($opts['h'] || $opts['host']) { /* 设置主机 */
             $config['server']['host'] =  $opts['h'] ?: $opts['host'];
         }
-        if ($opts['p'] || $opts['port']) { //设置端口
+
+        if ($opts['p'] || $opts['port']) { /* 设置端口 */
             $config['server']['port'] =  $opts['p'] ?: $opts['port'];
         }
-        if (isset($opts['d']) || isset($opts['daemon'])) { //设置后台运行
-            $config['serverd']['daemonize'] =  true;
+
+        if ($opts['d'] || $opts['daemon']) { /* 设置是否后台运行 */
+            $daemon = strtolower($opts['d'] ?: $opts['daemon']);
+            if ($daemon == 'yes') {
+                $config['serverd']['daemonize'] = true;
+            } elseif ($daemon == 'no') {
+                $config['serverd']['daemonize'] = false;
+            }
         }
-        if ($opts['base_dir']) {
+
+        if ($opts['base_dir']) { /* 设置server运行目录 */
             $config['server']['base_dir'] =  $opts['base_dir'];
         }
-        if (isset($opts['debug'])) {
+
+        if (isset($opts['debug'])) { /* 设置是否为调试模式 */
             $config['server']['debug'] = 1;
         }
+
         return array($method, $config);
     }
 
@@ -1243,7 +1256,7 @@ class BaseServer
         $arr = array(
             '-s，指定当前服务动作，start启动，stop停止，restart重启，reload重载',
             '-c --config，指定启动的配置文件。如果未指定将加载默认配置',
-            '-d --daemon，指定服务以守护进程方式运行',
+            '-d --daemon，指定服务是否守护进程方式运行，yes or no',
             '-h --host， 指定服务监听IP，默认为0.0.0.0',
             '-p --port，指定服务监听端口，默认为9501',
             '--base_dir，指定server运行目录',

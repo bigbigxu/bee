@@ -176,7 +176,7 @@ class RedisServer extends BaseServer
     {
         $this->beforeAction($fd, $data);
         $res = $this->s->stats();
-        $reply =  $this->format(self::REPLY_MAP, $res);
+        $reply = $this->format(self::REPLY_MAP, $res);
         $this->afterAction($fd, $reply);
         return $reply;
     }
@@ -201,7 +201,7 @@ class RedisServer extends BaseServer
                 $reply = $this->format(self::REPLY_STATUS, 'OK');
             }
         }
-        $this->afterAction($fd, $data);
+        $this->afterAction($fd, $reply);
         return $reply;
     }
 
@@ -230,7 +230,7 @@ class RedisServer extends BaseServer
                 $reply = $this->format(self::REPLY_STRING, $r);
             }
         }
-        $this->afterAction($fd, $data);
+        $this->afterAction($fd, $reply);
         return $reply;
     }
 
