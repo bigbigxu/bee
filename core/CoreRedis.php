@@ -1488,4 +1488,69 @@ class CoreRedis
     {
         return $this->_execForRedis('getLastError');
     }
+
+    /**
+     * @see Redis::scan()
+     * $redis->setOption(Redis::OPT_SCAN, Redis::SCAN_RETRY);
+     *
+     * 遍历有2中选项。
+     * Redis::SCAN_RETRY：一直等到返回数据，或者到达末尾。建议使用此选项
+     * Redis::SCAN_NORETRY： 一直等到超时，如果没有数据返回空数组。默认值。
+     *
+     * redis-cli中，游标0边上表示和结束。
+     * php redis 游标 null 表示开始，0表示结束。
+     *
+     * @param int|null $iterator 游标位置。不能设置为0，设置为null表示开始。
+     *        每次遍历都会修改这个变量的值（应用传递）
+     * @param string $pattern 匹配表达式，同keys
+     * @param int $count 每次变量返回的数量。他不是准确的。参数的默认值为 10
+     * @return mixed 有数据返回key的一维数组，如果遍历完成返回false。
+     *               SCAN_NORETRY下，超时无数据返回空数组。
+     */
+    public function scan($iterator, $pattern = '', $count = 0)
+    {
+        return $this->_execForRedis('scan', [$iterator, $pattern, $count]);
+    }
+
+    /**
+     * 遍历集合中的成员
+     * @see scan()
+     * @param $key
+     * @param $iterator
+     * @param string $pattern
+     * @param int $count
+     * @return mixed
+     */
+    public function sScan($key, $iterator, $pattern = '', $count = 0)
+    {
+        return $this->_execForRedis('sscan', [$key, $iterator, $pattern, $count]);
+    }
+
+    /**
+     * 遍历有序集合中的成员
+     * @see scan()
+     * @param $key
+     * @param $iterator
+     * @param string $pattern
+     * @param int $count
+     * @return mixed
+     */
+    public function zScan($key, $iterator, $pattern = '', $count = 0)
+    {
+        return $this->_execForRedis('zScan', [$key, $iterator, $pattern, $count]);
+    }
+
+    /**
+     * 遍历hash表中的成员
+     * @see scan()
+     * @param $key
+     * @param $iterator
+     * @param string $pattern
+     * @param int $count
+     * @return mixed
+     */
+    public function hScan($key, $iterator, $pattern = '', $count = 0)
+    {
+        return $this->_execForRedis('hScan', [$key, $iterator, $pattern, $count]);
+    }
 }
