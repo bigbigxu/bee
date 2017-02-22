@@ -1222,7 +1222,9 @@ class BaseServer
             $config = array();
         }
         if ($merge == true) {
-            $this->config = array_merge_recursive($this->config, $config);
+            foreach ($config as $key => $row) {
+                $this->config[$key] = array_merge((array)$this->config[$key], (array)$row);
+            }
         } else {
             $this->config = $config;
         }
