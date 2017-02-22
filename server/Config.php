@@ -9,7 +9,10 @@
 namespace bee\server;
 class Config
 {
-    protected $c = [
+    /**
+     * @var array 这是一个示例配置文件
+     */
+    protected $exampleConfig = [
         /**
          * 运行时配置。swoole::set需要设置的参数
          */
@@ -41,6 +44,8 @@ class Config
             'base_dir' => '',
         ]
     ];
+
+    protected $c = [];
 
     /**
      * 设置启动的worker进程数量，建议cpu核心数的 1-4倍

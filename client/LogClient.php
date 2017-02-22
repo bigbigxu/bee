@@ -55,7 +55,8 @@ class LogClient
         $arr = [
             'dir' => "{$this->appId}/{$dir}",
             'msg' => $msg,
-            'time' => $time
+            'time' => $time,
+            'ip' => $_SERVER['HTTP_HOST']
         ];
         $str = json_encode($arr);
         fwrite($this->fp, $str);

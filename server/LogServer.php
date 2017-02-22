@@ -53,21 +53,30 @@ class LogServer extends BaseServer
         ]
     );
 
+    public function onWorkerStart(\swoole_server $server, $workerId)
+    {
+        parent::onWorkerStart($server, $workerId);
+        if ($workerId == 0) {
+            $this->tick(6000, array($this, 'gcClear'), $this->dataDir);
+        }
+    }
+
     public function onReceive(\swoole_server $server, $fd, $fromId, $data)
     {
-        $arr = json_encode($data, true);
-        if ($arr == false) {
+        $arr = json_decode($data, true);
+        if ($arr == false || !is_array($arr)) {
             $this->errorLog("{$data} json解析失败：". json_last_error_msg());
             return null;
         }
-        $dir = trim($arr['dir'], ' \t\n\r\0\X0B/\\');
+        $dir = trim($arr['dir'], ' \t\n\r\0\x0B/\\');
         $time = $arr['time'] ?: time();
-        $msg = $data['msg'];
+        $msg = $arr['msg'];
+        $ip = $arr['ip'] ?: 'unknow';
         if ($dir == false || $msg == false) {
             $this->errorLog("receive：{$data} 缺少参数");
             return null;
         }
-        $this->log($dir, $time, $msg);
+        $this->saveLog($dir, $time, $msg, $ip);
     }
 
     /**
@@ -75,9 +84,10 @@ class LogServer extends BaseServer
      * @param string $dir 目录
      * @param int $time 时间戳
      * @param string $msg 日志内容
+     * @param string $ip ip地址
      * @return null
      */
-    public function log($dir, $time, $msg)
+    public function saveLog($dir, $time, $msg, $ip)
     {
         $dir = sprintf("%s/%s/%s", $this->dataDir, $dir, date('Y/m', $time));
         $file = sprintf("%s/%s.log", $dir, date('d', $time));
@@ -85,7 +95,7 @@ class LogServer extends BaseServer
         if ($fd == false) {
             return null;
         }
-        $msg = sprintf("[%s]  %s\n", date('Y-m-d H:i:s'), $msg);
+        $msg = sprintf("[%s]  [%s]  %s\n", date('Y-m-d H:i:s'), $ip, $msg);
         fwrite($fd, $msg);
     }
 
@@ -96,7 +106,6 @@ class LogServer extends BaseServer
      */
     public function getFd($file)
     {
-        $file = sprintf("%s/%s", $this->baseDir, $file);
         if ($this->fdMap[$file]) {
             return $this->fdMap[$file];
         }
@@ -111,17 +120,17 @@ class LogServer extends BaseServer
         if ($fd == false) {
             return false;
         }
-        $this->gc();
+        $this->gcFd();
         $this->fdMap[$file] = $fd;
         $this->fdCount++;
         return $fd;
     }
 
     /**
-     * 回收文件描述符。防止无线增加。
+     * 回收文件描述符。防止无限增加。
      * 最大可以打开100个文件。
      */
-    public function gc()
+    public function gcFd()
     {
         if ($this->fdCount >= 100) {
             foreach ($this->fdMap as $fd) {
@@ -130,5 +139,22 @@ class LogServer extends BaseServer
             $this->fdMap = [];
             $this->fdCount = 0;
         }
+    }
+
+    public function gcClear($timerId, $path)
+    {
+        $handle = opendir($path);
+        while (($file = readdir($handle)) !== false) {
+            if ($file[0] === '.') { /* 过滤 . ..*/
+                continue;
+            }
+            $fullPath = $path . DIRECTORY_SEPARATOR . $file;
+            if (is_dir($fullPath)) { /* 目录 */
+                $this->gcClear($timerId, $fullPath);
+            } elseif (filemtime($fullPath) + 30 * 24 * 3600 < time()) {
+                unlink($fullPath);
+            }
+        }
+        closedir($handle);
     }
 }
