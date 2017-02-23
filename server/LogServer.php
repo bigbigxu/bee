@@ -24,18 +24,22 @@ namespace bee\server;
 class LogServer extends BaseServer
 {
     public $serverType = self::SERVER_BASE;
-    protected $fdMap = []; /* 文件描述符表 */
-    protected $fdCount = 0; /* 当前文件总数 */
+    /**
+     * sqlite pdo操作对象
+     * @var \PDO
+     */
+    protected $pdo;
     public $config = array(
         /**
          * 运行时配置。swoole::set需要设置的参数
          */
         'serverd' => [
-            'worker_num' => 2,
+            'worker_num' => 1,
+            'task_worker_num' => 1,
             'max_request' => 100240,
             'max_conn' => 1000,
             'dispatch_mode' => 2,
-            'daemonize' => true,
+            'daemonize' => false,
             'backlog' => 128,
         ],
 
@@ -56,8 +60,16 @@ class LogServer extends BaseServer
     public function onWorkerStart(\swoole_server $server, $workerId)
     {
         parent::onWorkerStart($server, $workerId);
-        if ($workerId == 0) {
-            $this->tick(6000, array($this, 'gcClear'), $this->dataDir);
+        $this->pdo = new \PDO("sqlite:{$this->dataDir}/log.db");
+        $this->pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+        /**
+         * task 进程加一个定时器，用来处理日志数据。
+         */
+        if ($this->isTaskWorker()) {
+            if (!($this->processData['tick_list'] instanceof \SplQueue)) {
+                $this->processData['tick_list'] = new \SplQueue();
+            }
+            $this->tick(1000, array($this, 'tickList'));
         }
     }
 
@@ -68,93 +80,119 @@ class LogServer extends BaseServer
             $this->errorLog("{$data} json解析失败：". json_last_error_msg());
             return null;
         }
-        $dir = trim($arr['dir'], ' \t\n\r\0\x0B/\\');
-        $time = $arr['time'] ?: time();
-        $msg = $arr['msg'];
-        $ip = $arr['ip'] ?: 'unknow';
-        if ($dir == false || $msg == false) {
+
+        $insert = [
+            'app_id' => (string)$arr['app_id'], /* 应用ID */
+            'mark' => (string)$arr['mark'], /* 日志标识 */
+            'time' => $arr['time'] ?: time(),
+        ];
+        $insert['msg'] = sprintf(
+            "[%s]  [%s]  %s\n",
+            date('Y-m-d H:i:s', $insert['time']),
+            $arr['ip'],
+            $arr['msg']
+        );
+        if (!$insert['app_id'] || !$insert['mark']) {
             $this->errorLog("receive：{$data} 缺少参数");
             return null;
         }
-        $this->saveLog($dir, $time, $msg, $ip);
+        $this->task($insert);
     }
 
-    /**
-     * 记录日志。
-     * @param string $dir 目录
-     * @param int $time 时间戳
-     * @param string $msg 日志内容
-     * @param string $ip ip地址
-     * @return null
+    public function onTask(\swoole_server $server, $taskId, $fromId, $data)
+    {
+        /* @var  \SplQueue $spl */
+        $spl = $this->processData['tick_list'];
+        $spl->push($data);
+        $this->gc();
+    }
+
+    /*
+     * 定时器处理key回调函数
      */
-    public function saveLog($dir, $time, $msg, $ip)
+    public function tickList()
     {
-        $dir = sprintf("%s/%s/%s", $this->dataDir, $dir, date('Y/m', $time));
-        $file = sprintf("%s/%s.log", $dir, date('d', $time));
-        $fd = $this->getFd($file);
-        if ($fd == false) {
-            return null;
-        }
-        $msg = sprintf("[%s]  [%s]  %s\n", date('Y-m-d H:i:s'), $ip, $msg);
-        fwrite($fd, $msg);
-    }
-
-    /**
-     * 获取一个文件描述符。
-     * @param $file
-     * @return bool|resource
-     */
-    public function getFd($file)
-    {
-        if ($this->fdMap[$file]) {
-            return $this->fdMap[$file];
-        }
-
-        /* 目录不存在，创建目录 */
-        $dir = dirname($file);
-        if(!is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
-
-        $fd = fopen($file, 'a+');
-        if ($fd == false) {
-            return false;
-        }
-        $this->gcFd();
-        $this->fdMap[$file] = $fd;
-        $this->fdCount++;
-        return $fd;
-    }
-
-    /**
-     * 回收文件描述符。防止无限增加。
-     * 最大可以打开100个文件。
-     */
-    public function gcFd()
-    {
-        if ($this->fdCount >= 100) {
-            foreach ($this->fdMap as $fd) {
-                fclose($fd);
-            }
-            $this->fdMap = [];
-            $this->fdCount = 0;
-        }
-    }
-
-    public function gcClear($timerId, $path)
-    {
-        $handle = opendir($path);
-        while (($file = readdir($handle)) !== false) {
-            if ($file[0] === '.') { /* 过滤 . ..*/
+        /* @var  \SplQueue $spl */
+        $spl = $this->processData['tick_list'];
+        $n = $spl->count();
+        $this->pdo->beginTransaction();
+        for ($i = 0; $i < $n; $i++) {
+            try {
+                $this->insert($spl->pop());
+            } catch (\PDOException $e) {
+                $this->errorLog($e->errorInfo[2]);
                 continue;
             }
-            $fullPath = $path . DIRECTORY_SEPARATOR . $file;
-            if (is_dir($fullPath)) { /* 目录 */
-                $this->gcClear($timerId, $fullPath);
-            } elseif (filemtime($fullPath) + 30 * 24 * 3600 < time()) {
-                unlink($fullPath);
+        }
+        $this->pdo->commit();
+    }
+
+    public function insert($data)
+    {
+        $table = "log_{$data['app_id']}";
+        $field = [];
+        $placeholder = [];
+        $params = [];
+        foreach ($data as $key => $row) {
+            $params[':' . $key] = $row;
+            $field[] = "`{$key}`";
+            $placeholder[] = ':' . $key;
+        }
+        //插入当前记录
+        $sql = "insert into {$table} (" . implode(', ', $field) . ') values (' .
+            implode(', ', $placeholder) . ')';
+        try  {
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute($params);
+        } catch (\PDOException $e) {
+            if (strpos($e->errorInfo[2], 'no such table') !== false) {
+                $this->createLogTable($table);
+                $stmt = $this->pdo->prepare($sql);
+                $stmt->execute($params);
+            } else {
+                throw $e;
             }
         }
-        closedir($handle);
+    }
+
+    /**
+     * 创建日志表，一个引用一个表
+     * @param $table
+     */
+    public function createLogTable($table)
+    {
+        $sql = <<<SQL
+CREATE TABLE IF NOT EXISTS {$table}
+(
+  id INTEGER PRIMARY KEY AutoIncrement,
+  app_id varchar(32),
+  time int,
+  mark varchar(32),
+  msg text
+);
+SQL;
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute();
+    }
+
+    /**
+     * 触发垃圾回收
+     * @param bool $force
+     * @return null
+     */
+    public function gc($force = false)
+    {
+        if ($force == false && mt_rand(1, 1000) > 1) {
+            return null;
+        }
+        $allTable = $this->pdo
+            ->query("select name from sqlite_master where type='table' and name like 'log_%'")
+            ->fetchAll(\PDO::FETCH_ASSOC);
+        $minTime = time() - 30 * 24 * 3600;
+        foreach ((array)$allTable as $row) {
+            $n = $this->pdo
+                ->exec("delete from {$row['name']} where time <= {$minTime}");
+            $this->log("{$this->logDir}/clear.log", "删除{$row['name']} {$n} 条记录");
+        }
     }
 }

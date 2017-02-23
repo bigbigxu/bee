@@ -43,17 +43,18 @@ class LogClient
 
     /**
      * 写入日志
-     * @param $dir
+     * @param $mark
      * @param $msg
      * @param null $time
      * @throws \Exception
      */
-    public function log($dir, $msg, $time = null)
+    public function log($mark, $msg, $time = null)
     {
         $time = $time ?: time();
         $this->_connect();
         $arr = [
-            'dir' => "{$this->appId}/{$dir}",
+            'mark' => $mark,
+            'app_id' => $this->appId,
             'msg' => $msg,
             'time' => $time,
             'ip' => $_SERVER['HTTP_HOST']
