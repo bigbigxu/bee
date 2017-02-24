@@ -8,17 +8,12 @@
  *
  * 协议说明，一个json字符串。格式如下
  * array(
- *      'dir' => '日志标识',
+ *      'app_id' => '应用ID',
+ *      'mark' => '日志标识',
  *      'msg' => '日志内容',
- *      'time' => '日志时间'
+ *      'time' => '日志时间',
+ *      'ip' => '产生日志的ip',
  * )
- *
- * 日志保存于 $this->dateDir目录下。
- * dir：日志标识，解析为日志目录。 'a/b',认为是多极目录
- * msg: 消息内容，回自动加上时间和换行符。
- * time: 日志时间，时间戳格式。
- *
- * 关于错误日志等级，附加在msg上。
  */
 namespace bee\server;
 class LogServer extends BaseServer
@@ -85,13 +80,8 @@ class LogServer extends BaseServer
             'app_id' => (string)$arr['app_id'], /* 应用ID */
             'mark' => (string)$arr['mark'], /* 日志标识 */
             'time' => $arr['time'] ?: time(),
+            'msg' => $arr['msg']
         ];
-        $insert['msg'] = sprintf(
-            "[%s]  [%s]  %s\n",
-            date('Y-m-d H:i:s', $insert['time']),
-            $arr['ip'],
-            $arr['msg']
-        );
         if (!$insert['app_id'] || !$insert['mark']) {
             $this->errorLog("receive：{$data} 缺少参数");
             return null;

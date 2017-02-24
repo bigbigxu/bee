@@ -8,6 +8,15 @@
  */
 class CoreLog
 {
+    /**
+     * @var string 发送日志的组件
+     */
+    public $target;
+    /**
+     * @var bool 日志是否写文件
+     */
+    public $enableFile = true;
+
     public static function error($msg)
     {
         $file = self::getErrorLogFile();
@@ -35,7 +44,7 @@ class CoreLog
     }
 
     /**
-     * 向指定文件记当日志。
+     * 向指定文件记录日志。
      * @param $msg
      * @param $fileName
      */
@@ -56,13 +65,16 @@ class CoreLog
             $msg = CoreJson::encode($msg);
         }
         $time = date('Y-m-d H:i:s');
-        if (!PhpEnv::isCli()) {
-            $ip = $_SERVER['REMOTE_ADDR'];
-            $prefix = "[{$time}] -- [{$ip}] -- ";
-        } else {
-            $prefix = "[{$time}] ";
+        $zone = date_default_timezone_get();
+        $msg = "[{$time} {$zone}] {$msg}\n";
+        $o = App::p()->getLog();
+        if ($o->enableFile) {
+            file_put_contents($file, $msg, FILE_APPEND);
         }
-        file_put_contents($file, "{$prefix}{$msg}\n",  FILE_APPEND);
+        if ($o->target) {
+            $mark = explode('_', basename($file, '.log'))[0];
+            App::p()->get($o->target)->log($mark, $msg);
+        }
     }
 
     /**
@@ -112,23 +124,5 @@ class CoreLog
         }
         $file = $dir . '/debug_' . date('d') . '.log';
         return $file;
-    }
-
-    /**
-     * 打印调试堆
-     * @param bool $print
-     * @return array
-     */
-    public static function trace($print = false)
-    {
-        ob_start();
-        debug_print_backtrace();
-        $msg = ob_get_contents();
-        ob_end_clean();
-        if ($print) {
-            echo $msg;
-        } else {
-            self::error($msg);
-        }
     }
 }
