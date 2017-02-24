@@ -35,6 +35,10 @@ class App
     protected static $_container; //对象容器
     protected $namespace = array(); //所有注册的命令空间
     protected $env; //环境类型。有3种
+    /**
+     * @var \bee\core\Component
+     */
+    protected $component;
 
     const ENV_TEST = 'test'; //开发环境
     const ENV_DEV = 'dev'; //测试环境
@@ -74,23 +78,19 @@ class App
      */
     protected function init()
     {
-        //如果显示的设置的环境变量。那么将使用框架的php环境配置
-        if ($this->env != false) {
-            PhpEnv::getInstance()->exec($this->env, (array)self::c('env_set'));
-        }
-
-        $this->classMap = self::c('class_map'); //加载类地图
-        $this->load(self::c('autoload')); //加载配置文件的包。
-        $this->namespace = (array)$this->config['namespace'];
+        $this->classMap = self::c('class_map'); /* 加载类地图 */
+        $this->load(self::c('autoload')); /* 加载配置文件的 */
+        $this->namespace = $this->config['namespace'] ?: [];
         $this->loadNamespace('bee', $this->sysDir);
         $this->loadNamespace('app', $this->baseDir);
-    }
 
-    /**
-     * 解析路由
-     */
-    public function run()
-    {
+        /* 对象加载 */
+        $this->component = new \bee\core\Component(self::c('component'));
+        $this->component->getError()->register();
+        /* 如果没有环境变量。那么将使用框架的php环境配置 */
+        if ($this->env != false) {
+            $this->component->getEnv()->exec($this->env, $this->config['env_set'] ?: []);
+        }
     }
 
     /**
@@ -581,5 +581,14 @@ class App
     public static function trigger($name, $data = array(), $event = null)
     {
         Event::trigger(self::getInstance(), $name, $data, $event);
+    }
+
+    /**
+     * 获取对象管理器
+     * @return \bee\core\Component
+     */
+    public static function p()
+    {
+        return self::getInstance()->component;
     }
 }

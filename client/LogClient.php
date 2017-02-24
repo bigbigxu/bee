@@ -8,9 +8,9 @@
 namespace bee\client;
 class LogClient
 {
-    const LOG_TYPE_ERROR = 'error_log'; /* 错误日志，年月日自动分目录 */
-    const LOG_TYPE_ACCESS = 'access_log'; /* 访问日志，年月日自动分目录 */
-    const LOG_TYPE_DEBUG = 'debug_log'; /* 调试日志，年月日自动分目录 */
+    const LOG_TYPE_ERROR = 'error_log'; /* 错误日志 */
+    const LOG_TYPE_ACCESS = 'access_log'; /* 访问日志 */
+    const LOG_TYPE_DEBUG = 'debug_log'; /* 调试日志 */
 
     protected $connString; /* 连接字符串 udp://127.0.0.1:8000 */
     protected $appId; /* 应用ID，不同应用保存目录不一样 */
@@ -45,19 +45,16 @@ class LogClient
      * 写入日志
      * @param $mark
      * @param $msg
-     * @param null $time
      * @throws \Exception
      */
-    public function log($mark, $msg, $time = null)
+    public function log($mark, $msg)
     {
-        $time = $time ?: time();
         $this->_connect();
         $arr = [
             'mark' => $mark,
             'app_id' => $this->appId,
             'msg' => $msg,
-            'time' => $time,
-            'ip' => $_SERVER['HTTP_HOST']
+            'time' => time(),
         ];
         $str = json_encode($arr);
         fwrite($this->fp, $str);
@@ -66,30 +63,27 @@ class LogClient
     /**
      * 错误日志
      * @param $msg
-     * @param null $time
      */
-    public function errorLog($msg, $time = null)
+    public function errorLog($msg)
     {
-        $this->log(self::LOG_TYPE_ERROR, $msg, $time);
+        $this->log(self::LOG_TYPE_ERROR, $msg);
     }
 
     /**
      * 访问日志
      * @param $msg
-     * @param null $time
      */
-    public function accessLog($msg, $time = null)
+    public function accessLog($msg)
     {
-        $this->log(self::LOG_TYPE_ACCESS, $msg, $time);
+        $this->log(self::LOG_TYPE_ACCESS, $msg);
     }
 
     /**
      * 调试日志
      * @param $msg
-     * @param null $time
      */
-    public function debugLog($msg, $time = null)
+    public function debugLog($msg)
     {
-        $this->log(self::LOG_TYPE_DEBUG, $msg, $time);
+        $this->log(self::LOG_TYPE_DEBUG, $msg);
     }
 }

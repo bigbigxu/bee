@@ -10,24 +10,11 @@ class PhpEnv
 {
     protected $env = null; //环境类型
     protected $options = array();
-    private static $_instance;
 
     const SAPI_CLI = 'cli'; //命令行运行模式
     const SAPI_CGI = 'cgi'; //cgi模式
     const SAPI_FPM = 'fpm';
     const SAPI_APACHE = 'apache';
-
-    /**
-     * 实例化对象
-     * @return static
-     */
-    public static function getInstance()
-    {
-        if (!is_object(self::$_instance)) {
-            self::$_instance = new self();
-        }
-        return self::$_instance;
-    }
 
     /**
      * 设置运行环境
@@ -118,7 +105,7 @@ class PhpEnv
         if ($env !== false) {
             $this->env = $env;
         }
-        $this->options = array_merge($this->getDefaultSet(), $this->options, $options);
+        $this->options = $options ?: $this->getDefaultSet();
         foreach ($this->options as $key => $value) {
             ini_set($key, $value);
         }
