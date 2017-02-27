@@ -1068,6 +1068,9 @@ class BaseServer
      */
     public function log($file, $msg)
     {
+        if (is_array($msg)) {
+            $msg = json_encode($msg, JSON_UNESCAPED_UNICODE);
+        }
         $time = date('Y-m-d H:i:s');
         $msg = "[{$time}] {$msg}" . PHP_EOL;
         if ($this->c('serverd.daemonize') == false) {
@@ -1157,7 +1160,7 @@ class BaseServer
         $method = $opts['s'];
         $allowMethod = array('start', 'stop', 'restart', 'reload');
         if (in_array($method, $allowMethod) == false) {
-            die("Usage: ./server -s {start|stop|restart|reload}\n");
+            self::help();
         }
 
         if (isset($opts['c']) || isset($opts['config'])) { /* 设置配置文件选项 */
@@ -1262,7 +1265,7 @@ class BaseServer
             '-h --host， 指定服务监听IP，默认为0.0.0.0',
             '-p --port，指定服务监听端口，默认为9501',
             '--base_dir，指定server运行目录',
-            '--debug，开启调试模式，将有更多的日志记录在debug.log中',
+            '--debug，开启调试模式',
             '--help，查看命令帮助'
         );
         $str = implode("\n", $arr) . "\n";

@@ -19,6 +19,7 @@
  *  'namespace' => '需要加载的命名空间'
  * );
  */
+use bee\core\ServiceLocator as ServiceLocator;
 class App
 {
     private static $_instance;
@@ -36,9 +37,9 @@ class App
     protected $namespace = array(); //所有注册的命令空间
     protected $env; //环境类型。有3种
     /**
-     * @var \bee\core\Component
+     * @var ServiceLocator
      */
-    protected $component;
+    protected $services;
 
     const ENV_TEST = 'test'; //开发环境
     const ENV_DEV = 'dev'; //测试环境
@@ -85,11 +86,11 @@ class App
         $this->loadNamespace('app', $this->baseDir);
 
         /* 对象加载 */
-        $this->component = new \bee\core\Component(self::c('component'));
-        $this->component->getError()->register();
-        /* 如果没有环境变量。那么将使用框架的php环境配置 */
+        $this->services = new ServiceLocator(self::c('component') ?: []);
+        $this->services->getError()->register();
+        /* 如果设置环境变量。那么将使用框架的php环境配置 */
         if ($this->env != false) {
-            $this->component->getEnv()->exec($this->env, $this->config['env_set'] ?: []);
+            $this->services->getEnv()->exec($this->env, $this->config['env_set'] ?: []);
         }
     }
 
@@ -457,46 +458,16 @@ class App
     /**
      * 通过对象配置创建一个对象
      * 对象配置应该包含如下几个元素
-     * class_name 类名
+     * class 类名
      * params 构造函数参数
      * config 对象属性
-     * class_file 类文件地址，如果需要。
-     * @TODO 基于简化使用的考虑，没有实现当前对象的成员也来自配置。也就是对象配置文件不支持递归配置
-     * @param string|array $objConfig 当前对象的配置文件
-     * @param bool $single 是否返回单例对象
+     * path 类文件路径，如果需要。
+     * @param string|array $config 当前对象的配置文件
      * @return object
      */
-    public static function createObject($objConfig, $single = true)
+    public static function createObject($config)
     {
-        if (is_string($objConfig)) {
-            $objConfig = App::c($objConfig);
-        }
-        $className = $objConfig['class_name']; //类名
-        $params = (array)$objConfig['params']; //构造函数参数
-        $config = (array)$objConfig['config']; //对象属性配置
-        $classFile = $objConfig['class_file']; //对象文件路径
-
-        if ($single == true && is_object(self::$_container[$className])) {
-            return self::$_container[$className]; //返回单例对象
-        }
-        if ($classFile) {
-            //加载配置文件。支持非标准类的加载。
-            App::getInstance()->loadClass(array(
-                $className => $classFile
-            ));
-        }
-        $re = new ReflectionClass($className);
-        $o = $re->newInstanceArgs($params);
-        $vars = get_object_vars($o);
-        foreach ($config as $key => $row) {
-            if (array_key_exists($key, $vars)) {
-                $o->$key = $row;
-            }
-        }
-        if ($single == true) {
-            self::$_container[$className] = $o; //单例模式下，保存当前对象
-        }
-        return $o;
+        return ServiceLocator::create($config);
     }
 
     /**
@@ -585,10 +556,10 @@ class App
 
     /**
      * 获取对象管理器
-     * @return \bee\core\Component
+     * @return \bee\core\ServiceLocator
      */
-    public static function p()
+    public static function s()
     {
-        return self::getInstance()->component;
+        return self::getInstance()->services;
     }
 }

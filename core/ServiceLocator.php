@@ -7,45 +7,36 @@
  * 新的对象管理器。统一原先的App::createObject, Object。
  */
 namespace bee\core;
+use bee\cache\Cache;
 use bee\client\LogClient;
 
-class Component
+class ServiceLocator
 {
     /**
      * 保存所有实例化的对象
      * @var array
      */
-    protected $singletons = [];
+    private $_components = [];
 
     /**
      * 对象配置。配置了默认的核心对象
      * @var array
      */
-    protected $defines = [
-        'log' => [
-            'class_name' => 'CoreLog'
-        ],
-        'error' => [
-            'class_name' => 'PhpError'
-        ],
-        'env' => [
-            'class_name' => 'PhpEnv'
-        ]
-    ];
+    private $_defines = [];
 
 
     public function __construct($defines)
     {
-        $this->defines = array_merge($this->defines, (array)$defines);
+        $this->_defines = array_merge($this->coreComponents(), $defines);
     }
 
     /**
      * 通过对象配置创建一个对象
      * 对象配置应该包含如下几个元素
-     * class_name 类名
+     * class 类名
      * params 构造函数参数
      * config 对象属性
-     * class_file 类文件地址，如果需要。
+     * path 类文件地址，如果需要。
      * @param string|array $config 当前对象的配置文件
      * @return object
      */
@@ -54,10 +45,10 @@ class Component
         if (is_string($config)) {
             $config = \App::c($config);
         }
-        $className = $config['class_name']; /* 类名 */
+        $className = $config['class']; /* 类名 */
         $params = $config['params'] ?: []; /* 构造函数参数 */
         $config = $config['config'] ?: []; /* 对象属性配置 */
-        $classFile = $config['class_file'] ?: ''; /* 对象文件路径 */
+        $classFile = $config['path'] ?: ''; /* 对象文件路径 */
         if ($classFile) { /* 加载类文件 */
             \App::getInstance()->loadClass([$className => $classFile]);
         }
@@ -84,21 +75,46 @@ class Component
      */
     public function get($key, $config = [])
     {
-        if (!$this->singletons[$key]) {
-            $config = $config ?: $this->defines[$key];
-            $this->singletons[$key] = self::create($config);
+        if (!$this->_components[$key]) {
+            if (!$this->_defines[$key]) { /* 如果没有定义配置 */
+                $this->_defines[$key] = $config;
+            }
+            $this->_components[$key] = self::create($this->_defines[$key]);
         }
-        return $this->singletons[$key];
+        return $this->_components[$key];
     }
 
     /**
-     * 设置一个对象
+     * 设置一个对象。
+     * 设置的时候，不会实例化对象。只会设置参数
      * @param $key
      * @param $config
+     * @return mixed
      */
     public function set($key, $config)
     {
-        $this->singletons[$key] = $this->create($config);
+        unset($this->_components[$key]);
+        $this->_defines[$key] = $config;
+        return true;
+    }
+
+    /**
+     * 删除一个对象
+     * @param $key
+     */
+    public function del($key)
+    {
+        unset($this->_components[$key], $this->_defines[$key]);
+    }
+
+    /**
+     * 判断一个对象是否存在
+     * @param $key
+     * @return bool
+     */
+    public function isExists($key)
+    {
+        return (bool)$this->_components[$key];
     }
 
     /**
@@ -129,9 +145,14 @@ class Component
         return $this->get('env');
     }
 
-    public function getSingletons()
+    /**
+     * 获取所有组件或拒组件定义
+     * @param bool $define
+     * @return array
+     */
+    public function getComponents($define = false)
     {
-        return $this->singletons;
+        return $define ? $this->_defines : $this->_components;
     }
 
     /**
@@ -141,5 +162,29 @@ class Component
     public function getUpdLog()
     {
         return $this->get('udp_log');
+    }
+
+    /**
+     * 获取缓存组件
+     * @return Cache
+     */
+    public function getCache()
+    {
+        return $this->get('cache');
+    }
+
+    /**
+     * 定义的系统核心组件
+     * @return array
+     */
+    public function coreComponents()
+    {
+        return [
+            'log' => ['class' => 'CoreLog'], /* 日志组件 */
+            'error' => ['class' => 'PhpError'], /* 错误处理 */
+            'env' => ['class' => 'PhpEnv'], /* php环境设置*/
+            'cache' => [
+                'class' => 'bee\cache\FileCache'] /* 缓存 */
+        ];
     }
 }

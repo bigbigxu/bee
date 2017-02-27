@@ -10,7 +10,7 @@ namespace bee\cache;
 interface Cache
 {
     public function get($key);
-    public function set($key, $value, $timeout);
+    public function set($key, $value, $timeout = null);
     public function exists($key);
     public function ttl($key);
     public function gc($force = false, $expiredOnly = true);

@@ -1430,7 +1430,7 @@ class CoreMysql
 	public function getCache()
 	{
 		if ($this->cache === null && $this->cacheConfig) {
-			$this->cache = App::createObject($this->cacheConfig, false);
+			$this->cache = App::createObject($this->cacheConfig);
 		}
 		return $this->cache;
 	}

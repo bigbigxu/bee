@@ -67,13 +67,13 @@ class CoreLog
         $time = date('Y-m-d H:i:s');
         $zone = date_default_timezone_get();
         $msg = "[{$time} {$zone}] {$msg}";
-        $o = App::p()->getLog();
+        $o = App::s()->getLog();
         if ($o->enableFile) {
             file_put_contents($file, "{$msg}\n", FILE_APPEND);
         }
         if ($o->enableUdp) {
             $mark = explode('_', basename($file, '.log'))[0];
-            App::p()->getUpdLog()->log($mark, $msg);
+            App::s()->getUpdLog()->log($mark, $msg);
         }
     }
 
