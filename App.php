@@ -40,7 +40,6 @@ class App
      * @var ServiceLocator
      */
     protected $services;
-
     const ENV_TEST = 'test'; //开发环境
     const ENV_DEV = 'dev'; //测试环境
     const ENV_PRO = 'pro'; //生产环境
