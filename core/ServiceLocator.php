@@ -37,18 +37,18 @@ class ServiceLocator
      * params 构造函数参数
      * config 对象属性
      * path 类文件地址，如果需要。
-     * @param string|array $config 当前对象的配置文件
+     * @param string|array $objConfig 当前对象的配置文件
      * @return object
      */
-    public static function create($config)
+    public static function create($objConfig)
     {
-        if (is_string($config)) {
-            $config = \App::c($config);
+        if (is_string($objConfig)) {
+            $objConfig = \App::c($objConfig);
         }
-        $className = $config['class']; /* 类名 */
-        $params = $config['params'] ?: []; /* 构造函数参数 */
-        $config = $config['config'] ?: []; /* 对象属性配置 */
-        $classFile = $config['path'] ?: ''; /* 对象文件路径 */
+        $className = $objConfig['class']; /* 类名 */
+        $params = $objConfig['params'] ?: []; /* 构造函数参数 */
+        $config = $objConfig['config'] ?: []; /* 对象属性配置 */
+        $classFile = $objConfig['path'] ?: ''; /* 对象文件路径 */
         if ($classFile) { /* 加载类文件 */
             \App::getInstance()->loadClass([$className => $classFile]);
         }
