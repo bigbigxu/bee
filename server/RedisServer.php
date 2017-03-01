@@ -299,7 +299,7 @@ class RedisServer extends BaseServer
         $spl = $this->processData['tick_list'];
         $n = $spl->count();
         for ($i = 0; $i < $n; $i++) {
-            $this->route(0, $spl->pop());
+            $this->route(0, $spl->shift());
         }
     }
 

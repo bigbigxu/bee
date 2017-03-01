@@ -64,7 +64,7 @@ class LogServer extends BaseServer
             if (!($this->processData['tick_list'] instanceof \SplQueue)) {
                 $this->processData['tick_list'] = new \SplQueue();
             }
-            $this->tick(1000, array($this, 'tickList'));
+            $this->tick(500, array($this, 'tickList'));
         }
     }
 
@@ -108,7 +108,7 @@ class LogServer extends BaseServer
         $this->pdo->beginTransaction();
         for ($i = 0; $i < $n; $i++) {
             try {
-                $this->insert($spl->pop());
+                $this->insert($spl->shift());
             } catch (\PDOException $e) {
                 $this->errorLog($e->errorInfo[2]);
                 continue;
@@ -172,7 +172,7 @@ SQL;
      */
     public function gc($force = false)
     {
-        if ($force == false && mt_rand(1, 1000) > 1) {
+        if ($force == false && mt_rand(1, 10000) > 1) {
             return null;
         }
         $allTable = $this->pdo
