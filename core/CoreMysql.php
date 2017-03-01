@@ -3,14 +3,9 @@
 /**
  * 数据库操作基类 基于pdo
  * @author xuen
- *   支持链式操作，支持参数绑定
- *　说明1　只有在绑定了参数后，pdo才会自动处理单引号。
- *  说明2　关闭连接时，要设置pdo null
- *  说明3 pdo绑定参数不能有2个两名参数
- *  update members_android set mid=:id1, progress = :t where mid=:id2
- *  就算id1,id2是同一个值。也要用2个参数名。
- *  如果相同。pdo不会报错。但是会执行失败。
- * @TODO 所有关于主键的方法都不支持联合主键
+ *
+ * 1. 所有关于主键的方法都不支持联合主键
+ * 2. 不能在异步模式下使用。
  */
 class CoreMysql
 {
