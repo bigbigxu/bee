@@ -184,7 +184,12 @@ class ServiceLocator
             'error' => ['class' => 'PhpError'], /* 错误处理 */
             'env' => ['class' => 'PhpEnv'], /* php环境设置*/
             'cache' => [
-                'class' => 'bee\cache\FileCache'] /* 缓存 */
+                'class' => 'bee\cache\FileCache',
+                'config' => array(
+                    'timeout' => 3600,
+                    'cachePath' => \App::getInstance()->getRuntimeDir() . '/cache'
+                ),
+            ] /* 缓存 */
         ];
     }
 }

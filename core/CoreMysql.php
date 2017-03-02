@@ -32,7 +32,7 @@ class CoreMysql
 		'params' => array()
 	);
 	protected $lastSqlQuery = []; /* 保存上一次执行申请sql参 */
-	protected $fields = array(); /* 得到当前表所有的字段名称 */
+	protected $allTableColumns = array(); /* 当前表所有的字段名称 */
 	/**
 	 * @var static[]
 	 */
@@ -59,7 +59,7 @@ class CoreMysql
 	/**
 	 * 实际完成sql执行的db的key。
 	 * 这里不直接保存对象，是因为对象的循环引用会引起对象无发释放，
-	 * 导致内存泄漏和mysql连截无法关闭
+	 * 导致内存泄漏和mysql连接无法关闭
 	 * @var string
 	 */
 	protected $realDbKey;
@@ -92,8 +92,13 @@ class CoreMysql
 	const DRIVER_SQLITE = 'sqlite';
 
 	/**
-	 * @var \bee\cache\Cache
-	 * mysql需要使用的cache组件
+	 * getTableColumns中主键的名字
+	 */
+	const PK_MARK = '@pk';
+
+	/**
+	 * 字段缓存使用的组件名称，如果不想使用，设置为false。
+	 * @var string
 	 */
 	public $cache;
 
@@ -114,26 +119,39 @@ class CoreMysql
 	 * 	]
 	 * @var array
 	 */
-	public $slaveConfig = array();
-	public $dbConfig; /* 配置文件保存 */
-	public $cacheConfig; /* 缓存配置文件 */
+	public $slaves = [];
+	/**
+	 * 配置文件保存
+	 * @var array
+	 */
+	public $dbConfig;
 
 	/**
 	 * 构造方法
-	 * @param array $config 　配置文件
-	 * @param array $attr 数组选项
+	 * config 应该包含如下配置：
+	 * [
+	 * 	'dsn' => '数据库驱动',
+	 * 	'username' => '用户名',
+	 *	'password' => '用户密码',
+	 *  'slaves' => '从库列表，数组',
+	 *	'cache' => '字段缓存使用的组件名',
+	 * 	'charset' => '字符集',
+	 * 	'attr' => '属性',
+	 *  'prefix' => '表前缀'
+	 * ]
+	 * @param array $config 配置文件
 	 */
-	public function __construct($config, $attr = [])
+	public function __construct($config)
 	{
 		$this->dbConfig = $config;
-		$this->attr = $attr + (array)$config['attr'] + $this->attr;
-		$this->prefix = $config['prefix'] ?: '';
+		$this->attr = (array)$config['attr'] + $this->attr;
+		$this->prefix = (string)$config['prefix'];
 		$this->charset = $config['charset'] ?: 'utf8';
-		$this->dsn = $config['dsn'];
-		$this->username = $config['username'];
-		$this->password = $config['password'];
-		$this->slaveConfig = (array)$config['slaves'];
-		$this->cacheConfig = $config['cache'];
+		$this->dsn = (string)$config['dsn'];
+		$this->username = (string)$config['username'];
+		$this->password = (string)$config['password'];
+		$this->slaves = (array)$config['slaves'];
+		$this->cache = $config['cache'] ?: false;
 	}
 
 	/**
@@ -184,10 +202,9 @@ class CoreMysql
 
 	/**
 	 * @param $config
-	 * @param array $attr
 	 * @return self
 	 */
-	public static function getInstance($config, $attr = array())
+	public static function getInstance($config)
 	{
 		if (!is_array($config)) {
 			$config = App::c($config);
@@ -198,10 +215,9 @@ class CoreMysql
 		/* 如果连接没有创建 */
 		if (!(self::$_instance[$k] instanceof self)) {
 			self::$_instance[$k] = null;
-			self::$_instance[$k] = new self($config, $attr);
+			self::$_instance[$k] = new self($config);
 			self::$_instance[$k]->k = $k;
 		}
-
 		return self::$_instance[$k];
 	}
 
@@ -273,12 +289,11 @@ class CoreMysql
 	 */
 	public function findById($ids)
 	{
-		$this->setField();
-		$field = $this->fields[$this->tableName]['pk'];
+		$pk = $this->getTableColumns(self::PK_MARK);
 		if (!is_array($ids)) {
-			$res = $this->andFilter($field, '=', $ids)->one();
+			$res = $this->andFilter($pk, '=', $ids)->one();
 		} else {
-			$res = $this->andFilter($field, 'in', $ids)->all();
+			$res = $this->andFilter($pk, 'in', $ids)->all();
 		}
 		return $res;
 	}
@@ -290,13 +305,13 @@ class CoreMysql
 	 */
 	public function insert($data)
 	{
-		$this->setField();
+		$columns = $this->getTableColumns();
 		$params = array();
 		$field = array();
 		$placeholder = array();
 		foreach ($data as $key => $row) {
 			//删除非法字段信息
-			if (!in_array($key, $this->fields[$this->tableName])) {
+			if (!in_array($key, $columns)) {
 				continue;
 			}
 			$params[':' . $key] = $row;
@@ -322,10 +337,9 @@ class CoreMysql
 	 */
 	public function save($data, $findAttr = array(), $multi = false)
 	{
-		$this->setField();
+		$pk = $this->getTableColumns(self::PK_MARK);
 		$findAttr = (array)$findAttr;
 		if ($findAttr == false) {
-			$pk = $this->fields[$this->tableName]['pk'];
 			$findAttr = array($pk);
 		}
 		$where = 1;
@@ -355,7 +369,6 @@ class CoreMysql
 	 */
 	public function findByAttr($attr, $num = 1)
 	{
-		$this->setField();
 		foreach ($attr as $key => $row) {
 			$this->andFilter($key, '=', $row);
 		}
@@ -419,12 +432,11 @@ class CoreMysql
 	 */
 	public function delById($ids)
 	{
-		$this->setField();
-		$field = $this->fields[$this->tableName]['pk'];
+		$pk = $this->getTableColumns(self::PK_MARK);
 		if (!is_array($ids)) {
-			$this->andFilter($field, '=', $ids)->endFilter($where, $params);
+			$this->andFilter($pk, '=', $ids)->endFilter($where, $params);
 		} else {
-			$this->andFilter($field, 'in', $ids)->endFilter($where, $params);
+			$this->andFilter($pk, 'in', $ids)->endFilter($where, $params);
 		}
 		return $this->delete($where, $params);
 	}
@@ -446,7 +458,7 @@ class CoreMysql
 	 */
 	public function update($data, $where = '', $params = array())
 	{
-		$this->setField();
+		$columns = $this->getTableColumns();
 		if (!is_array($data)) {
 			return false;
 		}
@@ -459,7 +471,7 @@ class CoreMysql
 		$updateField = array();
 		foreach ($data as $key => $value) {
 			//不合法的字段不要
-			if (!in_array($key, $this->fields[$this->tableName])) {
+			if (!in_array($key, $columns)) {
 				continue;
 			}
 			//自动组织的params参数要避免与用户传的绑定参数一样。
@@ -481,9 +493,8 @@ class CoreMysql
 	 */
 	public function updateById($data, $id)
 	{
-		$this->setField();
-		$field = $this->fields[$this->tableName]['pk'];
-		return $this->andFilter($field, '=', $id)->update($data);
+		$pk = $this->getTableColumns(self::PK_MARK);
+		return $this->andFilter($pk, '=', $id)->update($data);
 	}
 
 	/**
@@ -529,7 +540,6 @@ class CoreMysql
 	 */
 	public function updateByAttr($data, $findAttr, $multi = false)
 	{
-		$this->setField();
 		//基于安全考虑,做一个强制转换.
 		$findAttr = (array)$findAttr;
 		if ($findAttr == false) {
@@ -550,13 +560,12 @@ class CoreMysql
 
 	/**
 	 * 设置数据表的所有字段信息
+	 * @param $name
+	 * @return array|string
 	 */
-	public function setField()
+	public function getTableColumns($name = null)
 	{
-		if (is_array($this->fields[$this->tableName])) {
-			return;
-		}
-		$field = null;
+		$field = [];
 		$key = array(
 			__CLASS__,
 			$this->dsn,
@@ -575,7 +584,7 @@ class CoreMysql
 			$res = $this->_execForMysql($sql)->fetchAll();
 			foreach ($res as $row) {
 				if ($row['Key'] == 'PRI') {
-					$field['pk'] = $row['Field'];
+					$field[self::PK_MARK] = $row['Field'];
 				}
 				$field[] = $row['Field'];
 			}
@@ -583,16 +592,11 @@ class CoreMysql
 				$cache->set($key, $field);
 			}
 		}
-		$this->fields[$this->tableName] = $field;
-	}
-
-	//得到当前操作表的字段信息
-	public function getField()
-	{
-		if (!$this->fields[$this->tableName]) {
-			$this->setField();
+		if ($name === null) {
+			return $field;
+		} else {
+			return $field[$name];
 		}
-		return $this->fields[$this->tableName];
 	}
 
 	//得到记录总数
@@ -694,40 +698,36 @@ class CoreMysql
 			$db = $this->getMasterDb();
 		}
 		$this->realDbKey = $db->k;
+		for ($i = 0; $i < 2; $i++) {
+			try {
+				$pdo = $db->connect($i);
+				$stmt = $pdo->prepare($sql);
+				$stmt->execute($params);
 
-		try {
-			$pdo = $db->connect();
-			$stmt = $pdo->prepare($sql);
-			$stmt->execute($params);
-			$errorInfo = $stmt->errorInfo();
-
-			/* 此处用于静默错误模式下的断线重连 */
-			if ($pdo->getAttribute(PDO::ATTR_ERRMODE) == PDO::ERRMODE_SILENT && $errorInfo[0] != '00000') {
-				if ($errorInfo[0] == self::ERR_DRIVER_CONN) {
+				/* 此处用于静默错误模式下的断线重连 */
+				$errorInfo = $stmt->errorInfo();
+				if ($errorInfo[1] == self::ERR_DRIVER_CONN) {
+					var_dump($errorInfo);
 					$e = new PDOException('mysql server has gone away');
 					$e->errorInfo = $stmt->errorInfo();
 					throw $e;
-				} else {
+				}
+
+				/* 返回错误或stmt对象 */
+				if ($errorInfo[0] != '00000') {
 					$this->setError($errorInfo[2]);
 					return false;
+				} else {
+					return $stmt;
+				}
+			} catch(PDOException $e) {
+				/* 事务状态下，不可以使用断线重连。应该直接报错，rollback事务。 */
+				if ($this->forTransaction == false && $e->errorInfo[1] == self::ERR_DRIVER_CONN) {
+					continue;
+				} else {
+					throw $e;
 				}
 			}
-		} catch(PDOException $e) {
-			/* 事务状态下，不可以使用断线重连。应该直接报错，rollback事务。 */
-			if ($this->forTransaction == false && $e->errorInfo[1] == self::ERR_DRIVER_CONN) {
-				$pdo = $db->connect(true);
-				$stmt = $pdo->prepare($sql);
-				$stmt->execute($params);
-				$errorInfo = $stmt->errorInfo();
-			} else {
-				throw $e;
-			}
-		}
-		if ($errorInfo[0] != '00000') {
-			$this->setError($errorInfo[2]);
-			return false;
-		} else {
-			return $stmt;
 		}
 	}
 
@@ -837,7 +837,7 @@ class CoreMysql
 	 */
 	public function field($field)
 	{
-		$this->sqlQuery['field'] = empty($field) ? '*' : $field;
+		$this->sqlQuery['field'] = $field ?: '*';
 		return $this;
 	}
 
@@ -906,7 +906,7 @@ class CoreMysql
 	 */
 	public function where($where)
 	{
-		$this->sqlQuery['where'] = empty($where) ? '1' : $where;
+		$this->sqlQuery['where'] = $where;
 		return $this;
 	}
 
@@ -952,7 +952,7 @@ class CoreMysql
 	 */
 	public function group($group)
 	{
-		$this->sqlQuery['group'] = empty($group) ? '' : $group;
+		$this->sqlQuery['group'] = $group;
 		return $this;
 	}
 
@@ -962,7 +962,7 @@ class CoreMysql
 	 */
 	public function having($having)
 	{
-		$this->sqlQuery['having'] = empty($having) ? '' : $having;
+		$this->sqlQuery['having'] = $having;
 		return $this;
 	}
 
@@ -972,7 +972,7 @@ class CoreMysql
 	 */
 	public function order($order)
 	{
-		$this->sqlQuery['order'] = empty($order) ? '' : $order;
+		$this->sqlQuery['order'] = $order;
 		return $this;
 	}
 
@@ -982,7 +982,7 @@ class CoreMysql
 	 */
 	public function limit($limit)
 	{
-		$this->sqlQuery['limit'] = empty($limit) ? '' : $limit;
+		$this->sqlQuery['limit'] = $limit;
 		return $this;
 	}
 
@@ -1008,7 +1008,7 @@ class CoreMysql
 	 */
 	public function union($union)
 	{
-		$this->sqlQuery['union'] = empty($union) ? '' : $union;
+		$this->sqlQuery['union'] = $union;
 		return $this;
 	}
 
@@ -1103,7 +1103,15 @@ class CoreMysql
 	 */
 	public function close()
 	{
+		$this->clearSqlQuery();
+		$this->forTransaction = false;
+		$this->allTableColumns = [];
 		$this->_pdo = null;
+
+		/* 关闭从库 */
+		if ($this->realDbKey != $this->k) {
+			$this->getDb()->close();
+		}
 	}
 
 	/**
@@ -1112,10 +1120,11 @@ class CoreMysql
 	public static function closeAll()
 	{
 		foreach (self::$_instance as $o) {
-			if ($o instanceof self)
+			if ($o instanceof self) {
 				$o->close();
+			}
 		}
-		self::$_instance = array();
+		self::$_instance = [];
 	}
 
 	/**
@@ -1368,7 +1377,6 @@ class CoreMysql
 
 	/**
 	 * 得到数据表与字段对应的注释
-	 * 不同于setField方法.
 	 * @return array
 	 */
 	public function label()
@@ -1408,26 +1416,31 @@ class CoreMysql
 	 */
 	public function getSlaveDb()
 	{
-		if ($this->slaveConfig == false) {
+		if ($this->slaves == false) {
 			return $this; /* 没有配置从库 */
 		}
-		$config = $this->slaveConfig[array_rand($this->slaveConfig)];
+		$config = $this->slaves[array_rand($this->slaves)];
 		if (is_string($config)) {
 			$config = ['dsn' => $config]; /* 如果为一个字符串，认为是一个dsn */
 		}
 		/* 合并主库和从库的配置文件 */
 		$config = array_merge($this->dbConfig, $config);
 		unset($config['slaves']);
-		$db = self::getInstance($config, $this->attr);
+		$db = self::getInstance($config);
 		return $db;
 	}
 
+	/**
+	 * 获取cache组件
+	 * @return bool|\bee\cache\Cache
+	 */
 	public function getCache()
 	{
-		if ($this->cache === null && $this->cacheConfig) {
-			$this->cache = App::createObject($this->cacheConfig);
+		if ($this->cache == false) {
+			return false;
+		} else {
+			return App::s()->get($this->cache);
 		}
-		return $this->cache;
 	}
 
 	/**
@@ -1469,10 +1482,10 @@ class CoreMysql
 	 */
 	public function selectDB($type = self::DB_MASTER, $k = 0)
 	{
-		if ($type == self::DB_MASTER || $this->slaveConfig == false) {
-			$db = self::getInstance($this->dbConfig, $this->attr);
+		if ($type == self::DB_MASTER || $this->slaves == false) {
+			$db = self::getInstance($this->dbConfig);
 		} else {
-			$config = $this->slaveConfig[$k];
+			$config = $this->slaves[$k];
 			if ($config == false) {
 				return false;
 			}
@@ -1483,7 +1496,7 @@ class CoreMysql
 			/* 合并主库和从库的配置文件 */
 			$config = array_merge($this->dbConfig, $config);
 			unset($config['slaves']);
-			$db = self::getInstance($config, $this->attr);
+			$db = self::getInstance($config);
 		}
 		return $db;
 	}

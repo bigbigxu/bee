@@ -647,8 +647,8 @@ class CoreModel
      */
     public function getPkName()
     {
-        $field = $this->from()->getField();
-        return $field['pk'];
+        $pk = $this->from()->getTableColumns(CoreMysql::PK_MARK);
+        return $pk;
     }
 
     /**
