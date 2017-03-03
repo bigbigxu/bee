@@ -6,6 +6,30 @@
  *
  * 1. 所有关于主键的方法都不支持联合主键
  * 2. 不能在异步模式下使用。
+ *
+ * 关于事务
+ * INSERT/UPDATE/DELETE所有关联数据都会被锁定，加上排它锁。
+ * 这时候的select结果取决于事务隔离级别。（select 默认情况下，不会加锁。）
+ * mysql默认级别：
+ * 	不读取未提交数据。
+ *  不允许非重复读，一个事务内，读取的结果一致。无论数据是否有提交的修改。
+ *  不可以幻像读，一个事务内，读取的结果集数量一致。无论数据是否有提交的修改。
+ *
+ * 关于锁
+ * 1. 普通 select ，不管在不在事务中， mysql 都不会将 select 加锁，所以根本无法阻止其它事务插入记录
+ * 2. select 加共享锁和排它锁，都会阻止相关数据的更新操作。
+ * 3. innodb 是对索引加缩。主键索引是行锁。其他索引是意向锁(锁住相关记录)，如果记录太多可能会变成表锁。
+ * 4. 锁在事务提交或回滚或才会释放。自动提交加锁意义不大。
+ * 5. LOCK IN SHARE MODE 会产生死锁了，假如两个事务 A 、 B 都读取同一行记录，那么在这一行就加上了共享锁
+ * 	  ，但是 A 和 B 事务中都需要修改这一行，那么都要等待对方释放共享锁才能进行，结果造成了死锁。
+ * 	  只能使用 for update 来防止死锁和重复插入。
+ * 6. 锁的作用域是事务（自动提交也是事务）之间。同一事务内，反复加锁，相同记录只会加一次锁。
+ * 7. for update 加锁熟悉必须一致，不如会造成死锁。
+ *    session 1, 加锁 id=1, id=2。 session 2，加锁id=2, id=1，会产生死锁。
+ *
+ * 关于主从同步：
+ * 1. 主从同步延迟较高的情况下，如果先查数据，再更新的数据的操作，尽量使用事务加锁在主库执行。
+ *    如果在重库执行查询，会产生数据不一致。
  */
 class CoreMysql
 {
@@ -19,7 +43,7 @@ class CoreMysql
 	protected $error = ''; /* 当前执行sql的错误消息 */
 	protected $prefix = ''; /* 表前缀 */
 	protected $charset = 'utf8';
-	protected $forTransaction = false; /* 当前是否在执行事务 */
+	protected $transactions = 0; /* 当前是否在执行事务 */
 	protected $sqlQuery = array(
 		'field' => '*',
 		'where' => '1',
@@ -29,7 +53,8 @@ class CoreMysql
 		'order' => '',
 		'limit' => '',
 		'union' => '',
-		'params' => array()
+		'params' => [],
+		'lock' => ''
 	);
 	protected $lastSqlQuery = []; /* 保存上一次执行申请sql参 */
 	protected $allTableColumns = array(); /* 当前表所有的字段名称 */
@@ -90,6 +115,15 @@ class CoreMysql
 	 */
 	const DRIVER_MYSQL = 'mysql';
 	const DRIVER_SQLITE = 'sqlite';
+
+	/**
+	 * 排它锁，阻止获取锁。
+	 */
+	const LOCK_UPDATE = 'for update';
+	/**
+	 * 共享锁，不阻止 lock in share mode。阻止数据更新。
+	 */
+	const LOCK_SELECT = 'lock in share mode';
 
 	/**
 	 * getTableColumns中主键的名字
@@ -342,22 +376,30 @@ class CoreMysql
 		if ($findAttr == false) {
 			$findAttr = array($pk);
 		}
-		$where = 1;
 		foreach ($findAttr as $row) {
 			$this->andFilter($row, '=', $data[$row]);
 		}
 		$this->endFilter($where, $params);
-		$count = $this->count($where, $params);
-		if ($count == 1) {
-			return $this->update($data, $where, $params);
-		} elseif ($count == 0) {
-			return $this->insert($data);
-		} else {
-			if ($multi) {
-				return $this->update($data, $where, $params);
+
+		try {
+			$this->beginTransaction();
+			$count = $this->lock(self::LOCK_UPDATE)->count($where, $params);
+			if ($count == 1) {
+				$rowCount = $this->update($data, $where, $params);
+			} elseif ($count == 0) {
+				$rowCount = $this->insert($data);
 			} else {
-				throw new Exception('可能更新多条记录');
+				if ($multi) {
+					$rowCount = $this->update($data, $where, $params);
+				} else {
+					throw new Exception('可能更新多条记录：sql=' . $this->getSql());
+				}
 			}
+			$this->commit();
+			return $rowCount;
+		} catch (Exception $e) {
+			$this->rollBack();
+			throw $e;
 		}
 	}
 
@@ -408,9 +450,7 @@ class CoreMysql
 	 */
 	public function deleteBydAttr($findAttr, $multi = false)
 	{
-		$where = '1';
-		$params = array();
-		//基于安全考虑,做一个强制转换.
+		/* 基于安全考虑,做一个强制转换 */
 		$findAttr = (array)$findAttr;
 		if ($findAttr == false) {
 			return false;
@@ -419,10 +459,20 @@ class CoreMysql
 			$this->andFilter($key, '=', $row);
 		}
 		$this->endFilter($where, $params);
-		if ($this->count($where, $params) > 1 && $multi == false) {
-			throw new Exception('可能删除多条记录');
+
+		try {
+			$this->beginTransaction();
+			$count = $this->lock(self::LOCK_UPDATE)->count($where, $params);
+			if ($count > 1 && $multi == false) {
+				throw new Exception('可能删除多条记录：sql=' . $this->getSql());
+			}
+			$rowCount = $this->delete($where, $params);
+			$this->commit();
+			return $rowCount;
+		} catch (Exception $e) {
+			$this->rollBack();
+			throw $e;
 		}
-		return $this->delete($where, $params);
 	}
 
 	/**
@@ -502,7 +552,7 @@ class CoreMysql
 	 * @param array $incr key为要增加的字段, value为值
 	 * @param array $find 查询条件
 	 * @param bool $multi 是否可以更新多条记录
-	 * @return bool|int
+	 * @return bool|array 成功返回自增或的数据
 	 * @throws Exception
 	 */
 	public function incrByAttr($incr, $find, $multi = false)
@@ -510,23 +560,30 @@ class CoreMysql
 		if ($find == false) {
 			return false;
 		}
-		$res = $this->findByAttr($find);
-		$data = array_merge($find, $incr);
-		if ($data == false) {
-			return false;
-		}
-		if ($res == false) {
-			$flag =  $this->insert($data);
-		} else {
-			foreach ($incr as $key => $value) {
-				$data[$key] += $res[$key];
+		try {
+			$this->beginTransaction();
+			$res = $this->lock(self::LOCK_UPDATE)->findByAttr($find);
+			$data = array_merge($find, $incr);
+			if ($data == false) {
+				return false;
 			}
-			$flag = $this->updateByAttr($data, array_keys($find), $multi);
-		}
-		if ($flag === false) {
-			return $flag;
-		} else {
-			return $data;
+			if ($res == false) {
+				$rowCount = $this->insert($data);
+			} else {
+				foreach ($incr as $key => $value) {
+					$data[$key] += $res[$key];
+				}
+				$rowCount = $this->updateByAttr($data, array_keys($find), $multi);
+			}
+			$this->commit();
+			if ($rowCount === false) {
+				return $rowCount;
+			} else {
+				return $data;
+			}
+		} catch (Exception $e) {
+			$this->rollBack();
+			throw $e;
 		}
 	}
 
@@ -540,22 +597,30 @@ class CoreMysql
 	 */
 	public function updateByAttr($data, $findAttr, $multi = false)
 	{
-		//基于安全考虑,做一个强制转换.
+		/* 基于安全考虑,做一个强制转换 */
 		$findAttr = (array)$findAttr;
 		if ($findAttr == false) {
 			return false;
 		}
-		$where = 1;
 		foreach ($findAttr as $row) {
 			$this->andFilter($row, '=', $data[$row]);
-			unset($data[$row]); //如果属性在findAttr中那么不需要更新。
+			unset($data[$row]); /* 如果属性在findAttr中那么不需要更新。 */
 		}
 		$this->endFilter($where, $params);
-		$count = $this->count($where, $params);
-		if ($count > 1 && $multi == false) {
-			throw new Exception('可能更新多条记录');
+
+		try {
+			$this->beginTransaction();
+			$count = $this->lock(self::LOCK_UPDATE)->count($where, $params);
+			if ($count > 1 && $multi == false) {
+				throw new Exception('可能更新多条记录：sql=' . $this->getSql());
+			}
+			$rowCount = $this->update($data, $where, $params);
+			$this->commit();
+			return $rowCount;
+		} catch (Exception $e) {
+			$this->rollBack();
+			throw $e;
 		}
-		return $this->update($data, $where, $params);
 	}
 
 	/**
@@ -692,7 +757,7 @@ class CoreMysql
 	private function _execForMysql($sql, $params = array())
 	{
 		/* 事务状态下，只能在主库执行 */
-		if ($this->forTransaction == false && $this->isReadSql($sql)) {
+		if ($this->transactions < 1 && $this->isReadSql($sql)) {
 			$db = $this->getSlaveDb();
 		} else {
 			$db = $this->getMasterDb();
@@ -707,7 +772,6 @@ class CoreMysql
 				/* 此处用于静默错误模式下的断线重连 */
 				$errorInfo = $stmt->errorInfo();
 				if ($errorInfo[1] == self::ERR_DRIVER_CONN) {
-					var_dump($errorInfo);
 					$e = new PDOException('mysql server has gone away');
 					$e->errorInfo = $stmt->errorInfo();
 					throw $e;
@@ -722,7 +786,7 @@ class CoreMysql
 				}
 			} catch(PDOException $e) {
 				/* 事务状态下，不可以使用断线重连。应该直接报错，rollback事务。 */
-				if ($this->forTransaction == false && $e->errorInfo[1] == self::ERR_DRIVER_CONN) {
+				if ($this->transactions < 1 && $e->errorInfo[1] == self::ERR_DRIVER_CONN) {
 					continue;
 				} else {
 					throw $e;
@@ -827,6 +891,9 @@ class CoreMysql
 		if ($this->sqlQuery['union'] != '') {
 			$this->_sql .= "union {$this->sqlQuery['union']}\n";
 		}
+		if ($this->sqlQuery['lock'] != '') {
+			$this->_sql .= " {$this->sqlQuery['lock']}";
+		}
 		return $this->_sql;
 	}
 
@@ -907,6 +974,17 @@ class CoreMysql
 	public function where($where)
 	{
 		$this->sqlQuery['where'] = $where;
+		return $this;
+	}
+
+	/**
+	 * 加锁操作
+	 * @param $lock
+	 * @return $this
+	 */
+	public function lock($lock)
+	{
+		$this->sqlQuery['lock'] = $lock;
 		return $this;
 	}
 
@@ -1024,30 +1102,18 @@ class CoreMysql
 			}
 		}
 		$this->lastSqlQuery = $this->sqlQuery;
-		foreach ($this->sqlQuery as $key => $row) {
-			if ($key == 'where') {
-				$this->sqlQuery[$key] = '1';
-			} elseif ($key == 'field') {
-				$this->sqlQuery[$key] = '*';
-			} elseif ($key == 'params') {
-				$this->sqlQuery[$key] = array();
-			} else {
-				$this->sqlQuery[$key] = '';
-			}
-		}
-	}
-
-	/**
-	 * @return mixed 返回组合的sql语句
-	 */
-	public function getSqlCache()
-	{
-		$sql = $this->joinSql('');
-		if (!empty($this->sqlQuery['params'])) {
-			foreach ($this->sqlQuery['params'] as $key => $param)
-				$sql = str_replace($key, '"' . $param . '"', $sql);
-		}
-		return $sql;
+		$this->sqlQuery = [
+			'field' => '*',
+			'where' => '1',
+			'join' => '',
+			'group' => '',
+			'having' => '',
+			'order' => '',
+			'limit' => '',
+			'union' => '',
+			'params' => [],
+			'lock' => '',
+		];
 	}
 
 	/**
@@ -1104,7 +1170,7 @@ class CoreMysql
 	public function close()
 	{
 		$this->clearSqlQuery();
-		$this->forTransaction = false;
+		$this->transactions = 0;
 		$this->allTableColumns = [];
 		$this->_pdo = null;
 
@@ -1199,11 +1265,12 @@ class CoreMysql
 	 */
 	public function beginTransaction()
 	{
-		$this->connect();
-		$this->_pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-		$flag = $this->_pdo->beginTransaction();
-		$this->forTransaction = true;
-		return $flag;
+		$this->transactions++; /* 事务层次加1 */
+		if ($this->transactions == 1) {
+			$this->connect();
+			$this->_pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+			$this->_pdo->beginTransaction();
+		}
 	}
 
 	/**
@@ -1212,9 +1279,10 @@ class CoreMysql
 	 */
 	public function commit()
 	{
-		$flag = $this->_pdo->commit();
-		$this->forTransaction = false;
-		return $flag;
+		if ($this->transactions == 1)  {
+			$this->_pdo->commit();
+		}
+		$this->transactions = max(0, $this->transactions - 1);
 	}
 
 	/**
@@ -1223,9 +1291,10 @@ class CoreMysql
 	 */
 	public function rollBack()
 	{
-		$flag = $this->_pdo->rollBack();
-		$this->forTransaction = false;
-		return $flag;
+		if ($this->transactions == 1) {
+			$this->_pdo->rollBack();
+		}
+		$this->transactions = max(0, $this->transactions - 1);
 	}
 
 	/**
@@ -1501,8 +1570,34 @@ class CoreMysql
 		return $db;
 	}
 
+	/**
+	 * 获取上一次查询参数
+	 * @return array
+	 */
 	public function getLastSqlQuery()
 	{
 		return $this->lastSqlQuery;
+	}
+
+	/**
+	 * 获取当期事务等级
+	 * @return int
+	 */
+	public function getTransactionLevel()
+	{
+		return $this->transactions;
+	}
+
+	/**
+	 * 判断当前是否处于事务中
+	 * @return bool
+	 */
+	public function inTransaction()
+	{
+		if ($this->_pdo === null) {
+			return false;
+		} else {
+			return $this->_pdo->inTransaction();
+		}
 	}
 }
