@@ -44,6 +44,7 @@ class CoreMysql
 	protected $prefix = ''; /* 表前缀 */
 	protected $charset = 'utf8';
 	protected $transactions = 0; /* 当前是否在执行事务 */
+	protected $lastInsertId = 0; /* 最后一个插入的ID */
 	protected $sqlQuery = array(
 		'field' => '*',
 		'where' => '1',
@@ -388,6 +389,7 @@ class CoreMysql
 				$rowCount = $this->update($data, $where, $params);
 			} elseif ($count == 0) {
 				$rowCount = $this->insert($data);
+				$this->lastInsertId = $this->_pdo->lastInsertId();
 			} else {
 				if ($multi) {
 					$rowCount = $this->update($data, $where, $params);
@@ -496,7 +498,11 @@ class CoreMysql
 	 */
 	public function lastId()
 	{
-		return $this->_pdo->lastInsertId();
+		if ($this->lastInsertId != 0) {
+			return $this->lastInsertId;
+		} else {
+			return $this->_pdo->lastInsertId();
+		}
 	}
 
 	/**
@@ -569,6 +575,7 @@ class CoreMysql
 			}
 			if ($res == false) {
 				$rowCount = $this->insert($data);
+				$this->lastInsertId = $this->_pdo->lastInsertId();
 			} else {
 				foreach ($incr as $key => $value) {
 					$data[$key] += $res[$key];
