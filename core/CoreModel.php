@@ -698,4 +698,9 @@ class CoreModel
     {
         return $this->from()->fieldInfo();
     }
+
+    public static function className()
+    {
+        return get_called_class();
+    }
 }

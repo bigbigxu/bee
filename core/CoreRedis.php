@@ -16,6 +16,9 @@ class CoreRedis
     private $redis;
     protected $dbId = 0;//当前数据库ID号
     protected $auth;//当前权限认证码
+    /**
+     * @var self[]
+     */
     static private $_instance = array();
     private $k;
     //配置文件数组
@@ -81,10 +84,6 @@ class CoreRedis
                 self::$_instance[$k]->select($config['db_id']);
         }
         return self::$_instance[$k];
-    }
-
-    private function __clone()
-    {
     }
 
     /**
