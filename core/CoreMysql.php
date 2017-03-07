@@ -384,7 +384,7 @@ class CoreMysql
 
 		try {
 			$this->beginTransaction();
-			$count = $this->lock(self::LOCK_UPDATE)->count($where, $params);
+			$count = $this->count($where, $params);
 			if ($count == 1) {
 				$rowCount = $this->update($data, $where, $params);
 			} elseif ($count == 0) {
@@ -464,7 +464,7 @@ class CoreMysql
 
 		try {
 			$this->beginTransaction();
-			$count = $this->lock(self::LOCK_UPDATE)->count($where, $params);
+			$count = $this->count($where, $params);
 			if ($count > 1 && $multi == false) {
 				throw new Exception('可能删除多条记录：sql=' . $this->getSql());
 			}
@@ -568,7 +568,7 @@ class CoreMysql
 		}
 		try {
 			$this->beginTransaction();
-			$res = $this->lock(self::LOCK_UPDATE)->findByAttr($find);
+			$res = $this->findByAttr($find);
 			$data = array_merge($find, $incr);
 			if ($data == false) {
 				return false;
@@ -617,7 +617,7 @@ class CoreMysql
 
 		try {
 			$this->beginTransaction();
-			$count = $this->lock(self::LOCK_UPDATE)->count($where, $params);
+			$count = $this->count($where, $params);
 			if ($count > 1 && $multi == false) {
 				throw new Exception('可能更新多条记录：sql=' . $this->getSql());
 			}
