@@ -15,7 +15,7 @@
  *  'crontab_dir' => '定时器脚本目录'
  *  'runtime_dir' => '运行时目录，比如日志',
  *  'class_map' => '类地图，用于减少自动加载的开销',
- *  'autoload' => '自动加载的包（目录加载）',
+ *  'package_map' => '自动加载的包（目录加载）',
  *  'namespace' => '需要加载的命名空间'
  * );
  */
@@ -194,17 +194,13 @@ class App
      */
     public function loadPackage($package)
     {
-        if (!is_array($package)) {
-            $package = array($package);
-        }
-
-        foreach ($package as $name => $path) {
+        foreach ((array)$package as $name => $path) {
             $path = realpath($path);
             if (in_array($path, $this->packageMap)) {
                 continue;
             }
             /* 如果包名不是一个字符串。则取最后一个目录名作为包名 */
-            if (preg_match(is_int($name), $name)) {
+            if (is_int($name)) {
                 $name = basename($path);
             }
             $this->packageMap[$name] = $path;
@@ -217,11 +213,7 @@ class App
      */
     public function loadClass($class)
     {
-        if (!is_array($class)) {
-            $class = array($class);
-        }
-
-        foreach ($class as $name => $path) {
+        foreach ((array)$class as $name => $path) {
             $path = realpath($path);
             if (in_array($path, $this->classMap)) {
                 continue;
@@ -294,9 +286,13 @@ class App
     public function autoLoad($className)
     {
         $file = $this->classMap[$className];
-        if(is_file($file)) {
-            require $file;
-            return true;
+        if ($file !== null) { /* 类地图中已经存在 */
+            if(is_file($file)) {
+                require $file;
+                return true;
+            } else {
+                return false;
+            }
         }
         $pos = strpos($className, '\\');
         if ($pos !== false) {  //如果类名包含命令空间

@@ -30,6 +30,10 @@
  * 关于主从同步：
  * 1. 主从同步延迟较高的情况下，如果先查数据，再更新的数据的操作，尽量使用事务加锁在主库执行。
  *    如果在重库执行查询，会产生数据不一致。
+ *
+ * 关于 save,incrByAttr, deleteByAttr, updateByAttr
+ * 这4个方法，先select后update/insert 在搞并发情况下，可能会出现数据不一致。
+ * 如过select 加锁，容易造成死锁。
  */
 class CoreMysql
 {
@@ -44,7 +48,6 @@ class CoreMysql
 	protected $prefix = ''; /* 表前缀 */
 	protected $charset = 'utf8';
 	protected $transactions = 0; /* 当前是否在执行事务 */
-	protected $lastInsertId = 0; /* 最后一个插入的ID */
 	protected $sqlQuery = array(
 		'field' => '*',
 		'where' => '1',
@@ -55,7 +58,8 @@ class CoreMysql
 		'limit' => '',
 		'union' => '',
 		'params' => [],
-		'lock' => ''
+		'lock' => '',
+		'use_master' => 1
 	);
 	protected $lastSqlQuery = []; /* 保存上一次执行申请sql参 */
 	protected $allTableColumns = array(); /* 当前表所有的字段名称 */
@@ -93,7 +97,7 @@ class CoreMysql
 	 * 由本类自动生成的绑定参数前缀，用于区别用户绑定参数
 	 * @var string
 	 */
-	protected $autoBindPrefix = 'iphp_auto_';
+	protected $autoBindPrefix = 'bee_auto_';
 	/**
 	 *  当前程ID
 	 * @var int
@@ -382,27 +386,19 @@ class CoreMysql
 		}
 		$this->endFilter($where, $params);
 
-		try {
-			$this->beginTransaction();
-			$count = $this->count($where, $params);
-			if ($count == 1) {
+		$count = $this->useMaster()->count($where, $params);
+		if ($count == 1) {
+			$rowCount = $this->update($data, $where, $params);
+		} elseif ($count == 0) {
+			$rowCount = $this->insert($data);
+		} else {
+			if ($multi) {
 				$rowCount = $this->update($data, $where, $params);
-			} elseif ($count == 0) {
-				$rowCount = $this->insert($data);
-				$this->lastInsertId = $this->_pdo->lastInsertId();
 			} else {
-				if ($multi) {
-					$rowCount = $this->update($data, $where, $params);
-				} else {
-					throw new Exception('可能更新多条记录：sql=' . $this->getSql());
-				}
+				throw new Exception('可能更新多条记录：sql=' . $this->getSql());
 			}
-			$this->commit();
-			return $rowCount;
-		} catch (Exception $e) {
-			$this->rollBack();
-			throw $e;
 		}
+		return $rowCount;
 	}
 
 	/**
@@ -462,19 +458,11 @@ class CoreMysql
 		}
 		$this->endFilter($where, $params);
 
-		try {
-			$this->beginTransaction();
-			$count = $this->count($where, $params);
-			if ($count > 1 && $multi == false) {
-				throw new Exception('可能删除多条记录：sql=' . $this->getSql());
-			}
-			$rowCount = $this->delete($where, $params);
-			$this->commit();
-			return $rowCount;
-		} catch (Exception $e) {
-			$this->rollBack();
-			throw $e;
+		$count = $this->useMaster()->count($where, $params);
+		if ($count > 1 && $multi == false) {
+			throw new Exception('可能删除多条记录：sql=' . $this->getSql());
 		}
+		return $this->delete($where, $params);
 	}
 
 	/**
@@ -498,11 +486,7 @@ class CoreMysql
 	 */
 	public function lastId()
 	{
-		if ($this->lastInsertId != 0) {
-			return $this->lastInsertId;
-		} else {
-			return $this->_pdo->lastInsertId();
-		}
+		return $this->_pdo->lastInsertId();
 	}
 
 	/**
@@ -566,31 +550,19 @@ class CoreMysql
 		if ($find == false) {
 			return false;
 		}
-		try {
-			$this->beginTransaction();
-			$res = $this->findByAttr($find);
-			$data = array_merge($find, $incr);
-			if ($data == false) {
-				return false;
+		$res = $this->useMaster()->findByAttr($find);
+
+		$data = array_merge($find, $incr);
+		if ($data == false) {
+			return false;
+		}
+		if ($res == false) {
+			return $this->insert($data);
+		} else {
+			foreach ($incr as $key => $value) {
+				$data[$key] += $res[$key];
 			}
-			if ($res == false) {
-				$rowCount = $this->insert($data);
-				$this->lastInsertId = $this->_pdo->lastInsertId();
-			} else {
-				foreach ($incr as $key => $value) {
-					$data[$key] += $res[$key];
-				}
-				$rowCount = $this->updateByAttr($data, array_keys($find), $multi);
-			}
-			$this->commit();
-			if ($rowCount === false) {
-				return $rowCount;
-			} else {
-				return $data;
-			}
-		} catch (Exception $e) {
-			$this->rollBack();
-			throw $e;
+			return $this->updateByAttr($data, array_keys($find), $multi);
 		}
 	}
 
@@ -614,20 +586,12 @@ class CoreMysql
 			unset($data[$row]); /* 如果属性在findAttr中那么不需要更新。 */
 		}
 		$this->endFilter($where, $params);
+		$count = $this->useMaster()->count($where, $params);
 
-		try {
-			$this->beginTransaction();
-			$count = $this->count($where, $params);
-			if ($count > 1 && $multi == false) {
-				throw new Exception('可能更新多条记录：sql=' . $this->getSql());
-			}
-			$rowCount = $this->update($data, $where, $params);
-			$this->commit();
-			return $rowCount;
-		} catch (Exception $e) {
-			$this->rollBack();
-			throw $e;
+		if ($count > 1 && $multi == false) {
+			throw new Exception('可能更新多条记录：sql=' . $this->getSql());
 		}
+		return $this->update($data, $where, $params);
 	}
 
 	/**
@@ -750,8 +714,9 @@ class CoreMysql
 			$this->sqlQuery['params'] = $params;
 		}
 		$params = $this->sqlQuery['params'];
+		$useMaster = $this->sqlQuery['use_master'];
 		$this->clearSqlQuery();
-		$stmt = $this->_execForMysql($sql, $params);
+		$stmt = $this->_execForMysql($sql, $params, $useMaster);
 		return $stmt;
 	}
 
@@ -759,12 +724,13 @@ class CoreMysql
 	 * 执行一个mysql语句
 	 * @param $sql
 	 * @param array $params
+	 * @param int $useMaster 是否使用主库
 	 * @return bool|PDOStatement
 	 */
-	private function _execForMysql($sql, $params = array())
+	private function _execForMysql($sql, $params = [], $useMaster = 0)
 	{
 		/* 事务状态下，只能在主库执行 */
-		if ($this->transactions < 1 && $this->isReadSql($sql)) {
+		if ($useMaster < 1 && $this->transactions < 1 && $this->isReadSql($sql)) {
 			$db = $this->getSlaveDb();
 		} else {
 			$db = $this->getMasterDb();
@@ -783,7 +749,6 @@ class CoreMysql
 					$e->errorInfo = $stmt->errorInfo();
 					throw $e;
 				}
-
 				/* 返回错误或stmt对象 */
 				if ($errorInfo[0] != '00000') {
 					$this->setError($errorInfo[2]);
@@ -793,7 +758,7 @@ class CoreMysql
 				}
 			} catch(PDOException $e) {
 				/* 事务状态下，不可以使用断线重连。应该直接报错，rollback事务。 */
-				if ($i = 0 && $this->transactions < 1 && $e->errorInfo[1] == self::ERR_DRIVER_CONN) {
+				if ($i == 0 && $this->transactions < 1 && $e->errorInfo[1] == self::ERR_DRIVER_CONN) {
 					continue;
 				} else {
 					throw $e;
@@ -814,8 +779,9 @@ class CoreMysql
 			$this->sqlQuery['params'] = $params;
 		}
 		$params = $this->sqlQuery['params'];
+		$useMaster = $this->sqlQuery['use_master'];
 		$this->clearSqlQuery();
-		$stmt = $this->_execForMysql($sql, $params);
+		$stmt = $this->_execForMysql($sql, $params, $useMaster);
 		if ($stmt == false) {
 			return false;
 		}
@@ -1120,6 +1086,7 @@ class CoreMysql
 			'union' => '',
 			'params' => [],
 			'lock' => '',
+			'user_master' => 0
 		];
 	}
 
@@ -1274,9 +1241,20 @@ class CoreMysql
 	{
 		$this->transactions++; /* 事务层次加1 */
 		if ($this->transactions == 1) {
-			$this->connect();
-			$this->_pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-			return $this->_pdo->beginTransaction();
+			/* 开启事务的时候，需要判断断线重连 */
+			for ($i = 0; $i < 2; $i++) {
+				try {
+					$pdo = $this->connect($i);
+					$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+					return $pdo->beginTransaction();
+				} catch (PDOException $e) {
+					if ($i == 0 && $e->errorInfo[1] == self::ERR_DRIVER_CONN) {
+						continue;
+					} else {
+						throw $e;
+					}
+				}
+			}
 		}
 		return true;
 	}
@@ -1287,10 +1265,12 @@ class CoreMysql
 	 */
 	public function commit()
 	{
+		$flag = true;
 		if ($this->transactions == 1)  {
-			$this->_pdo->commit();
+			$flag = $this->_pdo->commit();
 		}
 		$this->transactions = max(0, $this->transactions - 1);
+		return $flag;
 	}
 
 	/**
@@ -1299,10 +1279,12 @@ class CoreMysql
 	 */
 	public function rollBack()
 	{
+		$flag = true;
 		if ($this->transactions == 1) {
-			$this->_pdo->rollBack();
+			 $flag = $this->_pdo->rollBack();
 		}
 		$this->transactions = max(0, $this->transactions - 1);
+		return $flag;
 	}
 
 	/**
@@ -1607,5 +1589,15 @@ class CoreMysql
 		} else {
 			return $this->_pdo->inTransaction();
 		}
+	}
+
+	/**
+	 * 强制使用主库
+	 * @return $this
+	 */
+	public function useMaster()
+	{
+		$this->sqlQuery['use_master'] = 1;
+		return $this;
 	}
 }

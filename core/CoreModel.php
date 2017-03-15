@@ -690,6 +690,15 @@ class CoreModel
         return $this->from()->fieldInfo();
     }
 
+    /**
+     * @see CoreMysql::useMaster()
+     * @return $this
+     */
+    public function useMaster()
+    {
+        return $this->from()->useMaster();
+    }
+
     public static function className()
     {
         return get_called_class();
