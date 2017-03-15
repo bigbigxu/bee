@@ -1,5 +1,4 @@
 <?php
-//namespace iphp\base;
 /**
  * Created by PhpStorm.
  * User: 123
@@ -7,7 +6,7 @@
  * Time: 上午11:13
  * 事件处理程序格式如下
  * function ($event) {
- *  $event 就是前面提到的 iphp\base\Event
+ *  $event 就是前面提到的
  * }
  */
 class Event extends Object

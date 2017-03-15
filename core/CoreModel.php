@@ -652,15 +652,6 @@ class CoreModel
     }
 
     /**
-     * @param $name
-     * @return string
-     */
-    public function _prefix($name)
-    {
-        return $this->redis()->_prefix($name);
-    }
-
-    /**
      * 设置全局cache key的前缀
      * 此方法不可以在类实例后更改。只能在子类中重写init方法。
      * @param $key

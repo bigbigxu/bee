@@ -5,7 +5,7 @@
  * Date: 2015/7/22
  * Time: 9:48
  */
-namespace bee\db_model;
+namespace bee\cache;
 class RedisAnalysis
 {
     /**

@@ -68,7 +68,7 @@ class App
         $this->crontabDir = $this->config['crontab_dir'] ?: $this->baseDir . '/crontab';
         $this->runtimeDir = $this->config['runtime_dir'] ?: $this->baseDir . '/runtime';
         $this->env = $this->config['env'] ?: self::ENV_DEV;
-        $this->loadCorePackage();
+        $this->loadCore();
         //注册自动加载函数
         spl_autoload_register(array($this, 'autoLoad'));
     }
@@ -78,11 +78,9 @@ class App
      */
     protected function init()
     {
-        $this->classMap = self::c('class_map'); /* 加载类地图 */
-        $this->load(self::c('autoload')); /* 加载配置文件的 */
-        $this->namespace = $this->config['namespace'] ?: [];
-        $this->loadNamespace('bee', $this->sysDir);
-        $this->loadNamespace('app', $this->baseDir);
+        $this->loadClass(self::c('class_map')); /* 加载类地图 */
+        $this->loadPackage(self::c('package_map')); /* 加载目录包 */
+        $this->loadNamespace(self::c('namespace')); /* 加载命名空间 */
 
         /* 对象加载 */
         $this->services = new ServiceLocator(self::c('component') ?: []);
@@ -174,12 +172,12 @@ class App
     {
         $file = "{$this->configDir}/{$name}";
         $ext = strtolower(substr($file, -4));
-        //如果不是一个文件
-        if(!is_file($file)) {
+        /* 如果不是一个文件 */
+        if (!is_file($file)) {
             $res = $name;
-        } elseif($ext == '.php') {
+        } elseif ($ext == '.php') {
             $res = include $file;
-        } elseif($ext == '.ini') {
+        } elseif ($ext == '.ini') {
             $res = parse_ini_file($file);
         } else {
             $res = null;
@@ -196,22 +194,17 @@ class App
      */
     public function loadPackage($package)
     {
-        if(!is_array($package)) {
+        if (!is_array($package)) {
             $package = array($package);
         }
 
-        foreach($package as $name => $path) {
+        foreach ($package as $name => $path) {
             $path = realpath($path);
-            //如果不是一个目录
-            if(!is_dir($path)) {
+            if (in_array($path, $this->packageMap)) {
                 continue;
             }
-            //如果包已经存在,以路径区分是不是相同的包。
-            if(in_array($path, $this->packageMap)) {
-                continue;
-            }
-            //如果包名不是一个字符串。则取最后一个目录名作为包名。
-            if(preg_match('/^[0-9]+$/', $name)) {
+            /* 如果包名不是一个字符串。则取最后一个目录名作为包名 */
+            if (preg_match(is_int($name), $name)) {
                 $name = basename($path);
             }
             $this->packageMap[$name] = $path;
@@ -224,21 +217,17 @@ class App
      */
     public function loadClass($class)
     {
-        if(!is_array($class)) {
+        if (!is_array($class)) {
             $class = array($class);
         }
 
-        foreach($class as $name => $path) {
+        foreach ($class as $name => $path) {
             $path = realpath($path);
-            //如果不是一个文件
-            if(!is_file($path)) {
+            if (in_array($path, $this->classMap)) {
                 continue;
             }
-            if(in_array($path, $this->classMap)) {
-                continue;
-            }
-            //如果类名不是一个字符串。则取文件名为为类名。
-            if(preg_match('/^[0-9]+$/', $name)) {
+            /* 如果类名不是一个字符串。则取文件名为为类名 */
+            if(!is_int($name)) {
                 $name = basename($path, '.php');
             }
             $this->classMap[$name] = $path;
@@ -254,17 +243,18 @@ class App
      * @example
      * 注册 bee => system 那么bee\server\BaseServer类将位于
      * system/server目录下的BaseServer.php文件。
-     * @param string $namespace 命名空间名称
-     * @param string $baseDir 命名空间根路径
+     * @param array $map 命名空间名称
      * @throws Exception
      */
-    public function loadNamespace($namespace, $baseDir)
+    public function loadNamespace($map)
     {
-        if (strpos($namespace, '\\') !== false) {
-            throw new Exception('只可以注册一级命名空间');
+        foreach ((array)$map as $name => $path) {
+            if (strpos($name, '\\') !== false) {
+                throw new Exception('只可以注册一级命名空间');
+            }
+            $baseDir = rtrim(str_replace('\\',  '/', $path), '/');
+            $this->namespace[$name] = $baseDir;
         }
-        $baseDir = rtrim(str_replace('\\',  '/', $baseDir), '/');
-        $this->namespace[$namespace] = $baseDir;
     }
 
     /**
@@ -346,22 +336,29 @@ class App
     }
 
     /**
-     * 加载核心类
+     * 加载核心
      */
-    private  function loadCorePackage()
+    private  function loadCore()
     {
         $corePackage = array(
-            'sys.core' => $this->sysDir . '/core',
+            'sys.cache' => $this->sysDir . '/cache',
+            'sys.client' => $this->sysDir . '/client',
             'sys.common' => $this->sysDir . '/common',
+            'sys.core' => $this->sysDir . '/core',
+            'sys.lib' => $this->sysDir . '/lib',
             'sys.object' => $this->sysDir . '/object',
-            'sys.validate' => $this->sysDir . '/validate',
-            'sys.db_model' => $this->sysDir . '/db_model',
+            'sys.server' => $this->sysDir . '/server',
 
             'app.common' => $this->baseDir . '/common',
             'app.model' => $this->baseDir . '/model',
             'app.controller' => $this->baseDir . '/controller',
         );
-        $this->loadPackage($corePackage);
+        $this->packageMap = $corePackage;
+        $this->classMap = require __DIR__ . '/classes.php';
+        $this->namespace = [
+            'bee' => $this->sysDir,
+            'app' => $this->baseDir
+        ];
     }
 
     /**

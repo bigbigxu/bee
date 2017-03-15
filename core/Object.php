@@ -1,5 +1,4 @@
 <?php
-//namespace iphp\core;
 /**
  * @desc 对象化描述数据。对象的每个成员，对应一个数据。
  * object 不同于CoreModel 模型对应数据表，并不是共用的。

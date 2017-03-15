@@ -1276,8 +1276,9 @@ class CoreMysql
 		if ($this->transactions == 1) {
 			$this->connect();
 			$this->_pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-			$this->_pdo->beginTransaction();
+			return $this->_pdo->beginTransaction();
 		}
+		return true;
 	}
 
 	/**

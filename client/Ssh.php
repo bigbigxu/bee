@@ -22,6 +22,7 @@
  * echo $ssh->execute('php -m');
  * echo $ssh->error;
  */
+namespace bee\client;
 class Ssh
 {
     //链接参数选项
