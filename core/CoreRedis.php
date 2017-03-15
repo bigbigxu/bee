@@ -11,6 +11,14 @@
 class CoreRedis
 {
     /**
+     * 异常处理模式
+     */
+    const ERR_MODE_EXCEPTION = 'exception';
+    /**
+     * 警告处理模式
+     */
+    const ERR_MODE_WARNING = 'warning';
+    /**
      * @var Redis
      */
     protected $redis = null;
@@ -54,17 +62,35 @@ class CoreRedis
      * @var float
      */
     protected $timeout;
+    /**
+     * 错误处理模式
+     * @var string
+     */
+    protected $errMode;
 
+    /**
+     * 配置文件包含如下参数
+     * [
+     *  'host' => 'ip',
+     *  'port'=> '端口'，
+     *  'auth' => '密码',
+     *  'timeout' => '连接超时时间',
+     *  'db_id' => '数据库ID',
+     *  'err_mode' => '错误处理模式'
+     * ]
+     * CoreRedis constructor.
+     * @param $config
+     */
     public function __construct($config)
     {
         $this->config = $config;
-        $this->port = $config['port'] ?: 6379;
         $this->host = $config['host'] ?: '127.0.0.1';
+        $this->port = $config['port'] ?: 6379;
         $this->auth = (string)$config['auth'];
         $this->slaves = (array)$config['slaves'];
         $this->timeout = $config['timeout'] ?: 30;
         $this->dbId = (int)$config['db_id'];
-        $this->auth =  (string)$config['auth'];
+        $this->errMode = $config['err_mode'] ?: self::ERR_MODE_EXCEPTION;
     }
 
     /**
@@ -82,6 +108,9 @@ class CoreRedis
         $this->redis->connect($this->host, $this->port, $this->timeout);
         if ($this->dbId != 0) {
             $this->redis->select($this->dbId);
+        }
+        if ($this->auth) {
+            $this->redis->auth($this->auth);
         }
         return $this->redis;
     }
@@ -1451,8 +1480,12 @@ class CoreRedis
             try {
                 $redis = $this->connect($i);
                 $r = call_user_func_array([$redis, $cmd], $params);
-                if (($error = $this->getLastError()) != false) {
-                    trigger_error($error, E_USER_WARNING);
+                if (($error = $redis->getLastError()) !== null) {
+                    if ($this->errMode == self::ERR_MODE_EXCEPTION) {
+                        throw new Exception($error);
+                    } else {
+                        trigger_error($error, E_USER_WARNING);
+                    }
                 }
                 return $r;
             } catch (RedisException $e) {
