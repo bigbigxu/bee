@@ -6,6 +6,7 @@
  * object 是实现更为通用的一些操作
  *
  * object 从配置文件完成对象的实例化。
+ * @TODO 此类被 ServiceLocator代替，即将被删除，请勿使用。
  * @author xuen
  */
 class Object

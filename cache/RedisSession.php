@@ -4,14 +4,26 @@
  * 建议session使用单一的数据来保存
  * @author xuen
  */
-class RedisSession extends Object
+namespace bee\cache;
+class RedisSession
 {
-    protected $expire = 1440; //session过期时间
-    protected $prefix = 'sess_'; //session前缀
-    protected $sessId = '';
-    protected $maxExpire = 2592000; //最大过期时间
+    /**
+     * session过期时间
+     * @var int
+     */
+    public $expire = 1440;
+    /**
+     * session前缀
+     * @var string
+     */
+    public $prefix = 'sess_';
+    /**
+     * redis配置文件
+     * @var array
+     */
+    public $redisConfig = []; //使用的redis
 
-    public function __construct($config)
+    public function __construct()
     {
         session_set_save_handler(
             array($this, 'open'),
@@ -21,7 +33,11 @@ class RedisSession extends Object
             array($this, 'destroy'),
             array($this, 'gc')
         );
-        parent::__construct($config);
+    }
+
+    public function redis()
+    {
+        return \App::redis($this->redisConfig);
     }
 
     /**
@@ -32,27 +48,15 @@ class RedisSession extends Object
     public function sessionStart($sessId = null)
     {
         if ($_COOKIE[session_name()]) {
-            $this->sessId = $_COOKIE[session_name()];
+            $id = $_COOKIE[session_name()];
         } elseif ($sessId !== null) {
-            $this->sessId = $this->prefix . $sessId; //使用指定的session_id
+            $id = $this->prefix . $sessId;
         } else {
-            $id = md5(uniqid() . time() . 'redis_session');
-            $this->sessId = $this->prefix . $id; //使用系统session_id
+            $id = $this->prefix . md5(uniqid() . time() . 'redis_session');
         }
-        session_id($this->sessId);
+        session_id($id);
         session_start();
         return $this;
-    }
-
-    /**
-     * 得到一个对象实例。子类必须重载此方法
-     * @param array $config 对象配置数组。key为对象成员名，value为成员性值
-     * @param string $name
-     * @return static
-     */
-    public static function getInstance($config = array(), $name = __CLASS__)
-    {
-        return parent::getInstance($config, $name);
     }
 
     /**

@@ -8,6 +8,7 @@
  * 用于使用Php代理和命令行程序进行交互
  * 由于无法知道命令返回结束符。所有每次read这前，需要先关闭write
  */
+namespace bee\client;
 class ProcOpen
 {
     /**
