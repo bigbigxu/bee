@@ -3,6 +3,7 @@
  * 封装了的curl http请求类
  * @desc 在php.ini 安全模式开局的情况下，CURLOPT_FOLLOWLOCATION不可用
  * @author xuen
+ * @TODO 此类已经被 Curl 代替。
  */
 class CoreCurl
 {

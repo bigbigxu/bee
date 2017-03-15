@@ -220,9 +220,7 @@ class ServiceLocator
     {
         return $this->get($key, [
             'class' => 'CoreRedis',
-            'config' => function() use($key) {
-                return \CoreRedis::getInstance($key);
-            }
+            'config' => ['CoreRedis', 'getInstance']
         ]);
     }
 
@@ -235,9 +233,7 @@ class ServiceLocator
     {
         return $this->get($key, [
             'class' => 'CoreMysql',
-            'config' => function() use($key) {
-                return \CoreMysql::getInstance($key);
-            }
+            'config' => ['CoreMysql', 'getInstance']
         ]);
     }
 
@@ -250,9 +246,7 @@ class ServiceLocator
     {
         return $this->get($name, [
             'class' => $name,
-            'config' => function() use($name) {
-                return $name::getInstance();
-            }
+            'config' => [$name, 'getInstance']
         ]);
     }
 }

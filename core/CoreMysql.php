@@ -274,7 +274,7 @@ class CoreMysql
 	 */
 	public function getPdo()
 	{
-		return $this->_pdo;
+		return $this->connect();
 	}
 
 	/**
@@ -793,7 +793,7 @@ class CoreMysql
 				}
 			} catch(PDOException $e) {
 				/* 事务状态下，不可以使用断线重连。应该直接报错，rollback事务。 */
-				if ($this->transactions < 1 && $e->errorInfo[1] == self::ERR_DRIVER_CONN) {
+				if ($i = 0 && $this->transactions < 1 && $e->errorInfo[1] == self::ERR_DRIVER_CONN) {
 					continue;
 				} else {
 					throw $e;
