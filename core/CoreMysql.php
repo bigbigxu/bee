@@ -446,7 +446,7 @@ class CoreMysql
 	 * @throws Exception
 	 * @return bool|int
 	 */
-	public function deleteBydAttr($findAttr, $multi = false)
+	public function deleteByAttr($findAttr, $multi = false)
 	{
 		/* 基于安全考虑,做一个强制转换 */
 		$findAttr = (array)$findAttr;

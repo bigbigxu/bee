@@ -228,7 +228,7 @@ class CoreModel
      */
     public function deleteByAttr($findAttr, $multi = false)
     {
-        return $this->from()->deleteBydAttr($findAttr, $multi);
+        return $this->from()->deleteByAttr($findAttr, $multi);
     }
 
     /**
