@@ -219,7 +219,7 @@ class App
                 continue;
             }
             /* 如果类名不是一个字符串。则取文件名为为类名 */
-            if(!is_int($name)) {
+            if(is_int($name)) {
                 $name = basename($path, '.php');
             }
             $this->classMap[$name] = $path;
