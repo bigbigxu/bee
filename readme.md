@@ -10,6 +10,6 @@
 
 1. [开始使用](doc/创建应用.md)
 2. [增删改查](doc/增删改查.md)
-3. [增删改查](doc/增删改查.md)
-4. [redis操作](doc/redis操作.md)
-5. [服务定位器](doc/服务定位器.md)
+3. [redis操作](doc/redis操作.md)
+4. [服务定位器](doc/服务定位器.md)
+5. [server使用](doc/server使用.md)

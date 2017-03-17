@@ -90,7 +90,7 @@ class CoreRedis
         $this->slaves = (array)$config['slaves'];
         $this->timeout = $config['timeout'] ?: 30;
         $this->dbId = (int)$config['db_id'];
-        $this->errMode = $config['err_mode'] ?: self::ERR_MODE_EXCEPTION;
+        $this->errMode = $config['err_mode'] ?: self::ERR_MODE_WARNING;
     }
 
     /**
@@ -1375,7 +1375,7 @@ class CoreRedis
 
     /**
      * @param string $cmd redis-cli 命令路径
-     * @return ProcOpen
+     * @return \bee\client\ProcOpenn
      */
     public function proc($cmd = 'redis-cli')
     {
@@ -1393,7 +1393,7 @@ class CoreRedis
             $redisInfo['port'],
         );
         $redisStr = implode(' ', $cmdArr);
-        $proc = new ProcOpen($redisStr);
+        $proc = new \bee\client\ProcOpen($redisStr);
         return $proc;
     }
 
@@ -1591,7 +1591,7 @@ class CoreRedis
      * 代理执行一个redis函数
      * 通过lua来执行任意redis命令
      * @example
-     *   $redis->evalCmd('set', 'test', 1);
+     *   $redis->evalCmd('set test 1');
      * 如果命令执行失败，返回空。
      * 调用getLastError 获得错误消息。
      * @param $cmd
@@ -1604,7 +1604,7 @@ class CoreRedis
            return "'{$v}'";
         }, $params);
         $str = "return redis.pcall(" . implode(',', $params) . ")";
-        return $this->_execForRedis('evaluate', $str);
+        return $this->_execForRedis('evaluate', [$str]);
     }
 
     /**
