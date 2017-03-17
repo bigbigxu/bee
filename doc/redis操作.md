@@ -13,7 +13,7 @@
     }
 
 
-## 使用。redis 的方法名和 php redis 扩展保持一致。
+## 使用redis 的方法名和 php redis 扩展保持一致。
 
     $model = \app\model\BidInfo::getInstance();
 	$model->redis()->get('xx');
