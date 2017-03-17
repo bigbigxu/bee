@@ -191,7 +191,7 @@ class RedisServer extends BaseServer
     public function handlerSet($fd, $data)
     {
         $this->beforeAction($fd, $data);
-        if (count($data) != 2) { /* 参数不足 */
+        if (count($data) < 2) { /* 参数不足 */
             $reply = $this->format(self::REPLY_ERROR, $this->getErrorParamMsg('SET'));
         } else {
             $res = $this->route($fd, $data);
@@ -215,7 +215,7 @@ class RedisServer extends BaseServer
     public function handlerGet($fd, $data)
     {
         $this->beforeAction($fd, $data);
-        if (count($data) != 1) {
+        if (count($data) < 1) {
             $reply = $this->format(self::REPLY_ERROR, $this->getErrorParamMsg('GET'));
         } else {
             $r = $this->route($fd, $data);
@@ -243,7 +243,7 @@ class RedisServer extends BaseServer
     public function handlerRpush($fd, $data)
     {
         $this->beforeAction($fd, $data);
-        if (count($data) != 2) {
+        if (count($data) < 2) {
             $reply = $this->format(self::REPLY_ERROR, $this->getErrorParamMsg('RPUSH'));
         } else {
             $this->task($data);
@@ -264,7 +264,7 @@ class RedisServer extends BaseServer
     public function handlerHGet($fd, $data)
     {
         $this->beforeAction($fd, $data);
-        if (count($data) != 3) {
+        if (count($data) < 2) {
             $reply = $this->format(self::REPLY_ERROR, $this->getErrorParamMsg('HGET'));
         } else {
             $r = $this->route($fd, $data);
