@@ -6,7 +6,7 @@
  * Time: 14:19
  * 代理一个对象调用
  */
-Class Call
+class Call
 {
     private $_errno = 0;
 

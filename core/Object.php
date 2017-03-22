@@ -1,11 +1,11 @@
 <?php
-//namespace iphp\core;
 /**
  * @desc 对象化描述数据。对象的每个成员，对应一个数据。
  * object 不同于CoreModel 模型对应数据表，并不是共用的。
  * object 是实现更为通用的一些操作
  *
  * object 从配置文件完成对象的实例化。
+ * @TODO 此类被 ServiceLocator代替，即将被删除，请勿使用。
  * @author xuen
  */
 class Object

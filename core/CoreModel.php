@@ -228,7 +228,7 @@ class CoreModel
      */
     public function deleteByAttr($findAttr, $multi = false)
     {
-        return $this->from()->deleteBydAttr($findAttr, $multi);
+        return $this->from()->deleteByAttr($findAttr, $multi);
     }
 
     /**
@@ -647,17 +647,8 @@ class CoreModel
      */
     public function getPkName()
     {
-        $field = $this->from()->getField();
-        return $field['pk'];
-    }
-
-    /**
-     * @param $name
-     * @return string
-     */
-    public function _prefix($name)
-    {
-        return $this->redis()->_prefix($name);
+        $pk = $this->from()->getTableColumns(CoreMysql::PK_MARK);
+        return $pk;
     }
 
     /**
@@ -692,5 +683,24 @@ class CoreModel
         array_unshift($params, $this->redisKeyPrefix);
         $key = implode($this->cacheKeySeparator, $params);
         return $key;
+    }
+
+    public function fieldInfo()
+    {
+        return $this->from()->fieldInfo();
+    }
+
+    /**
+     * @see CoreMysql::useMaster()
+     * @return $this
+     */
+    public function useMaster()
+    {
+        return $this->from()->useMaster();
+    }
+
+    public static function className()
+    {
+        return get_called_class();
     }
 }

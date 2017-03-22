@@ -15,10 +15,11 @@
  *  'crontab_dir' => '定时器脚本目录'
  *  'runtime_dir' => '运行时目录，比如日志',
  *  'class_map' => '类地图，用于减少自动加载的开销',
- *  'autoload' => '自动加载的包（目录加载）',
+ *  'package_map' => '自动加载的包（目录加载）',
  *  'namespace' => '需要加载的命名空间'
  * );
  */
+use bee\core\ServiceLocator as ServiceLocator;
 class App
 {
     private static $_instance;
@@ -35,7 +36,10 @@ class App
     protected static $_container; //对象容器
     protected $namespace = array(); //所有注册的命令空间
     protected $env; //环境类型。有3种
-
+    /**
+     * @var ServiceLocator
+     */
+    protected $services;
     const ENV_TEST = 'test'; //开发环境
     const ENV_DEV = 'dev'; //测试环境
     const ENV_PRO = 'pro'; //生产环境
@@ -64,7 +68,7 @@ class App
         $this->crontabDir = $this->config['crontab_dir'] ?: $this->baseDir . '/crontab';
         $this->runtimeDir = $this->config['runtime_dir'] ?: $this->baseDir . '/runtime';
         $this->env = $this->config['env'] ?: self::ENV_DEV;
-        $this->loadCorePackage();
+        $this->loadCore();
         //注册自动加载函数
         spl_autoload_register(array($this, 'autoLoad'));
     }
@@ -74,23 +78,17 @@ class App
      */
     protected function init()
     {
-        //如果显示的设置的环境变量。那么将使用框架的php环境配置
+        $this->loadClass(self::c('class_map')); /* 加载类地图 */
+        $this->loadPackage(self::c('package_map')); /* 加载目录包 */
+        $this->loadNamespace(self::c('namespace')); /* 加载命名空间 */
+
+        /* 对象加载 */
+        $this->services = new ServiceLocator(self::c('component') ?: []);
+        $this->services->getError()->register();
+        /* 如果设置环境变量。那么将使用框架的php环境配置 */
         if ($this->env != false) {
-            PhpEnv::getInstance()->exec($this->env, (array)self::c('env_set'));
+            $this->services->getEnv()->exec($this->env, $this->config['env_set'] ?: []);
         }
-
-        $this->classMap = self::c('class_map'); //加载类地图
-        $this->load(self::c('autoload')); //加载配置文件的包。
-        $this->namespace = (array)$this->config['namespace'];
-        $this->loadNamespace('bee', $this->sysDir);
-        $this->loadNamespace('app', $this->baseDir);
-    }
-
-    /**
-     * 解析路由
-     */
-    public function run()
-    {
     }
 
     /**
@@ -174,12 +172,12 @@ class App
     {
         $file = "{$this->configDir}/{$name}";
         $ext = strtolower(substr($file, -4));
-        //如果不是一个文件
-        if(!is_file($file)) {
+        /* 如果不是一个文件 */
+        if (!is_file($file)) {
             $res = $name;
-        } elseif($ext == '.php') {
+        } elseif ($ext == '.php') {
             $res = include $file;
-        } elseif($ext == '.ini') {
+        } elseif ($ext == '.ini') {
             $res = parse_ini_file($file);
         } else {
             $res = null;
@@ -196,22 +194,13 @@ class App
      */
     public function loadPackage($package)
     {
-        if(!is_array($package)) {
-            $package = array($package);
-        }
-
-        foreach($package as $name => $path) {
+        foreach ((array)$package as $name => $path) {
             $path = realpath($path);
-            //如果不是一个目录
-            if(!is_dir($path)) {
+            if (in_array($path, $this->packageMap)) {
                 continue;
             }
-            //如果包已经存在,以路径区分是不是相同的包。
-            if(in_array($path, $this->packageMap)) {
-                continue;
-            }
-            //如果包名不是一个字符串。则取最后一个目录名作为包名。
-            if(preg_match('/^[0-9]+$/', $name)) {
+            /* 如果包名不是一个字符串。则取最后一个目录名作为包名 */
+            if (is_int($name)) {
                 $name = basename($path);
             }
             $this->packageMap[$name] = $path;
@@ -224,21 +213,13 @@ class App
      */
     public function loadClass($class)
     {
-        if(!is_array($class)) {
-            $class = array($class);
-        }
-
-        foreach($class as $name => $path) {
+        foreach ((array)$class as $name => $path) {
             $path = realpath($path);
-            //如果不是一个文件
-            if(!is_file($path)) {
+            if (in_array($path, $this->classMap)) {
                 continue;
             }
-            if(in_array($path, $this->classMap)) {
-                continue;
-            }
-            //如果类名不是一个字符串。则取文件名为为类名。
-            if(preg_match('/^[0-9]+$/', $name)) {
+            /* 如果类名不是一个字符串。则取文件名为为类名 */
+            if(is_int($name)) {
                 $name = basename($path, '.php');
             }
             $this->classMap[$name] = $path;
@@ -254,17 +235,18 @@ class App
      * @example
      * 注册 bee => system 那么bee\server\BaseServer类将位于
      * system/server目录下的BaseServer.php文件。
-     * @param string $namespace 命名空间名称
-     * @param string $baseDir 命名空间根路径
+     * @param array $map 命名空间名称
      * @throws Exception
      */
-    public function loadNamespace($namespace, $baseDir)
+    public function loadNamespace($map)
     {
-        if (strpos($namespace, '\\') !== false) {
-            throw new Exception('只可以注册一级命名空间');
+        foreach ((array)$map as $name => $path) {
+            if (strpos($name, '\\') !== false) {
+                throw new Exception('只可以注册一级命名空间');
+            }
+            $baseDir = rtrim(str_replace('\\',  '/', $path), '/');
+            $this->namespace[$name] = $baseDir;
         }
-        $baseDir = rtrim(str_replace('\\',  '/', $baseDir), '/');
-        $this->namespace[$namespace] = $baseDir;
     }
 
     /**
@@ -304,9 +286,13 @@ class App
     public function autoLoad($className)
     {
         $file = $this->classMap[$className];
-        if(is_file($file)) {
-            require $file;
-            return true;
+        if ($file !== null) { /* 类地图中已经存在 */
+            if(is_file($file)) {
+                require $file;
+                return true;
+            } else {
+                return false;
+            }
         }
         $pos = strpos($className, '\\');
         if ($pos !== false) {  //如果类名包含命令空间
@@ -322,9 +308,13 @@ class App
                 . '/'
                 . str_replace('\\', '/', $baseName)
                 . '.php';
-            $this->classMap[$className] = $file;
-            require $file;
-            return true;
+            if (is_file($file)) {
+                $this->classMap[$className] = $file;
+                require $file;
+                return true;
+            } else {
+                return false;
+            }
         } else { //非命名空间，遍历目录
             foreach($this->packageMap as $package) {
                 $file = $className . '.php';
@@ -342,22 +332,29 @@ class App
     }
 
     /**
-     * 加载核心类
+     * 加载核心
      */
-    private  function loadCorePackage()
+    private  function loadCore()
     {
         $corePackage = array(
-            'sys.core' => $this->sysDir . '/core',
+            'sys.cache' => $this->sysDir . '/cache',
+            'sys.client' => $this->sysDir . '/client',
             'sys.common' => $this->sysDir . '/common',
+            'sys.core' => $this->sysDir . '/core',
+            'sys.lib' => $this->sysDir . '/lib',
             'sys.object' => $this->sysDir . '/object',
-            'sys.validate' => $this->sysDir . '/validate',
-            'sys.db_model' => $this->sysDir . '/db_model',
+            'sys.server' => $this->sysDir . '/server',
 
             'app.common' => $this->baseDir . '/common',
             'app.model' => $this->baseDir . '/model',
             'app.controller' => $this->baseDir . '/controller',
         );
-        $this->loadPackage($corePackage);
+        $this->packageMap = $corePackage;
+        $this->classMap = require __DIR__ . '/classes.php';
+        $this->namespace = [
+            'bee' => $this->sysDir,
+            'app' => $this->baseDir
+        ];
     }
 
     /**
@@ -453,46 +450,16 @@ class App
     /**
      * 通过对象配置创建一个对象
      * 对象配置应该包含如下几个元素
-     * class_name 类名
+     * class 类名
      * params 构造函数参数
      * config 对象属性
-     * class_file 类文件地址，如果需要。
-     * @TODO 基于简化使用的考虑，没有实现当前对象的成员也来自配置。也就是对象配置文件不支持递归配置
-     * @param string|array $objConfig 当前对象的配置文件
-     * @param bool $single 是否返回单例对象
+     * path 类文件路径，如果需要。
+     * @param string|array $config 当前对象的配置文件
      * @return object
      */
-    public static function createObject($objConfig, $single = true)
+    public static function createObject($config)
     {
-        if (is_string($objConfig)) {
-            $objConfig = App::c($objConfig);
-        }
-        $className = $objConfig['class_name']; //类名
-        $params = (array)$objConfig['params']; //构造函数参数
-        $config = (array)$objConfig['config']; //对象属性配置
-        $classFile = $objConfig['class_file']; //对象文件路径
-
-        if ($single == true && is_object(self::$_container[$className])) {
-            return self::$_container[$className]; //返回单例对象
-        }
-        if ($classFile) {
-            //加载配置文件。支持非标准类的加载。
-            App::getInstance()->loadClass(array(
-                $className => $classFile
-            ));
-        }
-        $re = new ReflectionClass($className);
-        $o = $re->newInstanceArgs($params);
-        $vars = get_object_vars($o);
-        foreach ($config as $key => $row) {
-            if (array_key_exists($key, $vars)) {
-                $o->$key = $row;
-            }
-        }
-        if ($single == true) {
-            self::$_container[$className] = $o; //单例模式下，保存当前对象
-        }
-        return $o;
+        return ServiceLocator::create($config);
     }
 
     /**
@@ -577,5 +544,14 @@ class App
     public static function trigger($name, $data = array(), $event = null)
     {
         Event::trigger(self::getInstance(), $name, $data, $event);
+    }
+
+    /**
+     * 获取对象管理器
+     * @return \bee\core\ServiceLocator
+     */
+    public static function s()
+    {
+        return self::getInstance()->services;
     }
 }

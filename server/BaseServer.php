@@ -72,6 +72,56 @@ class BaseServer
      */
     protected $beeDir;
     /**
+     * 日志目录
+     * @var string
+     */
+    protected $logDir;
+    /**
+     * 数据目录
+     * @var string
+     */
+    protected $dataDir;
+    /**
+     * 程序运行目录
+     * @var string
+     */
+    protected $runDir;
+    /**
+     * 进程相关数据保存目录
+     * @var string
+     */
+    protected $varDir;
+    /**
+     * pid 文件保存路径
+     * @var string
+     */
+    protected $pidFile;
+    /**
+     * 服务器运行日志
+     * @var string
+     */
+    protected $logFile;
+    /**
+     * 错误日志文件
+     * @var string
+     */
+    protected $errorFile;
+    /**
+     * 访问日志文件
+     * @var string
+     */
+    protected $accessFile;
+    /**
+     * 调试日志文件
+     * @var string
+     */
+    protected $debugFile;
+    /**
+     * 统计文件
+     * @var string
+     */
+    protected $statsFile;
+    /**
      * @var string 服务名称
      */
     protected $name = 'swoole';
@@ -87,6 +137,11 @@ class BaseServer
      * @var array
      */
     protected $stats = [];
+    /*
+     * 进程全局数据。使用的时候必须注意oom问题
+     * 此数据会在进程启动时从文件载入， 停止时写入文件
+     */
+    protected $processData = [];
 
     //运行环境常量
     const ENV_DEV = 'dev'; //开发环境
@@ -145,20 +200,28 @@ class BaseServer
         $this->debug = (int)$this->c('server.debug');
         $this->env = $this->c('server.env');
         $this->eof = $this->c('serverd.package_eof');
-        $this->baseDir = rtrim($this->c('server.base_dir'), '/');
         $this->name = $this->c('server.server_name');
-        $this->c("server.run_dir", $this->baseDir . '/run'); //运行目录
-        $this->c("server.log_dir", $this->baseDir . "/log"); //日志目录
-        $this->c("server.data_dir", $this->baseDir . "/data"); //数据目录
 
-        //定义相关文件
-        $this->c("server.pid_file", $this->baseDir . '/run/server.pid'); //pid文件
-        $this->c("server.error_log", $this->baseDir . '/log/error.log'); //错误日志
-        $this->c("server.access_log", $this->baseDir . '/log/access.log'); //访问日志
-        $this->c("server.debug_log", $this->baseDir . '/log/debug.log'); //调试日志
-        $this->c("server.stats_log", $this->baseDir . '/run/stats.log'); //运行统计日志
+        /* 目录位置初始化 */
+        $this->baseDir = rtrim($this->c('server.base_dir'), '/');
+        $this->runDir = $this->baseDir . '/run';
+        $this->logDir = $this->baseDir . '/log';
+        $this->dataDir = $this->baseDir . '/data';
+        $this->varDir = $this->baseDir . '/var';
+
+        /* 文件配置初始化 */
+        $this->pidFile = $this->runDir . '/server.pid';
+        $this->errorFile = $this->logDir . '/error.log';
+        $this->accessFile = $this->logDir . '/access.log';
+        $this->debugFile = $this->logDir . '/debug.log';
+        $this->statsFile = $this->logDir . '/stats.log';
+        $this->logFile = $this->runDir . '/server.log';
+
         if ($this->c('serverd.log_file') == false) {
-            $this->c("serverd.log_file", $this->baseDir . '/run/server.log');
+            $this->c("serverd.log_file", $this->logFile);
+        }
+        if ($this->c('serverd.daemonize') == false) {
+            unset($this->config['serverd']['log_file']);
         }
     }
 
@@ -172,6 +235,7 @@ class BaseServer
         foreach ($env as $key => $value) {
             ini_set($key, $value);
         }
+        register_shutdown_function(array($this, 'shutdownFunction'));
     }
 
     /**
@@ -184,7 +248,7 @@ class BaseServer
             'display_errors' => 0,
             'error_reporting' => E_ALL & ~E_NOTICE & ~E_STRICT & ~E_DEPRECATED,
             'log_errors' => 1,
-            'error_log' => $this->c('server.error_log')
+            'error_log' => $this->errorFile
         );
     }
 
@@ -745,16 +809,15 @@ class BaseServer
      */
     public function onStart(\swoole_server $server)
     {
-        if (is_dir($this->c('server.run_dir')) == false) {
-            mkdir($this->c('server.run_dir')); //创建运行目录
+        if (is_dir($this->runDir) == false) {
+            mkdir($this->runDir); //创建运行目录
         }
-        $pidFile = $this->c('server.pid_file');
         $pidStr = '';
         $pidStr .= "master_pid={$server->master_pid}\n";
         $pidStr .= "manager_pid={$server->manager_pid}";
-        file_put_contents($pidFile, $pidStr);
+        file_put_contents($this->pidFile, $pidStr);
         $this->serverLog("server is start\n");
-        swoole_set_process_name($this->c('server.server_name') . "_master");
+        swoole_set_process_name($this->name . "_master");
     }
 
     /**
@@ -786,20 +849,30 @@ class BaseServer
      */
     public function onWorkerStart(\swoole_server $server, $workerId)
     {
+        /* 清理可能的 apc，opcache缓存 */
+        if (function_exists('apc_clear_cache')) {
+            apc_clear_cache();
+        }
+        if (function_exists('opcache_reset')) {
+            opcache_reset();
+        }
+
         if ($workerId == 0) {
-            if (is_dir($this->c('server.log_dir')) == false) {
-                mkdir($this->c('server.log_dir'));
+            if (!is_dir($this->logDir)) {
+                mkdir($this->logDir);
             }
 
-            if (is_dir($this->c('server.data_dir')) == false) {
-                mkdir($this->c('server.data_dir'));
+            if (!is_dir($this->dataDir)) {
+                mkdir($this->dataDir);
+            }
+            if (!is_dir($this->varDir)) {
+                mkdir($this->varDir);
             }
         }
-        $name = $this->c('server.server_name');
         if ($workerId >= $server->setting['worker_num']) {
-            swoole_set_process_name("{$name}_task");
+            swoole_set_process_name("{$this->name}_task");
         } else {
-            swoole_set_process_name("{$name}_event");
+            swoole_set_process_name("{$this->name}_event");
         }
 
         //加载框架配置文件
@@ -808,6 +881,7 @@ class BaseServer
             $configPath = $this->c('server.bee_config');
             \App::getInstance($configPath);
         }
+        $this->loadTaskData();
     }
 
     /**
@@ -817,7 +891,7 @@ class BaseServer
      */
     public function onWorkerStop(\swoole_server $server, $workerId)
     {
-
+        $this->saveTaskData();
     }
 
     /**
@@ -938,8 +1012,7 @@ class BaseServer
      */
     public function onManagerStart(\swoole_server $server)
     {
-        $name = $this->c('server.server_name');
-        swoole_set_process_name("{$name}_manager");
+        swoole_set_process_name("{$this->name}_manager");
     }
 
     /**
@@ -957,8 +1030,7 @@ class BaseServer
      */
     public function serverLog($msg)
     {
-        $file = $this->c('serverd.log_file');
-        $this->log($file, $msg);
+        $this->log($this->logFile, $msg);
     }
 
     /**
@@ -967,8 +1039,7 @@ class BaseServer
      */
     public function errorLog($msg)
     {
-        $file = $this->c('server.error_log');
-        $this->log($file, $msg);
+        $this->log($this->errorFile, $msg);
     }
 
     /**
@@ -977,8 +1048,7 @@ class BaseServer
      */
     public function accessLog($msg)
     {
-        $file = $this->c('server.access_log');
-        $this->log($file, $msg);
+        $this->log($this->accessFile, $msg);
     }
 
     /**
@@ -987,20 +1057,27 @@ class BaseServer
      */
     public function debugLog($msg)
     {
-        $file = $this->c('server.debug_log');
-        $this->log($file, $msg);
+        $this->log($this->debugFile, $msg);
     }
 
     /**
      * 记录日志。
+     * 非守护进程运行，echo 日志。
      * @param $file
      * @param $msg
      */
     public function log($file, $msg)
     {
+        if (is_array($msg)) {
+            $msg = json_encode($msg, JSON_UNESCAPED_UNICODE);
+        }
         $time = date('Y-m-d H:i:s');
         $msg = "[{$time}] {$msg}" . PHP_EOL;
-        file_put_contents($file, $msg, FILE_APPEND);
+        if ($this->c('serverd.daemonize') == false) {
+            echo basename($file) . '    ' . $msg;
+        } else {
+            file_put_contents($file, $msg, FILE_APPEND);
+        }
     }
 
     /********************以下为管理进程相关命令*******************/
@@ -1037,7 +1114,7 @@ class BaseServer
      */
     public function getMasterPidByFile()
     {
-        $pidArr = parse_ini_file($this->c('server.pid_file'));
+        $pidArr = parse_ini_file($this->pidFile);
         return $pidArr['master_pid'];
     }
 
@@ -1065,12 +1142,12 @@ class BaseServer
      */
     public function getOptsByCli($defaultConfigPath = null)
     {
-        $cmdOpts = 'c:h:p:ds:';
+        $cmdOpts = 'c:h:p:d:s:';
         $cmdLongOpts = array(
             'config:',
             'host:',
             'port:',
-            'daemon',
+            'daemon:',
             'base_dir:',
             'help',
             'debug'
@@ -1079,42 +1156,54 @@ class BaseServer
         if (isset($opts['help'])) {
             self::help();
         }
+
         $method = $opts['s'];
-        $allowMethod = array('status', 'start', 'stop', 'restart', 'reload');
+        $allowMethod = array('start', 'stop', 'restart', 'reload');
         if (in_array($method, $allowMethod) == false) {
-            die("Usage: server {start|stop|restart|reload|status}\n");
+            self::help();
         }
-        if (isset($opts['c']) || isset($opts['config'])) { //设置配置文件选项
+
+        if (isset($opts['c']) || isset($opts['config'])) { /* 设置配置文件选项 */
             $config = require ($opts['c'] ?: $opts['config']);
         } elseif (is_array($defaultConfigPath)) {
             $config = $defaultConfigPath;
-        } elseif (is_file($defaultConfigPath)) {
+        } elseif (is_string($defaultConfigPath)) {
             $config = require $defaultConfigPath;
         } else {
             $config = array();
         }
-        if ($opts['h'] || $opts['host']) { //设置主机
+
+        if ($opts['h'] || $opts['host']) { /* 设置主机 */
             $config['server']['host'] =  $opts['h'] ?: $opts['host'];
         }
-        if ($opts['p'] || $opts['port']) { //设置端口
+
+        if ($opts['p'] || $opts['port']) { /* 设置端口 */
             $config['server']['port'] =  $opts['p'] ?: $opts['port'];
         }
-        if (isset($opts['d']) || isset($opts['daemon'])) { //设置后台运行
-            $config['serverd']['daemonize'] =  true;
+
+        if ($opts['d'] || $opts['daemon']) { /* 设置是否后台运行 */
+            $daemon = strtolower($opts['d'] ?: $opts['daemon']);
+            if ($daemon == 'yes') {
+                $config['serverd']['daemonize'] = true;
+            } elseif ($daemon == 'no') {
+                $config['serverd']['daemonize'] = false;
+            }
         }
-        if ($opts['base_dir']) {
+
+        if ($opts['base_dir']) { /* 设置server运行目录 */
             $config['server']['base_dir'] =  $opts['base_dir'];
         }
-        if (isset($opts['debug'])) {
+
+        if (isset($opts['debug'])) { /* 设置是否为调试模式 */
             $config['server']['debug'] = 1;
         }
+
         return array($method, $config);
     }
 
     public function status()
     {
-        $file = $this->c('server.stats_log');
-        $str = file_get_contents($file);
+        $str = file_get_contents($this->statsFile);
         die($str);
     }
 
@@ -1136,7 +1225,9 @@ class BaseServer
             $config = array();
         }
         if ($merge == true) {
-            $this->config = array_merge_recursive($this->config, $config);
+            foreach ($config as $key => $row) {
+                $this->config[$key] = array_merge((array)$this->config[$key], (array)$row);
+            }
         } else {
             $this->config = $config;
         }
@@ -1170,11 +1261,11 @@ class BaseServer
         $arr = array(
             '-s，指定当前服务动作，start启动，stop停止，restart重启，reload重载',
             '-c --config，指定启动的配置文件。如果未指定将加载默认配置',
-            '-d --daemon，指定服务以守护进程方式运行',
+            '-d --daemon，指定服务是否守护进程方式运行，yes or no',
             '-h --host， 指定服务监听IP，默认为0.0.0.0',
             '-p --port，指定服务监听端口，默认为9501',
             '--base_dir，指定server运行目录',
-            '--debug，开启调试模式，将有更多的日志记录在debug.log中',
+            '--debug，开启调试模式',
             '--help，查看命令帮助'
         );
         $str = implode("\n", $arr) . "\n";
@@ -1195,15 +1286,59 @@ class BaseServer
      */
     public function writeStats()
     {
-        $file = $this->c('server.stats_log');
-        $str = file_get_contents($file);
+        $str = file_get_contents($this->statsFile);
         $res = json_decode($str, true);
         $workerId = $this->getWorkerId();
         foreach ($this->stats as $key => $row) {
             $res[$workerId][$key] += $row;
         }
 
-        file_put_contents($file, json_encode($res));
+        file_put_contents($this->statsFile, json_encode($res));
         $this->stats = [];
+    }
+
+    /**
+     * 保存进程数据
+     */
+    public function saveTaskData()
+    {
+        $workerId = $this->getWorkerId();
+        if ($workerId === null || $workerId === false) {
+            return null;
+        } else {
+            $workerId = sprintf('%03d',$workerId);
+        }
+        $file = $this->varDir . '/data_' . $workerId;
+        file_put_contents($file, serialize($this->processData));
+    }
+
+    /**
+     * 载入进程数据
+     */
+    public function loadTaskData()
+    {
+        $workerId = $this->getWorkerId();
+        if ($workerId === null || $workerId === false) {
+            return null;
+        } else {
+            $workerId = sprintf('%03d',$workerId);
+        }
+        $file = $this->varDir . '/data_' . $workerId;
+        if (!is_file($file)) {
+            return null;
+        }
+        $copyDir = $this->varDir . '/history' ;
+        if (!is_dir($copyDir)) {
+            mkdir($copyDir);
+        }
+        $str = file_get_contents($file);
+        $this->processData = unserialize($str);
+        copy($file, $copyDir . '/data_' . $workerId);
+        unlink($file);
+    }
+
+    public function shutdownFunction()
+    {
+        $this->saveTaskData();
     }
 }

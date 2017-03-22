@@ -1,5 +1,4 @@
 <?php
-//namespace iphp\core;
 /**
  * 使用多维数组描述XML结构
  * 用于XML输出的基类控制器

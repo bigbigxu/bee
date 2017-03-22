@@ -28,4 +28,12 @@ class Str
             return $set;
         }
     }
+
+    public static function pageToLimit($page, $pageSize)
+    {
+        $pageSize = $pageSize <= 0 ? 20 : $pageSize;
+        $page = $page <= 0 ? 1 : $page;
+        $offset = ($page - 1) * $pageSize;
+        return "{$offset},{$pageSize}";
+    }
 }

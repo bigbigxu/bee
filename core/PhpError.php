@@ -9,79 +9,136 @@
  */
 class PhpError
 {
-    const BEFORE_ACTION = 'before';
-    const BEFORE_AFTER = 'after';
-    private static $_instance;
-
-    public function __construct()
-    {
-    }
-
-    public function init()
-    {
-
-    }
-
     /**
-     * 实例化对象
-     * @param bool $single 是否返回单例对象。
-     * @return static
-     */
-    public static function getInstance($single = true)
-    {
-        if ($single) {
-            if (!is_object(self::$_instance)) {
-                self::$_instance = new self();
-            }
-            return self::$_instance;
-        } else {
-            return new self();
-        }
-    }
-
-    /**
-     * 自定义的错误处理函数
-     */
-    public function handleFatal()
-    {
-        $error = error_get_last();
-        if (isset($error['type'])) {
-            switch ($error['type']) {
-                case E_ERROR :
-                case E_PARSE :
-                case E_CORE_ERROR :
-                case E_COMPILE_ERROR :
-                    $message = $error['message'];
-                    $file = $error['file'];
-                    $line = $error['line'];
-                    $time = date('Y-m-d H:i:s');
-                    $log = "[{$time}] {$message} ($file:$line)\nStack trace:\n";
-                    $log .= CoreLog::trace();
-                    if (isset($_SERVER['REQUEST_URI'])) {
-                        $log .= '[QUERY] ' . $_SERVER['REQUEST_URI'] ."\n";
-                    }
-                    echo $log;
-                    error_log($log);
-                    break;
-                default:
-                    break;
-            }
-        }
-    }
-
-    /**
-     * 注册致命错误处理函数
+     * 注册异常，错误，退出处理函数
+     *
      * register_shutdown_function()函数可重复调用，但执行的顺序与注册的顺序相同
-     * 调用register_shutdown_function()函数之前有exit()函数调用，register_shutdown_function()函数将不能执行
-     * @param mixed $function
-     * @return $this
+     *
+     * 调用register_shutdown_function()函数之前有exit()函数调用，
+     * register_shutdown_function()函数将不能执行
      */
-    public function registerShutdownFunction($function = null)
+    public function register()
     {
-        if ($function === null) {
-            $function = array($this, 'handleFatal');
+        set_exception_handler([$this, 'handlerException']);
+        set_error_handler([$this, 'handlerError']);
+        register_shutdown_function([$this, 'handleFatalError']);
+    }
+
+    /**
+     * 注册异常处理器。
+     * PHP 在执行完成此函数后，进程自动退出。
+     * @param $e
+     */
+    public function handlerException($e)
+    {
+        $msg = sprintf(
+            "PHP Fatal error: Uncaught %s",
+            (string)$e
+        );
+        CoreLog::error($msg);
+        $this->afterHandler($msg);
+    }
+
+    /**
+     * 致命错误处理函数
+     * PHP 在执行完成此函数后，进程自动退出。
+     */
+    public function handleFatalError()
+    {
+        $error = error_get_last(); /* 获取最后的错误 */
+        if (self::isFatalError($error)) {
+            $msg = sprintf(
+                "Fatal error: %s in %s on %s.\n",
+                $error['message'],
+                $error['file'],
+                $error['line']
+            );
+            CoreLog::error($msg);
+            $this->afterHandler($msg);
         }
-        register_shutdown_function($function);
-        return $this;
+    }
+
+    /**
+     * 错误处理函数，不能处理致命错误。
+     * @param int $code 错误码
+     * @param string $msg 错误消息
+     * @param string $file 文件名
+     * @param string $line 文件行
+     */
+    public function handlerError($code, $msg, $file, $line)
+    {
+        if (error_reporting() & $code) {
+            $msg = sprintf(
+                "%s: %s in %s on %s",
+                self::getName($code),
+                $msg,
+                $file,
+                $line
+            );
+            CoreLog::error($msg);
+            $this->afterHandler($msg);
+        }
+    }
+
+    /**
+     * 判断一个错误是否为致命错误
+     * @param $error
+     * @return bool
+     */
+    public static function isFatalError($error)
+    {
+        if (isset($error['type'])) {
+            $map = [
+                E_ERROR,
+                E_PARSE,
+                E_CORE_ERROR,
+                E_CORE_WARNING,
+                E_COMPILE_ERROR,
+                E_COMPILE_WARNING
+            ];
+            if (in_array($error['type'], $map)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+
+    /**
+     * @return string 错误名称
+     */
+    public static function getName($code)
+    {
+        $names = [
+            E_COMPILE_ERROR => 'PHP Compile Error',
+            E_COMPILE_WARNING => 'PHP Compile Warning',
+            E_CORE_ERROR => 'PHP Core Error',
+            E_CORE_WARNING => 'PHP Core Warning',
+            E_DEPRECATED => 'PHP Deprecated Warning',
+            E_ERROR => 'PHP Fatal Error',
+            E_NOTICE => 'PHP Notice',
+            E_PARSE => 'PHP Parse Error',
+            E_RECOVERABLE_ERROR => 'PHP Recoverable Error',
+            E_STRICT => 'PHP Strict Warning',
+            E_USER_DEPRECATED => 'PHP User Deprecated Warning',
+            E_USER_ERROR => 'PHP User Error',
+            E_USER_NOTICE => 'PHP User Notice',
+            E_USER_WARNING => 'PHP User Warning',
+            E_WARNING => 'PHP Warning',
+        ];
+
+        return $names[$code] ?: 'Error';
+    }
+
+    /**
+     * 自定义错误处理函数或，display_errors就是设置为1，
+     * 也不会页面输出错误。此函数用于输出错误日志。
+     * @param $msg
+     */
+    public function afterHandler($msg)
+    {
+        if (ini_get('display_errors')) {
+            echo $msg;
+        }
     }
 }

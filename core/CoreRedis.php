@@ -11,48 +11,108 @@
 class CoreRedis
 {
     /**
+     * 异常处理模式
+     */
+    const ERR_MODE_EXCEPTION = 'exception';
+    /**
+     * 警告处理模式
+     */
+    const ERR_MODE_WARNING = 'warning';
+    /**
      * @var Redis
      */
-    private $redis;
-    protected $dbId = 0;//当前数据库ID号
-    protected $auth;//当前权限认证码
+    protected $redis = null;
+    /**
+     * 当前数据库ID号
+     * @var int
+     */
+    protected $dbId = 0;
+    /**
+     * 当前权限认证码
+     * @var string
+     */
+    protected $auth;
+    /**
+     * 所有连接实例
+     * @var self[]
+     */
     static private $_instance = array();
-    private $k;
-    //配置文件数组
-    protected $config = array(
-        'timeout' => 30,  //连接超时时间，redis配置文件中默认为300秒。
-        'prefix' => '', //前缀
-        'serialize' => false, //是否序列化数据
-        'host' => '127.0.0.1',
-        'port' => 6379
-    );
-    protected $expireTime; //什么时候重新建立连接
+    /**
+     * 连接标识户
+     * @var string
+     */
+    protected $k;
+    /**
+     * 默认配置文件数组
+     * @var array
+     */
+    protected $config = [];
+    /**
+     * 连接主机
+     * @var string
+     */
     protected $host;
+    /**
+     * 连接端口
+     * @var string
+     */
     protected $port;
-    protected $prefix;
-    protected $serialize;
+    /**
+     * 连接超时时间
+     * @var float
+     */
+    protected $timeout;
+    /**
+     * 错误处理模式
+     * @var string
+     */
+    protected $errMode;
 
+    /**
+     * 配置文件包含如下参数
+     * [
+     *  'host' => 'ip',
+     *  'port'=> '端口'，
+     *  'auth' => '密码',
+     *  'timeout' => '连接超时时间',
+     *  'db_id' => '数据库ID',
+     *  'err_mode' => '错误处理模式'
+     * ]
+     * CoreRedis constructor.
+     * @param $config
+     */
     public function __construct($config)
     {
-        $this->config = array_merge($this->config, $config);
-        $this->redis = new Redis();
-        $this->port = $this->config['port'];
-        $this->host = $this->config['host'];
-        $this->prefix = $this->config['prefix'];
-        $this->serialize = $this->config['serialize'];
-        $this->redis->connect($this->host, $this->port, $this->config['timeout']);
+        $this->config = $config;
+        $this->host = $config['host'] ?: '127.0.0.1';
+        $this->port = $config['port'] ?: 6379;
+        $this->auth = (string)$config['auth'];
+        $this->slaves = (array)$config['slaves'];
+        $this->timeout = $config['timeout'] ?: 30;
+        $this->dbId = (int)$config['db_id'];
+        $this->errMode = $config['err_mode'] ?: self::ERR_MODE_WARNING;
+    }
 
-        if ($config['auth']) {
-            $this->auth($config['auth']);
-            $this->auth = $config['auth'];
+    /**
+     * 连接redis
+     * @param bool $force 是否强制重连
+     * @return Redis
+     */
+    public function connect($force = false)
+    {
+        if ($this->redis !== null && $force == false) {
+            return $this->redis;
         }
-        $this->expireTime = time() + $this->config['timeout'];
-        if ($this->prefix) {
-            $this->setPrefix($this->config['prefix']);
+        $this->redis = null;
+        $this->redis = new Redis();
+        $this->redis->connect($this->host, $this->port, $this->timeout);
+        if ($this->dbId != 0) {
+            $this->redis->select($this->dbId);
         }
-        if ($this->serialize) {
-            $this->setSerialize();
+        if ($this->auth) {
+            $this->redis->auth($this->auth);
         }
+        return $this->redis;
     }
 
     /**
@@ -67,24 +127,17 @@ class CoreRedis
         if (!is_array($config)) {
             $config = App::c($config);
         }
-        $config['db_id'] = $config['db_id'] ? $config['db_id'] : 0;
+        $config['db_id'] = (int)$config['db_id'];
         $pid = intval(getmypid());
         $k = md5($config['host'] . $config['port'] . $config['db_id'] . $pid);
-        if (!(self::$_instance[$k] instanceof self) || time() > self::$_instance[$k]->expireTime) {
+
+        if (!(self::$_instance[$k] instanceof self)) {
             self::$_instance[$k] = null;
             self::$_instance[$k] = new self($config);
             self::$_instance[$k]->k = $k;
-            self::$_instance[$k]->dbId = $config['db_id'];
-
-            //如果不是0号库，选择一下数据库。
-            if ($config['db_id'] != 0)
-                self::$_instance[$k]->select($config['db_id']);
         }
-        return self::$_instance[$k];
-    }
 
-    private function __clone()
-    {
+        return self::$_instance[$k];
     }
 
     /**
@@ -93,12 +146,14 @@ class CoreRedis
      */
     public function getRedis()
     {
+        $this->connect();
         return $this->redis;
     }
 
     /*****************hash表操作函数*******************/
 
     /**
+     * @see Redis::hGet()
      * 得到hash表中一个字段的值
      * @param string $key 缓存key
      * @param string $field 字段
@@ -106,10 +161,11 @@ class CoreRedis
      */
     public function hGet($key, $field)
     {
-        return $this->redis->hGet($key, $field);
+        return $this->_execForRedis(__FUNCTION__, [$key, $field]);
     }
 
     /**
+     * @see Redis::hSet()
      * 为hash表设定一个字段的值
      * @param string $key 缓存key
      * @param string $field 字段
@@ -118,10 +174,11 @@ class CoreRedis
      */
     public function hSet($key, $field, $value)
     {
-        return $this->redis->hSet($key, $field, $value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $field, $value]);
     }
 
     /**
+     * @see Redis::hExists()
      * 判断hash表中，指定field是不是存在
      * @param string $key 缓存key
      * @param string $field 字段
@@ -129,37 +186,36 @@ class CoreRedis
      */
     public function hExists($key, $field)
     {
-        return $this->redis->hExists($key, $field);
+        return $this->_execForRedis(__FUNCTION__, [$key, $field]);
     }
 
     /**
+     * @see Redis::hDel()
      * 删除hash表中指定字段 ,支持批量删除
      * @param string $key 缓存key
-     * @param string $field 字段
-     * @return int
+     * @param string $hashKey1 字段
+     * @param string|null $hashKey2
+     * @param string|null $hashKeyN
+     * @return int 删除字段的数量
      */
-    public function hDel($key, $field)
+    public function hDel($key, $hashKey1, $hashKey2 = null, $hashKeyN = null)
     {
-        $fieldArr = explode(',', $field);
-        $delNum = 0;
-        foreach ($fieldArr as $row) {
-            $row = trim($row);
-            $delNum += $this->redis->hDel($key, $row);
-        }
-        return $delNum;
+        return $this->_execForRedis(__FUNCTION__, func_get_args());
     }
 
     /**
+     * @see Redis::hLen()
      * 返回hash表元素个数
      * @param string $key 缓存key
-     * @return int|bool
+     * @return int|bool，key不存在返回false
      */
     public function hLen($key)
     {
-        return $this->redis->hLen($key);
+        return $this->_execForRedis(__FUNCTION__, [$key]);
     }
 
     /**
+     * @see Redis::hSetNx
      * 为hash表设定一个字段的值,如果字段存在，返回false
      * @param string $key 缓存key
      * @param string $field 字段
@@ -168,10 +224,11 @@ class CoreRedis
      */
     public function hSetNx($key, $field, $value)
     {
-        return $this->redis->hSetNx($key, $field, $value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $field, $value]);
     }
 
     /**
+     * @see Redis::hMset()
      * 为hash表多个字段设定值。
      * @param string $key
      * @param array $value
@@ -182,10 +239,11 @@ class CoreRedis
         if (!is_array($value)) {
             return false;
         }
-        return $this->redis->hMset($key, $value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $value]);
     }
 
     /**
+     * @see Redis::hMget()
      * 为hash表多个字段设定值。
      * @param string $key
      * @param array|string $field string以','号分隔字段
@@ -196,10 +254,11 @@ class CoreRedis
         if (!is_array($field)) {
             $field = explode(',', $field);
         }
-        return $this->redis->hMget($key, $field);
+        return $this->_execForRedis(__FUNCTION__, [$key, $field]);
     }
 
     /**
+     * @see Redis::hIncrBy()
      * 为hash表设这累加，可以负数
      * @param string $key
      * @param int $field
@@ -208,43 +267,46 @@ class CoreRedis
      */
     public function hIncrBy($key, $field, $value = 1)
     {
-        $value = intval($value);
-        return $this->redis->hIncrBy($key, $field, $value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $field, (int)$value]);
     }
 
     /**
+     * @see Redis::hKeys()
      * 返回所有hash表的所有字段
      * @param string $key
      * @return array|bool
      */
     public function hKeys($key)
     {
-        return $this->redis->hKeys($key);
+        return $this->_execForRedis(__FUNCTION__, [$key]);
     }
 
     /**
+     * @see Redis::hVals()
      * 返回所有hash表的字段值，为一个索引数组
      * @param string $key
      * @return array|bool
      */
     public function hVals($key)
     {
-        return $this->redis->hVals($key);
+        return $this->_execForRedis(__FUNCTION__, [$key]);
     }
 
     /**
+     * @see Redis::hgetAll()
      * 返回所有hash表的字段值，为一个关联数组
      * @param string $key
      * @return array|bool
      */
     public function hGetAll($key)
     {
-        return $this->redis->hGetAll($key);
+        return $this->_execForRedis(__FUNCTION__, [$key]);
     }
 
     /*********************有序集合操作*********************/
 
     /**
+     * @see Redis::zAdd()
      * 给当前集合添加一个元素
      * 如果value已经存在，会更新order的值。
      * @param string $key
@@ -254,22 +316,24 @@ class CoreRedis
      */
     public function zAdd($key, $score, $value)
     {
-        return $this->redis->zAdd($key, $score, $value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $score, $value]);
     }
 
     /**
+     * @see Redis::zinCrBy()
      * 给$value成员的order值，增加$num,可以为负数
      * @param string $key
      * @param string $num 序号
      * @param string $value 值
-     * @return 返回新的order
+     * @return float 返回新的order
      */
     public function zinCrBy($key, $num, $value)
     {
-        return $this->redis->zinCrBy($key, $num, $value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $num, $value]);
     }
 
     /**
+     * @see Redis::zRem()
      * 删除值为value的元素
      * @param string $key
      * @param string $value
@@ -277,10 +341,11 @@ class CoreRedis
      */
     public function zRem($key, $value)
     {
-        return $this->redis->zRem($key, $value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $value]);
     }
 
     /**
+     * @see Redis::zRemRangeByRank()
      * 删除指定排名之间的数据。
      * 下标参数 start 和 end 都以 0 为底，也就是说，以 0 表示有序集第一个成员，
      * 以 1 表示有序集第二个成员，以此类推。
@@ -293,7 +358,7 @@ class CoreRedis
      */
     public function zRemRangeByRank($key, $start, $end = -1)
     {
-        return $this->redis->zRemRangeByRank($key, $start, $end);
+        return $this->_execForRedis(__FUNCTION__, [$key, $start, $end]);
     }
 
     /**
@@ -323,6 +388,7 @@ class CoreRedis
     }
 
     /**
+     * @see Redis::zRange()
      * 集合以order递增排列后，0表示第一个元素，-1表示最后一个元素
      * @param string $key
      * @param int $start
@@ -336,10 +402,11 @@ class CoreRedis
      */
     public function zRange($key, $start, $end, $withscore = null)
     {
-        return $this->redis->zRange($key, $start, $end, $withscore);
+        return $this->_execForRedis(__FUNCTION__, [$key, $start, $end, $withscore]);
     }
 
     /**
+     * @see Redis::zRevRange()
      * 集合以order递减排列后，0表示第一个元素，-1表示最后一个元素
      * 成员的位置按 score 值递减
      * @param string $key
@@ -350,7 +417,7 @@ class CoreRedis
      */
     public function zRevRange($key, $start, $end, $withscore = null)
     {
-        return $this->redis->zRevRange($key, $start, $end, $withscore);
+        return $this->_execForRedis(__FUNCTION__, [$key, $start, $end, $withscore]);
     }
 
     /**
@@ -387,38 +454,41 @@ class CoreRedis
     }
 
     /**
+     * @see Redis::zRangeByScore()
      * 集合以递增排列后，返回指定score之间的元素。
      * min和max可以是-inf和+inf　表示最大值，最小值
      * @param string $key
      * @param mixed $start
      * @param mixed $end
-     * @option array $option 参数
+     * @param array $option 参数
      *     withscores=>true，表示数组下标为Order值，默认返回索引数组
      *     limit=>array(0,1) 表示从0开始，取一条记录。
      * @return array|bool
      */
-    public function zRangeByScore($key, $start = '-inf', $end = "+inf", $option = array())
+    public function zRangeByScore($key, $start = '-inf', $end = "+inf", $option = [])
     {
-        return $this->redis->zRangeByScore($key, $start, $end, $option);
+        return $this->_execForRedis(__FUNCTION__, [$key, $start, $end, $option]);
     }
 
     /**
+     * @see Redis::zRevRangeByScore()
      * 集合以order递减排列后，返回指定order之间的元素。
      * min和max可以是-inf和+inf　表示最大值，最小值
      * @param string $key
      * @param string $start
      * @param string $end
-     * @option array $option 参数
+     * @param array $option 参数
      *     withscores=>true，表示数组下标为Order值，默认返回索引数组
      *     limit=>array(0,1) 表示从0开始，取一条记录。
      * @return array|bool
      */
     public function zRevRangeByScore($key, $start = '-inf', $end = "+inf", $option = array())
     {
-        return $this->redis->zRevRangeByScore($key, $start, $end, $option);
+        return $this->_execForRedis(__FUNCTION__, [$key, $start, $end, $option]);
     }
 
     /**
+     * @see Redis::zCount()
      * 返回score值在start end之间的数量
      * @param $key
      * @param $start
@@ -427,10 +497,11 @@ class CoreRedis
      */
     public function zCount($key, $start, $end)
     {
-        return $this->redis->zCount($key, $start, $end);
+        return $this->_execForRedis(__FUNCTION__, [$key, $start, $end]);
     }
 
     /**
+     * @see Redis::zScore()
      * 返回值为value的order值
      * @param $key
      * @param $value
@@ -438,10 +509,11 @@ class CoreRedis
      */
     public function zScore($key, $value)
     {
-        return $this->redis->zScore($key, $value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $value]);
     }
 
     /**
+     * @see Redis::zRank()
      * 返回集合以score递增加排序后，指定成员的排序号，从0开始。
      * @param $key
      * @param $value
@@ -449,10 +521,11 @@ class CoreRedis
      */
     public function zRank($key, $value)
     {
-        return $this->redis->zRank($key, $value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $value]);
     }
 
     /**
+     * @see Redis::zRevRank()
      * 返回集合以score递减排序后，指定成员的排序号，从0开始。
      * @param $key
      * @param $value
@@ -460,35 +533,38 @@ class CoreRedis
      */
     public function zRevRank($key, $value)
     {
-        return $this->redis->zRevRank($key, $value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $value]);
     }
 
     /**
+     * @see Redis::zRemRangeByScore()
      * 删除集合中，score值在start end之间的元素　包括start end
      * min和max可以是-inf和+inf　表示最大值，最小值
      * @param  $key
      * @param  $start
      * @param  $end
-     * @return 删除成员的数量。
+     * @return int 删除成员的数量。
      */
     public function zRemRangeByScore($key, $start, $end)
     {
-        return $this->redis->zRemRangeByScore($key, $start, $end);
+        return $this->_execForRedis(__FUNCTION__, [$key, $start, $end]);
     }
 
     /**
+     * @see Redis::zCard()
      * 返回集合元素个数。
      * @param $key
      * @return int
      */
     public function zCard($key)
     {
-        return $this->redis->zCard($key);
+        return $this->_execForRedis(__FUNCTION__, [$key]);
     }
 
     /*********************队列操作命令************************/
 
     /**
+     * @see Redis::rPush()
      * 在队列尾部插入一个元素
      * @param $key
      * @param $value
@@ -496,10 +572,11 @@ class CoreRedis
      */
     public function rPush($key, $value)
     {
-        return $this->redis->rPush($key, $value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $value]);
     }
 
     /**
+     * @see Redis::rPushx()
      * 在队列尾部插入一个元素 如果key不存在，什么也不做
      * @param $key
      * @param $value
@@ -507,10 +584,11 @@ class CoreRedis
      */
     public function rPushx($key, $value)
     {
-        return $this->redis->rPushx($key, $value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $value]);
     }
 
     /**
+     * @see Redis::lPush()
      * 在队列头部插入一个元素
      * @param $key
      * @param $value
@@ -518,10 +596,11 @@ class CoreRedis
      */
     public function lPush($key, $value)
     {
-        return $this->redis->lPush($key, $value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $value]);
     }
 
     /**
+     * @see Redis::lPushx()
      * 在队列头插入一个元素
      * @param $key
      * @param $value
@@ -529,29 +608,33 @@ class CoreRedis
      */
     public function lPushx($key, $value)
     {
-        return $this->redis->lPushx($key, $value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $value]);
     }
 
     /**
+     * @see Redis::lLen()
      * 返回队列长度
      * @param $key
      * @return int
      */
     public function lLen($key)
     {
-        return $this->redis->lLen($key);
+        return $this->_execForRedis(__FUNCTION__, [$key]);
     }
 
     /**
-     * 同lLen()
+     * @see Redis::lLen()
      * @param $key
+     * @return int
      */
     public function lSize($key)
     {
-        return $this->redis->lSize($key);
+        return $this->_execForRedis(__FUNCTION__, [$key]);
+
     }
 
     /**
+     * @see Redis::lRange()
      * 返回队列指定区间的元素
      * @param $key
      * @param $start
@@ -560,10 +643,11 @@ class CoreRedis
      */
     public function lRange($key, $start, $end)
     {
-        return $this->redis->lrange($key, $start, $end);
+        return $this->_execForRedis(__FUNCTION__, [$key, $start, $end]);
     }
 
     /**
+     * @see Redis::lIndex()
      * 返回队列中指定索引的元素
      * @param $key
      * @param $index
@@ -571,60 +655,65 @@ class CoreRedis
      */
     public function lIndex($key, $index)
     {
-        return $this->redis->lIndex($key, $index);
+        return $this->_execForRedis(__FUNCTION__, [$key, $index]);
     }
 
     /**
+     * @see Redis::lSet()
      * 设定队列中指定index的值。
-     * @param unknown $key
-     * @param unknown $index
-     * @param unknown $value
+     * @param string $key
+     * @param int $index
+     * @param string $value
      * @return bool
      */
     public function lSet($key, $index, $value)
     {
-        return $this->redis->lSet($key, $index, $value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $index, $value]);
     }
 
     /**
+     * @see Redis::lRem()
      * 删除值为vaule的count个元素
      * PHP-REDIS扩展的数据顺序与命令的顺序不太一样，不知道是不是bug
      * count>0 从尾部开始
      *  >0　从头部开始
      *  =0　删除全部
-     * @param unknown $key
-     * @param unknown $count
-     * @param unknown $value
+     * @param string $key
+     * @param int $count
+     * @param string $value
      * @return int
      */
     public function lRem($key, $count, $value)
     {
-        return $this->redis->lRem($key, $value, $count);
+        return $this->_execForRedis(__FUNCTION__, [$key, $count, $value]);
     }
 
     /**
+     * @see Redis::lPop()
      * 删除并返回队列中的头元素。
      * @param $key
      * @return string
      */
     public function lPop($key)
     {
-        return $this->redis->lPop($key);
+        return $this->_execForRedis(__FUNCTION__, [$key]);
     }
 
     /**
+     * @see Redis::rPop()
      * 删除并返回队列中的尾元素
      * @param $key
      * @return string
      */
     public function rPop($key)
     {
-        return $this->redis->rPop($key);
+        return $this->_execForRedis(__FUNCTION__, [$key]);
     }
 
     /*************redis字符串操作命令*****************/
 
     /**
+     * @see Redis::set()
      * 设置一个key
      * @param $key
      * @param $value
@@ -632,31 +721,34 @@ class CoreRedis
      */
     public function set($key, $value)
     {
-        return $this->redis->set($key, $value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $value]);
     }
 
     /**
+     * @see Redis::get()
      * 得到一个key
      * @param $key
      * @return bool|string
      */
     public function get($key)
     {
-        return $this->redis->get($key);
+        return $this->_execForRedis(__FUNCTION__, [$key]);
     }
 
     /**
-     * 将字符串的值增加值
+     * @see Redis::incr()
+     * 整数增加值
      * @param string $key
      * @param int $num 增加的值 负数等同于Redis::decr操作
      * @return int 返回增加后的值
      */
     public function incr($key, $num = 1)
     {
-        return $this->redis->incr($key, $num);
+        return $this->_execForRedis(__FUNCTION__, [$key, $num]);
     }
 
     /**
+     * @see Redis::setex()
      * 设置一个有过期时间的key
      * @param $key
      * @param $expire
@@ -665,11 +757,12 @@ class CoreRedis
      */
     public function setex($key, $expire, $value)
     {
-        return $this->redis->setex($key, $expire, $value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $expire, $value]);
     }
 
 
     /**
+     * @see Redis::setnx()
      * 设置一个key,如果key存在,不做任何操作
      * @param $key
      * @param $value
@@ -677,32 +770,37 @@ class CoreRedis
      */
     public function setnx($key, $value)
     {
-        return $this->redis->setnx($key, $value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $value]);
     }
 
     /**
+     * @see Redis::mset()
      * 批量设置key
      * @param $arr
      * @return bool
+     * @example
+     * $redis->mset(array('key0' => 'value0', 'key1' => 'value1'));
      */
     public function mset($arr)
     {
-        return $this->redis->mset($arr);
+        return $this->_execForRedis(__FUNCTION__, [$arr]);
     }
 
     /*************redis　无序集合操作命令*****************/
 
     /**
+     * @see Redis::sMembers()
      * 返回集合中所有元素
      * @param $key
      * @return array
      */
     public function sMembers($key)
     {
-        return $this->redis->sMembers($key);
+        return $this->_execForRedis(__FUNCTION__, [$key]);
     }
 
     /**
+     * @see Redis::sDiff()
      * 求2个集合的差集
      * @param $key1
      * @param $key2
@@ -710,31 +808,36 @@ class CoreRedis
      */
     public function sDiff($key1, $key2)
     {
-        return $this->redis->sDiff($key1, $key2);
+        return $this->_execForRedis(__FUNCTION__, [$key1, $key2]);
     }
 
     /**
+     * @see Redis::sAdd()
      * 为集合添加元素
-     * @return int;
+     * @param $key
+     * @param $value1
+     * @param null $value2
+     * @param null $valueN
+     * @return int 添加的元素数量
      */
-    public function sAdd()
+    public function sAdd($key, $value1, $value2 = null, $valueN = null)
     {
-        $params = func_get_args();
-        $n = call_user_func_array(array($this->redis, 'sAdd'), $params);
-        return $n;
+        return $this->_execForRedis(__FUNCTION__, func_get_args());
     }
 
     /**
+     * @see Redis::sRandMember()
      * 返回一个随机元素
      * @param $key
      * @return string
      */
     public function sRandMember($key)
     {
-        return $this->redis->sRandMember($key);
+        return $this->_execForRedis(__FUNCTION__, [$key]);
     }
 
     /**
+     * @see Redis::sContains()
      * 检查集合中是否存在指定的值
      * @param $key
      * @param $value
@@ -742,10 +845,11 @@ class CoreRedis
      */
     public function sContains($key, $value)
     {
-        return $this->redis->sIsMember($key, $value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $value]);
     }
 
     /**
+     * @see Redis::sIsMember()
      * 检查集合中是否存在指定的值
      * @param $key
      * @param $value
@@ -753,20 +857,22 @@ class CoreRedis
      */
     public function sIsMember($key, $value)
     {
-        return $this->redis->sIsMember($key, $value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $value]);
     }
 
     /**
+     * @see Redis::scard()
      * 返回无序集合的元素个数
      * @param $key
      * @return int
      */
     public function scard($key)
     {
-        return $this->redis->scard($key);
+        return $this->_execForRedis(__FUNCTION__, [$key]);
     }
 
     /**
+     * @see Redis::srem()
      * 从集合中删除一个元素
      * @param $key
      * @param $value
@@ -774,12 +880,13 @@ class CoreRedis
      */
     public function srem($key, $value)
     {
-        return $this->redis->srem($key, $value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $value]);
     }
 
     /*************redis管理操作命令*****************/
 
     /**
+     * @see Redis::select()
      * 选择数据库
      * @param int $dbId 数据库ID号
      * @return bool
@@ -787,52 +894,61 @@ class CoreRedis
     public function select($dbId)
     {
         $this->dbId = $dbId;
-        return $this->redis->select($dbId);
+        return $this->_execForRedis(__FUNCTION__, [$dbId]);
     }
 
     /**
+     * @see Redis::flushDB()
      * 清空当前数据库
-     * @return bool
+     * @return true
      */
     public function flushDB()
     {
-        return $this->redis->flushDB();
+        return $this->_execForRedis(__FUNCTION__);
     }
 
     /**
+     * @see Redis::info()
      * 返回当前库状态
      * @return array
      */
     public function info()
     {
-        return $this->redis->info();
+        return $this->_execForRedis(__FUNCTION__);
     }
 
     /**
+     * @see Redis::save()
      * 同步保存数据到磁盘
+     * @return bool
      */
     public function save()
     {
-        return $this->redis->save();
+        return $this->_execForRedis(__FUNCTION__);
     }
 
     /**
+     * @see Redis::bgSave()
      * 异步保存数据到磁盘
+     * @return bool
      */
     public function bgSave()
     {
-        return $this->redis->bgSave();
+        return $this->_execForRedis(__FUNCTION__);
     }
 
     /**
+     * @see Redis::lastSave()
      * 返回最后保存到磁盘的时间
+     * @return int
      */
     public function lastSave()
     {
-        return $this->redis->lastSave();
+        return $this->_execForRedis(__FUNCTION__);
     }
 
     /**
+     * @see Redis::keys()
      * 返回key,支持*多个字符，?一个字符
      * 只有*　表示全部
      * @param string $key
@@ -840,10 +956,11 @@ class CoreRedis
      */
     public function keys($key)
     {
-        return $this->redis->keys($key);
+        return $this->_execForRedis(__FUNCTION__, [$key]);
     }
 
     /**
+     * @see Redis::type()
      * 得到一个key的类型
      * const REDIS_NOT_FOUND       = 0;
      * const REDIS_STRING          = 1;
@@ -856,40 +973,48 @@ class CoreRedis
      */
     public function type($key)
     {
-        return $this->redis->type($key);
+        return $this->_execForRedis(__FUNCTION__, [$key]);
     }
 
     /**
+     * @see Redis::del()
      * 删除指定一个或多个key,可参为多个参数或者一个数组
+     * @param $key1
+     * @param null $key2
+     * @param null $keyN
      * @return int 返回删除key的个数
      */
-    public function del()
+    public function del($key1, $key2 = null, $keyN = null)
     {
-        $params = func_get_args();
-        return call_user_func_array(array($this->redis, 'delete'), $params);
+        return $this->_execForRedis(__FUNCTION__, func_get_args());
     }
 
     /**
-     * @see del()
-     * @return mixed
+     * @see Redis::delete()
+     * 删除指定一个或多个key,可参为多个参数或者一个数组
+     * @param $key1
+     * @param null $key2
+     * @param null $keyN
+     * @return int 返回删除key的个数
      */
-    public function delete()
+    public function delete($key1, $key2 = null, $keyN = null)
     {
-        $params = func_get_args();
-        return call_user_func_array(array($this->redis, 'delete'), $params);
+        return $this->_execForRedis(__FUNCTION__, func_get_args());
     }
 
     /**
+     * @see Redis::exists()
      * 判断一个key值是不是存在
      * @param  $key
      * @return bool
      */
     public function exists($key)
     {
-        return $this->redis->exists($key);
+        return $this->_execForRedis(__FUNCTION__, [$key]);
     }
 
     /**
+     * @see Redis::expire()
      * 为一个key设定过期时间 单位为秒
      * @param string $key
      * @param int $expire
@@ -897,52 +1022,57 @@ class CoreRedis
      */
     public function expire($key, $expire)
     {
-        return $this->redis->expire($key, $expire);
+        return $this->_execForRedis(__FUNCTION__, [$key, $expire]);
     }
 
     /**
+     * @see Redis::ttl()
      * 返回一个key还有多久过期，单位秒
      * @param $key
      * @return bool
      */
     public function ttl($key)
     {
-        return $this->redis->ttl($key);
+        return $this->_execForRedis(__FUNCTION__, [$key]);
     }
 
     /**
+     * @see Redis::pttl()
      * 返回以毫秒的过期时间
      * @param $key
      * @return int
      */
     public function pttl($key)
     {
-        return $this->redis->pttl('pttl');
+        return $this->_execForRedis(__FUNCTION__, [$key]);
     }
 
     /**
+     * @see Redis::pExpire()
      * 以毫秒为单位设置 key 的生存时间
      * @param $key
-     * @param $value
+     * @param $expire
      * @return bool
      */
-    public function pExpire($key, $value)
+    public function pExpire($key, $expire)
     {
-        return $this->redis->pExpire($key,$value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $expire]);
     }
 
     /**
+     * @see Redis::pExpireAt()
      * 以毫秒为单位设置 key 的生存时间
      * @param $key
-     * @param $value
+     * @param $time
      * @return bool
      */
-    public function pExpireAt($key, $value)
+    public function pExpireAt($key, $time)
     {
-        return $this->redis->pExpireAt($key,$value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $time]);
     }
 
     /**
+     * @see Redis::expireAt()
      * 设定一个key什么时候过期，time为一个时间戳
      * @param  $key
      * @param  $time
@@ -950,15 +1080,16 @@ class CoreRedis
      */
     public function expireAt($key, $time)
     {
-        return $this->redis->expireAt($key, $time);
+        return $this->_execForRedis(__FUNCTION__, [$key, $time]);
     }
 
     /**
+     * @see Redis::close()
      * 关闭服务器链接
      */
     public function close()
     {
-        return $this->redis->close();
+        $this->_execForRedis(__FUNCTION__);
     }
 
     /**
@@ -974,19 +1105,21 @@ class CoreRedis
     }
 
     /**
+     * @see Redis::dbSize()
      * 返回当前数据库key数量
      */
     public function dbSize()
     {
-        return $this->redis->dbSize();
+        return $this->_execForRedis(__FUNCTION__);
     }
 
     /**
+     * @see Redis::randomKey()
      * 返回一个随机key
      */
     public function randomKey()
     {
-        return $this->redis->randomKey();
+        return $this->_execForRedis(__FUNCTION__);
     }
 
     /**
@@ -1029,6 +1162,7 @@ class CoreRedis
     /*********************事务的相关方法************************/
 
     /**
+     * @see Redis::watch()
      * 监控key,就是一个或多个key添加一个乐观锁
      * 在此期间如果key的值如果发生的改变，刚不能为key设定值
      * 可以重新取得Key的值。
@@ -1036,86 +1170,75 @@ class CoreRedis
      */
     public function watch($key)
     {
-        $this->redis->watch($key);
+        $this->_execForRedis(__FUNCTION__, [$key]);
     }
 
     /**
+     * @see Redis::unwatch()
      * 取消当前链接对所有key的watch
      *  EXEC 命令或 DISCARD 命令先被执行了的话，那么就不需要再执行 UNWATCH 了
      */
     public function unwatch()
     {
-        $this->redis->unwatch();
+        $this->_execForRedis(__FUNCTION__);
     }
 
     /**
+     * @see Redis::multi()
      * 开启一个事务
      * 事务的调用有两种模式Redis::MULTI和Redis::PIPELINE，
      * 默认是Redis::MULTI模式，
      * Redis::PIPELINE管道模式速度更快，但没有任何保证原子性有可能造成数据的丢失
+     * @param  int $type
+     * @return mixed
      */
     public function multi($type = Redis::MULTI)
     {
-        return $this->redis->multi($type);
+        return $this->_execForRedis(__FUNCTION__, [$type]);
     }
 
     /**
+     * @see Redis::exec()
      * 执行一个事务
      * 收到 EXEC 命令后进入事务执行，事务中任意命令执行失败，其余的命令依然被执行
      */
     public function exec()
     {
-        $this->redis->exec();
+        return $this->_execForRedis(__FUNCTION__);
     }
 
     /**
+     * @see Redis::discard()
      * 回滚一个事务
      */
     public function discard()
     {
-        $this->redis->discard();
+        return $this->_execForRedis(__FUNCTION__);
     }
 
     /**
+     * @see Redis::ping()
      * 测试当前链接是不是已经失效
      * 没有失效返回+PONG
      * 失效返回false
      */
     public function ping()
     {
-        return $this->redis->ping();
+        return $this->_execForRedis(__FUNCTION__);
     }
-
-    public function auth($auth)
-    {
-        return $this->redis->auth($auth);
-    }
-    /*********************自定义的方法,用于简化操作************************/
 
     /**
-     * 得到一组的ID号
-     * @param  $prefix
-     * @param  $ids
-     * @return array
+     * @see Redis::auth()
+     * 校验权限
+     * @param $auth
+     * @return mixed
      */
-    public function hashAll($prefix, $ids)
+    public function auth($auth)
     {
-        if ($ids == false) {
-            return false;
-        }
-        if (is_string($ids)) {
-            $ids = explode(',', $ids);
-        }
-        $arr = array();
-        foreach ($ids as $id) {
-            $key = $prefix . '.' . $id;
-            $res = $this->hGetAll($key);
-            if ($res != false)
-                $arr[] = $res;
-        }
-
-        return $arr;
+        return $this->_execForRedis(__FUNCTION__, [$auth]);
     }
+
+    /*********************自定义的方法,用于简化操作************************/
 
     /**
      * 得到条批量删除key的命令。这里不会执行此命令。
@@ -1146,6 +1269,7 @@ class CoreRedis
     }
 
     /**
+     * @see Redis::slaveof()
      * SLAVEOF 命令用于在 Redis 运行时动态地修改复制(replication)功能的行为。
      * 可以将当前服务器转变为指定服务器的从属服务器(slave server)。
      * 如果当前服务器已经是某个主服务器(master server)的从属服务器，
@@ -1156,13 +1280,15 @@ class CoreRedis
      * 并从从属服务器转变回主服务器，原来同步所得的数据集不会被丢弃。
      * @param $host
      * @param int $port
+     * @return bool
      */
     public function slaveof($host, $port = 6379)
     {
-        $this->redis->slaveof($host, $port);
+        return $this->_execForRedis(__FUNCTION__, [$host, $port]);
     }
 
     /**
+     * @see Redis::sort()
      * 执行sort排序命令。sort命令可以用多重排序。实现更为复杂的sql功能。
      * 返回或保存给定列表、集合、有序集合 key 中经过排序的元素。
      * 排序默认以数字作为对象，值被解释为双精度浮点数，然后进行比较
@@ -1197,10 +1323,11 @@ class CoreRedis
      */
     public function sort($key, $option = null)
     {
-        return $this->redis->sort($key, $option);
+        return $this->_execForRedis(__FUNCTION__, [$key, $option]);
     }
 
     /**
+     * @see Redis::setOption()
      * 设置客户端链接选项
      * @param string $name 选项名称
      * @param string $value 选项值
@@ -1218,7 +1345,7 @@ class CoreRedis
      */
     public function setOption($name, $value)
     {
-        return $this->redis->setOption($name, $value);
+        return $this->_execForRedis(__FUNCTION__, [$name, $value]);
     }
 
     /**
@@ -1233,17 +1360,9 @@ class CoreRedis
         if ($prefix == false) {
             return false;
         }
-        return $this->redis->setOption(Redis::OPT_PREFIX, $prefix);
+        return $this->setOption(Redis::OPT_PREFIX, $prefix);
     }
 
-    /**
-     * 得到redis前缀
-     * @return int
-     */
-    public function getPrefix()
-    {
-        return $this->redis->getOption(Redis::OPT_PREFIX);
-    }
 
     /**
      * 设置使用php序列化数据
@@ -1251,12 +1370,12 @@ class CoreRedis
      */
     public function setSerialize()
     {
-        return $this->redis->setOption(Redis::OPT_SERIALIZER, Redis::SERIALIZER_PHP);
+        return $this->setOption(Redis::OPT_SERIALIZER, Redis::SERIALIZER_PHP);
     }
 
     /**
      * @param string $cmd redis-cli 命令路径
-     * @return ProcOpen
+     * @return \bee\client\ProcOpenn
      */
     public function proc($cmd = 'redis-cli')
     {
@@ -1274,36 +1393,27 @@ class CoreRedis
             $redisInfo['port'],
         );
         $redisStr = implode(' ', $cmdArr);
-        $proc = new ProcOpen($redisStr);
+        $proc = new \bee\client\ProcOpen($redisStr);
         return $proc;
     }
 
     /**
-     * 得到添加的前缀后的key
-     * @param $key
-     * @return string
-     */
-    public function _prefix($key)
-    {
-        return $this->redis->_prefix($key);
-    }
-
-    /**
+     * @see Redis::slowLog()
      * 慢是志相关命令
      * 得到10条慢查询：$redis->slowlog('get', 10);
      * 提到默认数据量的慢查询：$redis->slowlog('get');
      * 重置慢查询：$redis->slowlog('reset');
      * 得到慢查询的数量：$redis->slowlog('len');
+     * @param string $cmd 命令类型
      * @return mixed
      */
-    public function slowLog()
+    public function slowLog($cmd)
     {
-        $params = func_get_args();
-        $res = call_user_func_array(array($this->redis, 'slowlog'), $params);
-        return $res;
+        return $this->_execForRedis(__FUNCTION__, func_get_args());
     }
 
     /**
+     * @see Redis::client()
      * 执行一个客户端命令
      * 得到客户端列表：$redis->client('list');
      * 得到客户端名字：$redis->client('getname');
@@ -1315,10 +1425,11 @@ class CoreRedis
      */
     public function client($command, $args = '')
     {
-        return $this->redis->client($command, $args);
+        return $this->_execForRedis(__FUNCTION__, [$command, $args]);
     }
 
     /**
+     * @see Redis::config()
      * 得到或设置redis配置
      * @param string $op get 或 set
      * @param string $key 配置名称，可以使用通配符*
@@ -1327,21 +1438,23 @@ class CoreRedis
      */
     public function config($op, $key, $value = null)
     {
-        $res = $this->redis->config($op, $key, $value);
-        return $res;
+        return $this->_execForRedis(__FUNCTION__, [$op, $key, $value]);
+
     }
 
     /**
+     * @see Redis::dump()
      * 获取存储在redis的指定键数据的序列化版本。
      * @param $key
      * @return string
      */
     public function dump($key)
     {
-        return $this->redis->dump($key);
+        return $this->_execForRedis(__FUNCTION__, [$key]);
     }
 
     /**
+     * @see Redis::restore()
      * 反序列化给定的序列化值，并将它和给定的 key 关联
      * 参数 ttl 以毫秒为单位为 key 设置生存时间；如果 ttl 为 0 ，那么不设置生存时间。
      * @param $key
@@ -1351,25 +1464,134 @@ class CoreRedis
      */
     public function restore($key, $ttl = 0, $value)
     {
-        return $this->redis->restore($key, $ttl, $value);
+        return $this->_execForRedis(__FUNCTION__, [$key, $ttl, $value]);
+    }
+
+    /**
+     * 执行redis 代理方法
+     * @param $cmd
+     * @param $params
+     * @throws $e
+     * @return mixed
+     */
+    private function _execForRedis($cmd, $params = [])
+    {
+        for ($i = 0; $i < 2; $i++) {
+            try {
+                $redis = $this->connect($i);
+                $r = call_user_func_array([$redis, $cmd], $params);
+                if (($error = $redis->getLastError()) !== null) {
+                    if ($this->errMode == self::ERR_MODE_EXCEPTION) {
+                        throw new Exception($error);
+                    } else {
+                        trigger_error($error, E_USER_WARNING);
+                    }
+                }
+                return $r;
+            } catch (RedisException $e) {
+                if ($i == 0) {
+                    continue;
+                } else {
+                    throw $e;
+                }
+            }
+        }
+    }
+
+    /**
+     * @see Redis::rename()
+     * 重命名一个key
+     * 命令：rename srcKey dstKey
+     * 复杂度: O(1)
+     * @param string $srcKey 原来的key
+     * @param string $dstKey 重命名后的key
+     * @return mixed 成功返回true
+     */
+    public function rename($srcKey, $dstKey)
+    {
+        return $this->_execForRedis(__FUNCTION__, [$srcKey, $dstKey]);
+    }
+
+    /**
+     * @see Redis::renameNx()
+     * 重命名一个key
+     * 命令：renamenx srcKey dstKey
+     * 复杂度: O(1)
+     * @param string $srcKey 原来的key
+     * @param string $dstKey 重命名后的key
+     * @return mixed 成功返回true, 如果dstKey存在返回false
+     */
+    public function renameNx($srcKey, $dstKey)
+    {
+        return $this->_execForRedis(__FUNCTION__, [$srcKey, $dstKey]);
+    }
+
+
+    /**
+     * @see Redis::setBit()
+     * 设置一个二进制位的值
+     * 命令：setbit key offset value
+     * 复杂度: O(1)
+     * @param string $key redis key
+     * @param int $offset 偏移量
+     * @param int $value 值，0或1
+     * @return mixed 返回设置之前的值
+     */
+    public function setBit($key, $offset, $value)
+    {
+        return $this->_execForRedis(__FUNCTION__, [$key, $offset, $value]);
+    }
+
+    /**
+     * @see Redis::getBit()
+     * 获取一个二进制位的值
+     * 命令: getbit key offset
+     * 复杂度: O(1)
+     * @param string $key redis key
+     * @param int $offset 偏移量
+     * @return mixed 返会0或1
+     */
+    public function getBit($key, $offset)
+    {
+        return $this->_execForRedis(__FUNCTION__, [$key, $offset]);
+    }
+
+    /**
+     * @see Redis::bitCount()
+     * 计算给定字符串中，被设置为 1 的比特位的数量
+     * 命令: bitCount key
+     * 复杂度: O(N)
+     * @param string $key redis-key
+     * @param int $start 开始位置，以字节为单位(8bit)
+     * @param int $end 结束位置，以字节为单位(8bit)
+     * @return mixed 返回可以可以使用的二进制位数
+     */
+    public function bitCount($key, $start = null, $end = null)
+    {
+        return $this->_execForRedis(__FUNCTION__, [$key, $start, $end]);
+    }
+
+    /**
+     * @see Redis::bitOp()
+     * 位运算
+     * 命令: bitop and retkey key1 key2
+     * 复杂度: O(N)
+     * @param string $op  操作类型 "AND", "OR", "NOT", "XOR"
+     * @param string $retKey 要改变得key
+     * @param string $keys 参数运算的key， 空的 key 也被看作是包含 0 的字符串序列
+     *                     除了 NOT 操作之外，其他操作都可以接受一个或多个 key 作为输入
+     * @return mixed $retKey大小, 输入 key 中最长的字符串长度相等
+     */
+    public function bitOp($op, $retKey, $keys)
+    {
+        return $this->_execForRedis(__FUNCTION__, [$op, $retKey, $keys]);
     }
 
     /**
      * 代理执行一个redis函数
-     * @return mixed
-     */
-    public function proxyExec()
-    {
-        $params = func_get_args();
-        $method = $params[0];
-        array_shift($params);
-        return call_user_func_array(array($this->redis, $method), $params);
-    }
-
-    /**
      * 通过lua来执行任意redis命令
      * @example
-     *   $redis->evalCmd('set', 'test', 1);
+     *   $redis->evalCmd('set test 1');
      * 如果命令执行失败，返回空。
      * 调用getLastError 获得错误消息。
      * @param $cmd
@@ -1382,11 +1604,81 @@ class CoreRedis
            return "'{$v}'";
         }, $params);
         $str = "return redis.pcall(" . implode(',', $params) . ")";
-        return $this->proxyExec('evaluate', $str);
+        return $this->_execForRedis('evaluate', [$str]);
     }
 
+    /**
+     * @see Redis::getLastError()
+     * 获取最后redis的执行错误。如果没有错返回null
+     * @return mixed
+     * @throws RedisException
+     */
     public function getLastError()
     {
-        return $this->proxyExec('getLastError');
+        return $this->_execForRedis(__FUNCTION__);
+    }
+
+    /**
+     * @see Redis::scan()
+     * $redis->setOption(Redis::OPT_SCAN, Redis::SCAN_RETRY);
+     * 遍历有2中选项。
+     * Redis::SCAN_RETRY：一直等到返回数据，或者到达末尾。建议使用此选项
+     * Redis::SCAN_NORETRY： 一直等到超时，如果没有数据返回空数组。默认值。
+     *
+     * redis-cli中，游标0边上表示和结束。
+     * php redis 游标 null 表示开始，0表示结束。
+     *
+     * @param int|null $iterator 游标位置。不能设置为0，设置为null表示开始。
+     *        每次遍历都会修改这个变量的值（应用传递）
+     * @param string $pattern 匹配表达式，同keys
+     * @param int $count 每次变量返回的数量。他不是准确的。参数的默认值为 10
+     * @return mixed 有数据返回key的一维数组，如果遍历完成返回false。
+     *               SCAN_NORETRY下，超时无数据返回空数组。
+     */
+    public function scan($iterator, $pattern = '', $count = 0)
+    {
+        return $this->_execForRedis(__FUNCTION__, [$iterator, $pattern, $count]);
+    }
+
+    /**
+     * @see scan()
+     * 遍历集合中的成员
+     * @param $key
+     * @param $iterator
+     * @param string $pattern
+     * @param int $count
+     * @return mixed
+     */
+    public function sScan($key, $iterator, $pattern = '', $count = 0)
+    {
+        return $this->_execForRedis(__FUNCTION__, [$key, $iterator, $pattern, $count]);
+    }
+
+    /**
+     * @see scan()
+     * 遍历有序集合中的成员
+     * @param $key
+     * @param $iterator
+     * @param string $pattern
+     * @param int $count
+     * @return mixed
+     */
+    public function zScan($key, $iterator, $pattern = '', $count = 0)
+    {
+        return $this->_execForRedis(__FUNCTION__, [$key, $iterator, $pattern, $count]);
+    }
+
+    /**
+     * @see scan()
+     * 遍历hash表中的成员
+     * @param $key
+     * @param $iterator
+     * @param string $pattern
+     * @param int $count
+     * @return mixed
+     */
+    public function hScan($key, $iterator, $pattern = '', $count = 0)
+    {
+        return $this->_execForRedis(__FUNCTION__, [$key, $iterator, $pattern, $count]);
     }
 }
