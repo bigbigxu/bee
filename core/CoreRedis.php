@@ -1635,9 +1635,9 @@ class CoreRedis
      * @return mixed 有数据返回key的一维数组，如果遍历完成返回false。
      *               SCAN_NORETRY下，超时无数据返回空数组。
      */
-    public function scan($iterator, $pattern = '', $count = 0)
+    public function scan(&$iterator, $pattern = '', $count = 0)
     {
-        return $this->_execForRedis(__FUNCTION__, [$iterator, $pattern, $count]);
+        return $this->_execForRedis(__FUNCTION__, [&$iterator, $pattern, $count]);
     }
 
     /**
@@ -1649,9 +1649,9 @@ class CoreRedis
      * @param int $count
      * @return mixed
      */
-    public function sScan($key, $iterator, $pattern = '', $count = 0)
+    public function sScan($key, &$iterator, $pattern = '', $count = 0)
     {
-        return $this->_execForRedis(__FUNCTION__, [$key, $iterator, $pattern, $count]);
+        return $this->_execForRedis(__FUNCTION__, [$key, &$iterator, $pattern, $count]);
     }
 
     /**
@@ -1663,9 +1663,9 @@ class CoreRedis
      * @param int $count
      * @return mixed
      */
-    public function zScan($key, $iterator, $pattern = '', $count = 0)
+    public function zScan($key, &$iterator, $pattern = '', $count = 0)
     {
-        return $this->_execForRedis(__FUNCTION__, [$key, $iterator, $pattern, $count]);
+        return $this->_execForRedis(__FUNCTION__, [$key, &$iterator, $pattern, $count]);
     }
 
     /**
@@ -1677,8 +1677,8 @@ class CoreRedis
      * @param int $count
      * @return mixed
      */
-    public function hScan($key, $iterator, $pattern = '', $count = 0)
+    public function hScan($key, &$iterator, $pattern = '', $count = 0)
     {
-        return $this->_execForRedis(__FUNCTION__, [$key, $iterator, $pattern, $count]);
+        return $this->_execForRedis(__FUNCTION__, [$key, &$iterator, $pattern, $count]);
     }
 }
