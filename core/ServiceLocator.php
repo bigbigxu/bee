@@ -7,7 +7,7 @@
  * 新的对象管理器。统一原先的App::createObject, Object。
  */
 namespace bee\core;
-use bee\cache\Cache;
+use bee\cache\ICache;
 use bee\client\LogClient;
 
 class ServiceLocator
@@ -173,7 +173,7 @@ class ServiceLocator
 
     /**
      * 获取缓存组件
-     * @return Cache
+     * @return ICache
      */
     public function getCache()
     {

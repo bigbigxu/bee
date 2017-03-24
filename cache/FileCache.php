@@ -6,7 +6,7 @@
  * Time: 14:21
  */
 namespace bee\cache;
-class FileCache implements Cache
+class FileICache implements ICache
 {
     /**
      * key 前缀

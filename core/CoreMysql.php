@@ -1491,7 +1491,7 @@ class CoreMysql
 
 	/**
 	 * 获取cache组件
-	 * @return bool|\bee\cache\Cache
+	 * @return bool|\bee\cache\ICache
 	 */
 	public function getCache()
 	{

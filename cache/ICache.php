@@ -7,7 +7,7 @@
  * cache接口。只是一个可选项
  */
 namespace bee\cache;
-interface Cache
+interface ICache
 {
     public function get($key);
     public function set($key, $value, $timeout = null);

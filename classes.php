@@ -4,7 +4,7 @@ return [
     'App' => $sysDir . '/App.php',
 
     /* cache目录 */
-    'bee\cache\Cache' => $sysDir . '/cache/Cache.php',
+    'bee\cache\ICache' => $sysDir . '/cache/ICache.php',
     'bee\cache\FileCache' => $sysDir . '/cache/FileCache.php',
     'bee\cache\RedisAnalysis' => $sysDir . '/cache/RedisAnalysis.php',
     'bee\cache\RedisSession' => $sysDir . '/cache/RedisSession.php',
