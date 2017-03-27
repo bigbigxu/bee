@@ -37,6 +37,7 @@ class BeeClassMap
         $app = \App::getInstance();
         $appDir = $app->getBaseDir();
         $sysDir = $app->getSysDir();
+        $beeClassMap = require $sysDir . '/classes.php';
         if ($type == self::TYPE_BEE) {
             $classArr = (array)\CoreFile::getAllFiles($sysDir, array(
                 'allow_ext' => 'php'
@@ -58,6 +59,10 @@ class BeeClassMap
             }
             if (($className = $this->getClassName($file)) == false) {
                 continue; /* 没有检查到类名 */
+            }
+            if ($type == self::TYPE_APP && $beeClassMap[$className]) {
+                echo $className,"\n";
+                continue;
             }
             if (strpos($file, $appDir) !== false) {
                 $map[$className] = "\$appDir . '" .  $this->getBasePath($file, $appDir) . "'";
