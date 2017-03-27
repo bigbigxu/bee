@@ -59,9 +59,9 @@ class BeeClassMap
             if (($className = $this->getClassName($file)) == false) {
                 continue; /* 没有检查到类名 */
             }
-            if (strpos($file, $appDir) !== false) {
+            if ($type == self::TYPE_APP && strpos($file, $appDir) !== false) {
                 $map[$className] = "\$appDir . '" .  $this->getBasePath($file, $appDir) . "'";
-            } elseif(strpos($file, $sysDir) !== false) {
+            } elseif($type == self::TYPE_BEE && strpos($file, $sysDir) !== false) {
                 $map[$className] = "\$sysDir . '" .  $this->getBasePath($file, $sysDir) . "'";
             } else {
                 continue;
