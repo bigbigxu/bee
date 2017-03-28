@@ -350,7 +350,7 @@ class CoreMysql
 		$placeholder = array();
 		foreach ($data as $key => $row) {
 			//删除非法字段信息
-			if (!in_array($key, $columns)) {
+			if ($columns[$key] === null) {
 				continue;
 			}
 			$params[':' . $key] = $row;
@@ -511,7 +511,7 @@ class CoreMysql
 		$updateField = array();
 		foreach ($data as $key => $value) {
 			//不合法的字段不要
-			if (!in_array($key, $columns)) {
+			if ($columns[$key] === null) {
 				continue;
 			}
 			//自动组织的params参数要避免与用户传的绑定参数一样。
@@ -606,7 +606,8 @@ class CoreMysql
 			__CLASS__,
 			$this->dsn,
 			$this->dbName,
-			$this->tableName
+			$this->tableName,
+			'1.5'
 		);
 		$cache = $this->getCache();
 		/* 尝试从缓存中找到数据 */
@@ -622,7 +623,7 @@ class CoreMysql
 				if ($row['Key'] == 'PRI') {
 					$field[self::PK_MARK] = $row['Field'];
 				}
-				$field[] = $row['Field'];
+				$field[$row['Field']] = $row['Field'];
 			}
 			if ($cache) {
 				$cache->set($key, $field);

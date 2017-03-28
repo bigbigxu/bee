@@ -96,7 +96,7 @@ class PhpError
                 E_COMPILE_ERROR,
                 E_COMPILE_WARNING
             ];
-            if (in_array($error['type'], $map)) {
+            if ($map[$error['type']]) {
                 return true;
             }
         }

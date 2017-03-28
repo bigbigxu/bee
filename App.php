@@ -70,7 +70,7 @@ class App
         $this->env = $this->config['env'] ?: self::ENV_DEV;
         $this->loadCore();
         //注册自动加载函数
-        spl_autoload_register(array($this, 'autoLoad'));
+        spl_autoload_register(array($this, 'autoLoad'), true, true);
     }
 
     /**
@@ -195,15 +195,13 @@ class App
     public function loadPackage($package)
     {
         foreach ((array)$package as $name => $path) {
-            $path = realpath($path);
-            if (in_array($path, $this->packageMap)) {
-                continue;
-            }
             /* 如果包名不是一个字符串。则取最后一个目录名作为包名 */
             if (is_int($name)) {
                 $name = basename($path);
             }
-            $this->packageMap[$name] = $path;
+            if ($this->packageMap[$name] === null) {
+                $this->packageMap[$name] = $path;
+            }
         }
     }
 
@@ -214,15 +212,13 @@ class App
     public function loadClass($class)
     {
         foreach ((array)$class as $name => $path) {
-            $path = realpath($path);
-            if (in_array($path, $this->classMap)) {
-                continue;
-            }
             /* 如果类名不是一个字符串。则取文件名为为类名 */
             if(is_int($name)) {
                 $name = basename($path, '.php');
             }
-            $this->classMap[$name] = $path;
+            if ($this->classMap[$name] === null) {
+                $this->classMap[$name] = $path;
+            }
         }
     }
 
@@ -245,7 +241,9 @@ class App
                 throw new Exception('只可以注册一级命名空间');
             }
             $baseDir = rtrim(str_replace('\\',  '/', $path), '/');
-            $this->namespace[$name] = $baseDir;
+            if ($this->namespace[$name] === null) {
+                $this->namespace[$name] = $baseDir;
+            }
         }
     }
 
