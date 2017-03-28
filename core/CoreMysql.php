@@ -350,7 +350,7 @@ class CoreMysql
 		$placeholder = array();
 		foreach ($data as $key => $row) {
 			//删除非法字段信息
-			if (!in_array($key, $columns)) {
+			if ($columns[$key] === null) {
 				continue;
 			}
 			$params[':' . $key] = $row;
@@ -511,7 +511,7 @@ class CoreMysql
 		$updateField = array();
 		foreach ($data as $key => $value) {
 			//不合法的字段不要
-			if (!in_array($key, $columns)) {
+			if ($columns[$key] === null) {
 				continue;
 			}
 			//自动组织的params参数要避免与用户传的绑定参数一样。
