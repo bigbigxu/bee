@@ -60,6 +60,12 @@ return [
     'bee\lib\LibEvent' => $sysDir . '/lib/LibEvent.php',
     'TokenBucket' => $sysDir . '/lib/TokenBucket.php',
 
+    /* mutex目录*/
+    'bee\mutex\IMutex' => $sysDir . '/mutex/IMutex.php',
+    'bee\mutex\FileMutex' => $sysDir . '/mutex/FileMutex.php',
+    'bee\mutex\RedisMutex' => $sysDir . '/mutex/RedisMutex.php',
+    'bee\mutex\MysqlMutex' => $sysDir . '/mutex/MysqlMutex.php',
+
     /* object目录 */
     'bee\object\Arr' => $sysDir . '/object/Arr.php',
     'HttpObject' => $sysDir . '/object/HttpObject.php',

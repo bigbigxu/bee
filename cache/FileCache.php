@@ -111,7 +111,7 @@ class FileICache implements ICache
         $cacheFile = $this->getCacheFile($key);
         $dir = dirname($cacheFile);
         if (@!is_dir($dir)) {
-            @mkdir($dir, 0775, true);
+            @mkdir($dir, $this->dirMode, true);
         }
         if (!is_string($value)) {
             $value = call_user_func($this->serializer[0], $value);

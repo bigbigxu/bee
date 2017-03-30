@@ -59,7 +59,7 @@ class ServiceLocator
             $o = $re->newInstanceArgs($params);
             $vars = get_object_vars($o);
             foreach ($config as $key => $row) {
-                if (array_key_exists($key, $vars)) {
+                if (isset($vars[$key])) {
                     $o->$key = $row;
                 }
             }
@@ -197,6 +197,17 @@ class ServiceLocator
                     'cachePath' => \App::getInstance()->getRuntimeDir() . '/cache'
                 ),
             ],
+            'curl' => ['class' => 'Curl'], /* curl 组件 */
+            'db' => [ /* db组件 */
+                'class' => 'CoreMysql',
+                'config' => ['CoreMysql', 'getInstance'],
+                'params' => ['db.main']
+            ],
+            'redis' => [ /* redis 组件 */
+                'class' => 'CoreRedis',
+                'config' => ['CoreRedis', 'getInstance'],
+                'params' => ['redis.main']
+            ]
         ];
     }
 
@@ -204,49 +215,26 @@ class ServiceLocator
      * 获取curl组件
      * @return \Curl
      */
-    public function curl()
+    public function getCurl()
     {
-        return $this->get('curl', [
-            'class' => 'Curl'
-        ]);
+        return $this->get('curl');
     }
 
     /**
      * 获取一个redis 组件
-     * @param string $key redis的配置节名
      * @return \CoreRedis
      */
-    public function redis($key)
+    public function getRedis()
     {
-        return $this->get($key, [
-            'class' => 'CoreRedis',
-            'config' => ['CoreRedis', 'getInstance']
-        ]);
+        return $this->get('redis');
     }
 
     /**
      * 获取一个mysql组件
-     * @param string $key db 的配置节名
      * @return \CoreMysql
      */
-    public function db($key)
+    public function getDb()
     {
-        return $this->get($key, [
-            'class' => 'CoreMysql',
-            'config' => ['CoreMysql', 'getInstance']
-        ]);
-    }
-
-    /**
-     * 获取一个模型
-     * @param $name
-     * @return \CoreModel
-     */
-    public function m($name)
-    {
-        return $this->get($name, [
-            'class' => $name,
-            'config' => [$name, 'getInstance']
-        ]);
+        return $this->get('db');
     }
 }
