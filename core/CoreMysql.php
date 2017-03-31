@@ -557,12 +557,17 @@ class CoreMysql
 			return false;
 		}
 		if ($res == false) {
-			return $this->insert($data);
+			$rowCount = $this->insert($data);
 		} else {
 			foreach ($incr as $key => $value) {
 				$data[$key] += $res[$key];
 			}
-			return $this->updateByAttr($data, array_keys($find), $multi);
+			$rowCount = $this->updateByAttr($data, array_keys($find), $multi);
+		}
+		if ($rowCount === false) {
+			return false;
+		} else {
+			return $data;
 		}
 	}
 
