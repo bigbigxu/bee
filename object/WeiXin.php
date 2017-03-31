@@ -74,14 +74,10 @@ class WeiXin extends Object
         $url = 'https://api.weixin.qq.com/cgi-bin/message/custom/send?access_token=' . $token;
         $str = '{"touser":"%s","msgtype":"text","text":{"content":"%s"}}';
         $str = sprintf($str, $openId, $msg);
-        $res = CoreCurl::getInstance()->exec(array(
-            'method' => 'post',
-            'url' => $url,
-            'post' => $str
-        ));
+        $res = Curl::simplePost($url, $str);
         $arr = json_decode($res, true);
         if($arr['errmsg'] != 'ok') {
-            LibDebug::error($res);
+            CoreLog::error($res);
         }
     }
 
@@ -103,7 +99,7 @@ class WeiXin extends Object
             'secret' => $this->appKey
         );
         $url = $baseUrl . '?' . http_build_query($params);
-        $str = CoreCurl::getInstance()->getInstance()->exec($url);
+        $str = Curl::simpleGet($url);
         $arr = json_decode($str, true);
         if($arr['access_token'] == false) {
             throw new Exception('获取微信access_token失败');
@@ -132,7 +128,7 @@ class WeiXin extends Object
             'type' => 'jsapi'
         );
         $url = $baseUrl . '?' . http_build_query($params);
-        $str = CoreCurl::getInstance()->exec($url);
+        $str = Curl::simpleGet($url);
         $arr = json_decode($str, true);
         if ($arr['ticket'] == false) {
             throw new Exception('获取微信ticket失败');
@@ -183,7 +179,7 @@ class WeiXin extends Object
             'lang' => 'zh_CN'
         );
         $url = $baseUrl . '?' . http_build_query($data);
-        $str = CoreCurl::getInstance()->exec($url);
+        $str = Curl::simpleGet($url);
         $arr = json_decode($str, true);
         return $arr;
     }
@@ -205,7 +201,7 @@ class WeiXin extends Object
             'grant_type' => 'authorization_code'
         );
         $url = $baseUrl . '?' . http_build_query($data);
-        $str = CoreCurl::getInstance()->exec($url);
+        $str = Curl::simpleGet($url);
         $arr = json_decode($str, true);
         if ($arr['access_token'] == false) {
             throw new Exception('获取access_token失败: ' . $arr['errmsg']);
@@ -233,11 +229,7 @@ class WeiXin extends Object
             'action' => 'long2short',
             'long_url' => urldecode($url)
         );
-        $str = CoreCurl::getInstance()->exec(array(
-            'url' => $url,
-            'method' => 'post',
-            'post' => json_encode($data)
-        ));
+        $str = Curl::simplePost($url, json_encode($data));
         $arr = json_decode($str, true);
         if ($arr['short_url'] == false) {
             throw new Exception('获取短链接失败：' . $arr['errmsg']);
@@ -261,11 +253,7 @@ class WeiXin extends Object
         );
         $url = $baseUrl . '?' . http_build_query($params);
         $post = CoreJson::encode($menu, true);
-        $res = CoreCurl::getInstance()->exec(array(
-            'url' => $url,
-            'method' => 'post',
-            'post' => $post
-        ));
+        $res = Curl::simplePost($url, $post);
         echo $res;
     }
 
@@ -280,7 +268,7 @@ class WeiXin extends Object
             'access_token' => $this->getAccessToken()
         );
         $url = $baseUrl . '?' . http_build_query($params);
-        $res = CoreCurl::getInstance()->exec($url);
+        $res = Curl::simpleGet($url);
         $res = json_decode($res, true);
         Functions::showArr($res);
     }
@@ -297,7 +285,7 @@ class WeiXin extends Object
             'access_token' => $this->getAccessToken()
         );
         $url = $baseUrl . '?' . http_build_query($params);
-        $res = CoreCurl::getInstance()->exec($url);
+        $res = Curl::simpleGet($url);
         $res = json_decode($res, true);
         return $res['data']['openid'];
     }
