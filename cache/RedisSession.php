@@ -18,10 +18,10 @@ class RedisSession
      */
     public $prefix = 'sess_';
     /**
-     * redis配置文件
+     * 使用的redis组件
      * @var array
      */
-    public $redisConfig = []; //使用的redis
+    public $redis = 'redis';
 
     public function __construct()
     {
@@ -35,9 +35,16 @@ class RedisSession
         );
     }
 
-    public function redis()
+    /**
+     * 获取redis组件
+     * @return \CoreRedis
+     */
+    public function getRedis()
     {
-        return \App::redis($this->redisConfig);
+        if (!is_object($this->redis)) {
+            $this->redis = \App::s()->get($this->redis);
+        }
+        return $this->redis;
     }
 
     /**
@@ -86,7 +93,7 @@ class RedisSession
      */
     public function read($sessId)
     {
-        return $this->redis()->get($sessId);
+        return $this->getRedis()->get($sessId);
     }
 
     /**
@@ -97,7 +104,7 @@ class RedisSession
      */
     public function write($sessId, $data)
     {
-        $this->redis()->setex($sessId, $this->expire, $data);
+        $this->getRedis()->setex($sessId, $this->expire, $data);
         return true;
     }
 
@@ -108,7 +115,7 @@ class RedisSession
      */
     public function destroy($sessId)
     {
-        return $this->redis()->del($sessId);
+        return $this->getRedis()->del($sessId);
     }
 
     /**

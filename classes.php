@@ -8,6 +8,8 @@ return [
     'bee\cache\FileCache' => $sysDir . '/cache/FileCache.php',
     'bee\cache\RedisAnalysis' => $sysDir . '/cache/RedisAnalysis.php',
     'bee\cache\RedisSession' => $sysDir . '/cache/RedisSession.php',
+    'bee\cache\MysqlCache' => $sysDir . '/cache/MysqlCache.php',
+    'bee\cache\RedisCache' => $sysDir . '/cache/RedisCache.php',
 
     /* client 目录 */
     'bee\client\BaseClient' => $sysDir . '/client/BaseClient.php',

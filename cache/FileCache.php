@@ -4,15 +4,16 @@
  * User: VigoXu
  * Date: 2016/11/23
  * Time: 14:21
+ * 基于文件系统的缓存
  */
 namespace bee\cache;
-class FileICache implements ICache
+class FileCache implements ICache
 {
     /**
      * key 前缀
      * @var string
      */
-    public $keyPrefix = '';
+    public $prefix = 'bee_cache_';
     /**
      * 缓存路径
      * @var string
@@ -32,7 +33,7 @@ class FileICache implements ICache
      * 数据结构化函数
      * @var string
      */
-    public $serializer = ['json_encode', 'json_decode'];
+    public $serializer;
     /**
      * 创建的目录权限
      * @var int
@@ -52,11 +53,13 @@ class FileICache implements ICache
      * 默认的过期时间
      * @var null
      */
-    public $timeout = 0;
+    public $expire = 3600;
+    /**
+     * 版本号，用于刷新cache
+     * @var int
+     */
+    public $version = 0;
 
-    public function __construct()
-    {
-    }
 
     /**
      * 创建一个key
@@ -65,12 +68,29 @@ class FileICache implements ICache
      */
     public function buildKey($key)
     {
-        if (is_string($key)) {
-            $key = md5($key);
+        if (!is_array($key)) {
+            $arr = [
+                __CLASS__,
+                $key,
+            ];
         } else {
-            $key = md5(json_encode($key));
+            $arr = $key;
         }
-        return $key;
+        return $this->prefix . md5(json_encode($arr) . $this->version);
+    }
+
+    /**
+     * 获取一个过期时间
+     * @param $expire
+     * @return int|null
+     */
+    public function getExpire($expire)
+    {
+        $expire = $expire ?: $this->expire;
+        if ($expire <= 0) {
+            $expire = 31536000; /* 1年 */
+        }
+        return $expire;
     }
 
     /**
@@ -100,32 +120,28 @@ class FileICache implements ICache
      * 设置一个key
      * @param $key
      * @param $value
-     * @param int $timeout
+     * @param int $expire
      * @return bool
      */
-    public function set($key, $value, $timeout = null)
+    public function set($key, $value, $expire = null)
     {
-
-        $timeout = $timeout == 0 ? $this->timeout : $timeout;
         $this->gc();
         $cacheFile = $this->getCacheFile($key);
         $dir = dirname($cacheFile);
         if (@!is_dir($dir)) {
             @mkdir($dir, $this->dirMode, true);
         }
-        if (!is_string($value)) {
+        if ($this->serializer === null) {
+            $value = json_encode($value);
+        } else {
             $value = call_user_func($this->serializer[0], $value);
         }
-
         if (@file_put_contents($cacheFile, $value, LOCK_EX) !== false) {
             if ($this->fileMode !== null) {
                 @chmod($cacheFile, $this->fileMode);
             }
-            if ($timeout <= 0) {
-                $timeout = 31536000; /* 1年 */
-            }
             /* 设置文件修改时间，做为过期时间判断依据 */
-            return @touch($cacheFile, time() + $timeout);
+            return @touch($cacheFile, time() + $this->getExpire($expire));
         } else {
             $error = error_get_last();
             \CoreLog::error("Unable to write cache file '{$cacheFile}': {$error['message']}");
@@ -148,7 +164,11 @@ class FileICache implements ICache
                 $value = @stream_get_contents($fp);
                 @flock($fp, LOCK_UN);
                 @fclose($fp);
-                $value = call_user_func($this->serializer[1], $value, true);
+                if ($this->serializer === null) {
+                    $value = json_decode($value, true);
+                } else {
+                    $value = call_user_func($this->serializer[1], $value);
+                }
                 return $value;
             }
         }

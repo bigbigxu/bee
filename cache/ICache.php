@@ -20,10 +20,10 @@ interface ICache
      * 设置一个key
      * @param string|array $key 缓存的key
      * @param mixed $value 值
-     * @param int $timeout 过期时间
+     * @param int $expire 过期时间
      * @return mixed
      */
-    public function set($key, $value, $timeout = null);
+    public function set($key, $value, $expire = null);
 
     /**
      * 判断一个key是否存在
