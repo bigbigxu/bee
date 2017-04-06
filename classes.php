@@ -4,10 +4,12 @@ return [
     'App' => $sysDir . '/App.php',
 
     /* cache目录 */
-    'bee\cache\Cache' => $sysDir . '/cache/Cache.php',
+    'bee\cache\ICache' => $sysDir . '/cache/ICache.php',
     'bee\cache\FileCache' => $sysDir . '/cache/FileCache.php',
     'bee\cache\RedisAnalysis' => $sysDir . '/cache/RedisAnalysis.php',
     'bee\cache\RedisSession' => $sysDir . '/cache/RedisSession.php',
+    'bee\cache\MysqlCache' => $sysDir . '/cache/MysqlCache.php',
+    'bee\cache\RedisCache' => $sysDir . '/cache/RedisCache.php',
 
     /* client 目录 */
     'bee\client\BaseClient' => $sysDir . '/client/BaseClient.php',
@@ -59,6 +61,12 @@ return [
     'bee\lib\Hash' => $sysDir . '/lib/Hash.php',
     'bee\lib\LibEvent' => $sysDir . '/lib/LibEvent.php',
     'TokenBucket' => $sysDir . '/lib/TokenBucket.php',
+
+    /* mutex目录*/
+    'bee\mutex\IMutex' => $sysDir . '/mutex/IMutex.php',
+    'bee\mutex\FileMutex' => $sysDir . '/mutex/FileMutex.php',
+    'bee\mutex\RedisMutex' => $sysDir . '/mutex/RedisMutex.php',
+    'bee\mutex\MysqlMutex' => $sysDir . '/mutex/MysqlMutex.php',
 
     /* object目录 */
     'bee\object\Arr' => $sysDir . '/object/Arr.php',

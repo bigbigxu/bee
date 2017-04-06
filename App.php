@@ -85,10 +85,7 @@ class App
         /* 对象加载 */
         $this->services = new ServiceLocator(self::c('component') ?: []);
         $this->services->getError()->register();
-        /* 如果设置环境变量。那么将使用框架的php环境配置 */
-        if ($this->env != false) {
-            $this->services->getEnv()->exec($this->env, $this->config['env_set'] ?: []);
-        }
+        $this->services->getEnv()->exec($this->env, $this->config['env_set'] ?: []);
     }
 
     /**
