@@ -9,7 +9,9 @@
  * 文件锁值能用于单服务器
  */
 namespace bee\mutex;
-class FileMutex implements IMutex
+use bee\core\Component;
+
+class FileMutex extends Component implements IMutex
 {
     /**
      * 锁文件保存位置
@@ -44,11 +46,12 @@ class FileMutex implements IMutex
      * @var array
      */
     private $_locks = [];
+    public $autoRelease = true;
 
-    public function __construct($autoRelease = true)
+    public function init()
     {
-        if ($autoRelease) {
-            register_shutdown_function(function() {
+        if ($this->autoRelease) {
+            register_shutdown_function(function () {
                 foreach ($this->_locks as $row) {
                     $this->release($row['name']);
                 }

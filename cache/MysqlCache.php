@@ -11,7 +11,9 @@
  * expire int 过期时间
  */
 namespace bee\cache;
-class MysqlCache implements ICache
+use bee\core\Component;
+
+class MysqlCache extends Component implements ICache
 {
     /**
      * 使用的redis组件
@@ -87,10 +89,7 @@ class MysqlCache implements ICache
      */
     public function getDb()
     {
-        if (!is_object($this->db)) {
-            $this->db = \App::s()->get($this->db);
-        }
-        return $this->db;
+        return \App::s()->sure($this->db);
     }
 
     /**

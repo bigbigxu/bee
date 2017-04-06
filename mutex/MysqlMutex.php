@@ -14,7 +14,9 @@
  * 当连接断开的时候，锁会自动回收
  */
 namespace bee\mutex;
-class MysqlMutex implements IMutex
+use bee\core\Component;
+
+class MysqlMutex extends Component implements IMutex
 {
     /**
      * 使用的db组件
@@ -38,10 +40,7 @@ class MysqlMutex implements IMutex
      */
     public function getDb()
     {
-        if (!is_object($this->db)) {
-            $this->db = \App::s()->get($this->db);
-        }
-        return $this->db;
+        return \App::s()->sure($this->db);
     }
 
     /**
@@ -71,9 +70,7 @@ class MysqlMutex implements IMutex
     public function acquire($name, $timeout = 0)
     {
         $key = $this->getLockName($name);
-        $res = $this->getDb()
-            ->one('select get_lock(:key, :timeout) c',  [':name' => $key, ':timeout' => $timeout]);
-        $flag = $res['c'];
+        $flag = $this->getDb()->getLock($name, $timeout);
         if ($flag) {
             $this->_locks[$key] = $name;
         }
@@ -88,9 +85,7 @@ class MysqlMutex implements IMutex
     public function release($name)
     {
         $key = $this->getLockName($name);
-        $res = $this->getDb()
-            ->one('select release_lock(:key) c ', [':name' => $key]);
-        $flag = $res['c'];
+        $flag = $this->getDb()->releaseLock($key);
         if ($flag) {
             unset($this->_locks[$key]);
         }

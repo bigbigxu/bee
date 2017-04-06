@@ -7,7 +7,9 @@
  * 基于redis 的缓存系统
  */
 namespace bee\cache;
-class RedisCache implements ICache
+use bee\core\Component;
+
+class RedisCache extends Component implements ICache
 {
     /**
      * 使用的redis组件
@@ -73,10 +75,7 @@ class RedisCache implements ICache
      */
     public function getRedis()
     {
-        if (!is_object($this->redis)) {
-            $this->redis = \App::s()->get($this->redis);
-        }
-        return $this->redis;
+        return \App::s()->sure($this->redis);
     }
 
     /**

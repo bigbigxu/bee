@@ -6,7 +6,9 @@
  * Time: 11:46
  */
 namespace bee\mutex;
-class RedisMutex implements IMutex
+use bee\core\Component;
+
+class RedisMutex extends Component implements IMutex
 {
     /**
      * redis 组件
@@ -35,7 +37,7 @@ class RedisMutex implements IMutex
      */
     private $_locks = [];
 
-    public function __construct($autoRelease = true)
+    public function init()
     {
         if ($this->autoRelease) {
             register_shutdown_function(function() {
@@ -52,10 +54,7 @@ class RedisMutex implements IMutex
      */
     public function getRedis()
     {
-        if (!is_object($this->redis)) {
-            $this->redis = \App::s()->get($this->redis);
-        }
-        return $this->redis;
+        return \App::s()->sure($this->redis);
     }
 
     /**

@@ -5,7 +5,9 @@
  * @author xuen
  */
 namespace bee\cache;
-class RedisSession
+use bee\core\Component;
+
+class RedisSession extends Component
 {
     /**
      * session过期时间
@@ -23,7 +25,7 @@ class RedisSession
      */
     public $redis = 'redis';
 
-    public function __construct()
+    public function init()
     {
         session_set_save_handler(
             array($this, 'open'),
@@ -41,10 +43,7 @@ class RedisSession
      */
     public function getRedis()
     {
-        if (!is_object($this->redis)) {
-            $this->redis = \App::s()->get($this->redis);
-        }
-        return $this->redis;
+        return \App::s()->sure($this->redis);
     }
 
     /**

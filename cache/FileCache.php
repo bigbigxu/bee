@@ -7,7 +7,9 @@
  * 基于文件系统的缓存
  */
 namespace bee\cache;
-class FileCache implements ICache
+use bee\core\Component;
+
+class FileCache extends Component implements ICache
 {
     /**
      * key 前缀

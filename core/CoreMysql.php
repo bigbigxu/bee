@@ -137,9 +137,9 @@ class CoreMysql
 
 	/**
 	 * 字段缓存使用的组件名称，如果不想使用，设置为false。
-	 * @var string
+	 * @var string|object|array
 	 */
-	public $cache;
+	public $cache = false;
 
 	/**
 	 * 从库配置文件。是一个标准的bee配置节。
@@ -612,7 +612,6 @@ class CoreMysql
 			$this->dsn,
 			$this->dbName,
 			$this->tableName,
-			'1.5'
 		);
 		$cache = $this->getCache();
 		/* 尝试从缓存中找到数据 */
@@ -1501,11 +1500,7 @@ class CoreMysql
 	 */
 	public function getCache()
 	{
-		if ($this->cache == false) {
-			return false;
-		} else {
-			return App::s()->get($this->cache);
-		}
+		return App::s()->sure($this->cache);
 	}
 
 	/**
@@ -1615,7 +1610,7 @@ class CoreMysql
 	 * 则在出现重复值的行执行UPDATE；
 	 * 如果不会导致唯一值列重复的问题，则插入新行。
 	 *
-	 * 条件：表有唯一索引，并且出现下data数组中，值不能为null
+	 * 条件：表有唯一索引，并且出现在data数组中，值不能为null
 	 *
 	 * 1. on duplicate key update 每执行一次，无论受影响行数多少，自增主键就会+1。
 	 *    如果有自增主键，不太建议使用此方法，会导致自增ID超过最大值。
@@ -1639,6 +1634,9 @@ class CoreMysql
 		$update = [];
 
 		foreach ($data as $key => $row) {
+			if ($columns[$key] === null) {
+				continue;
+			}
 			$bindName = ':' . $key;
 			$this->sqlQuery['params'][$bindName] = $row;
 			$insert[] = "`{$key}`";
@@ -1653,5 +1651,51 @@ class CoreMysql
 			implode(', ', $placeholder) . ')';
 		$sql .= ' on duplicate key update ' . implode(',' , $update);
 		return $this->exec($sql, $this->sqlQuery['params']);
+	}
+
+	/**
+	 * 查找获取一条记录指定列的值
+	 * @param string $name 列名称
+	 * @param string $sql
+	 * @param array $params
+	 * @return bool|mixed
+	 */
+	public function column($name, $sql = '', $params = array())
+	{
+		$res = $this->one($sql, $params);
+		if ($res == false) {
+			return false;
+		} else {
+			return $res[$name];
+		}
+	}
+
+	/**
+	 * 获取一个锁
+	 * @param $key
+	 * @param int $timeout
+	 * @return mixed
+	 */
+	public function getLock($key, $timeout = 0)
+	{
+		return $this->column(
+			'c',
+			'select get_lock(:key, :timeout) c',
+			[':name' => $key, ':timeout' => $timeout]
+		);
+	}
+
+	/**
+	 * 释放锁
+	 * @param $key
+	 * @return bool|mixed
+	 */
+	public function releaseLock($key)
+	{
+		return $this->column(
+			'c',
+			'select release_lock(:key) c ',
+			[':name' => $key]
+		);
 	}
 }
