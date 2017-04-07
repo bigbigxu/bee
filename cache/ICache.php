@@ -45,4 +45,11 @@ interface ICache
      * @param bool $expiredOnly 是服只回收过期的key
      */
     public function gc($force = false, $expiredOnly = true);
+
+    /**
+     * 删除一个key
+     * @param $key
+     * @return mixed
+     */
+    public function del($key);
 }

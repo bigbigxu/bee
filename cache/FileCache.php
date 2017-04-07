@@ -244,4 +244,10 @@ class FileCache extends Component implements ICache
             $this->gcRecursive($this->cachePath, $expiredOnly);
         }
     }
+
+    public function del($key)
+    {
+        $cacheFile = $this->getCacheFile($key);
+        return unlink($cacheFile);
+    }
 }

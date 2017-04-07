@@ -89,7 +89,7 @@ class MysqlCache extends Component implements ICache
      */
     public function getDb()
     {
-        return \App::s()->sure($this->db);
+        return \App::s()->sure($this->db)->from($this->table);
     }
 
     /**
@@ -101,7 +101,6 @@ class MysqlCache extends Component implements ICache
     {
         $key = $this->buildKey($key);
         $res = $this->getDb()
-            ->from($this->table)
             ->andFilter('id', '>=', $key)
             ->andFilter('expire', '>', time())
             ->one();
@@ -138,7 +137,6 @@ class MysqlCache extends Component implements ICache
             'expire' => time() + $this->getExpire($expire)
         ];
         $flag = $this->getDb()
-            ->from($this->table)
             ->upsert($data, ['data', 'expire']);
         if ($flag) {
             $this->gc();
@@ -155,7 +153,6 @@ class MysqlCache extends Component implements ICache
     {
         $key = $this->buildKey($key);
         $res = $this->getDb()
-            ->from($this->table)
             ->findById($key);
         if ($res == false) {
             return 0;
@@ -172,13 +169,19 @@ class MysqlCache extends Component implements ICache
     public function exists($key)
     {
         $key = $this->buildKey($key);
-        $key = $this->buildKey($key);
         $res = $this->getDb()
-            ->from($this->table)
             ->andFilter('id', '>=', $key)
             ->andFilter('expire', '>', time())
             ->one();
         return (bool)$res;
+    }
+
+    public function del($key)
+    {
+        $key = $this->buildKey($key);
+        return $this->getDb()
+            ->andFilter('id', '=', $key)
+            ->delete();
     }
 
     /**
@@ -190,9 +193,21 @@ class MysqlCache extends Component implements ICache
     {
         if ($force || mt_rand(0, 1000000) < $this->gcProbability) {
             $this->getDb()
-                ->from($this->table)
                 ->andFilter('expire', '<' , time())
                 ->delete();
         }
+    }
+
+    public static function getCreateTableSql()
+    {
+        return <<<SQL
+create table bee_cache
+(
+   id varchar(64) not null primary key not null comment 'key',
+   data text not null comment '数据',
+   expire int not null comment '过期时间'
+)ENGINE=innodb DEFAULT CHARSET=utf8 comment 'mysql 缓存表';
+SQL;
+
     }
 }
