@@ -1676,7 +1676,7 @@ class CoreMysql
 	 * @param int $timeout
 	 * @return mixed
 	 */
-	public function getLock($key, $timeout = 0)
+	public function acquireLock($key, $timeout = 0)
 	{
 		return $this->column(
 			'c',
