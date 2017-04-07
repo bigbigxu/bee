@@ -142,4 +142,10 @@ class RedisCache extends Component implements ICache
         $key = $this->buildKey($key);
         return $this->getRedis()->ttl($key);
     }
+
+    public function del($key)
+    {
+        $key = $this->buildKey($key);
+        return $this->getRedis()->del($key);
+    }
 }
