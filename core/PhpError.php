@@ -36,7 +36,6 @@ class PhpError
             (string)$e
         );
         CoreLog::error($msg);
-        $this->afterHandler($msg);
     }
 
     /**
@@ -54,7 +53,6 @@ class PhpError
                 $error['line']
             );
             CoreLog::error($msg);
-            $this->afterHandler($msg);
         }
     }
 
@@ -76,7 +74,6 @@ class PhpError
                 $line
             );
             CoreLog::error($msg);
-            $this->afterHandler($msg);
         }
     }
 
@@ -128,17 +125,5 @@ class PhpError
         ];
 
         return $names[$code] ?: 'Error';
-    }
-
-    /**
-     * 自定义错误处理函数或，display_errors就是设置为1，
-     * 也不会页面输出错误。此函数用于输出错误日志。
-     * @param $msg
-     */
-    public function afterHandler($msg)
-    {
-        if (ini_get('display_errors')) {
-            echo $msg;
-        }
     }
 }

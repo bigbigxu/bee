@@ -70,7 +70,7 @@ class MysqlMutex extends Component implements IMutex
     public function acquire($name, $timeout = 0)
     {
         $key = $this->getLockName($name);
-        $flag = $this->getDb()->getLock($name, $timeout);
+        $flag = $this->getDb()->acquireLock($name, $timeout);
         if ($flag) {
             $this->_locks[$key] = $name;
         }
