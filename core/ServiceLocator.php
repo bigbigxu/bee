@@ -4,7 +4,7 @@
  * User: VigoXu
  * Date: 2017/2/24
  * Time: 14:17
- * 新的对象管理器。统一原先的App::createObject, Object。
+ * 服务定位器
  */
 namespace bee\core;
 use bee\cache\ICache;
@@ -27,7 +27,7 @@ class ServiceLocator
 
     public function __construct($defines = [])
     {
-        $this->_defines = array_merge($this->coreComponents(), $defines);
+        $this->_defines = $defines;
     }
 
     /**
@@ -88,7 +88,6 @@ class ServiceLocator
             return null;
         }
     }
-
 
     /**
      * 设置一个对象。
@@ -177,33 +176,6 @@ class ServiceLocator
     public function getCache()
     {
         return $this->get('cache');
-    }
-
-    /**
-     * 定义的系统核心组件
-     * @return array
-     */
-    public function coreComponents()
-    {
-        return [
-            'log' => ['class' => 'CoreLog'], /* 日志组件 */
-            'error' => ['class' => 'PhpError'], /* 错误处理 */
-            'env' => ['class' => 'PhpEnv'], /* php环境设置*/
-            'cache' => [ /* 缓存 */
-                'class' => 'bee\cache\FileCache',
-                'config' => [
-                    'expire' => 3600,
-                    'cachePath' => \App::getInstance()->getRuntimeDir() . '/cache'
-                ]
-            ],
-            'curl' => ['class' => 'Curl'], /* curl 组件 */
-            'db' => function() {
-                return \CoreMysql::getInstance('db.main');
-            },
-            'redis' => function() {
-                return \CoreRedis::getInstance('redis.main');
-            }
-        ];
     }
 
     /**

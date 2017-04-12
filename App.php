@@ -82,10 +82,9 @@ class App
         $this->loadPackage(self::c('package_map')); /* 加载目录包 */
         $this->loadNamespace(self::c('namespace')); /* 加载命名空间 */
 
-        /* 对象加载 */
-        $this->services = new ServiceLocator(self::c('component') ?: []);
-        $this->services->getError()->register();
-        $this->services->getEnv()->exec($this->env, $this->config['env_set'] ?: []);
+        $this->services = new ServiceLocator(self::getComponents()); /* 加载组件 */
+        $this->services->getError()->register(); /* 注册错误处理 */
+        $this->services->getEnv()->exec($this->env, $this->config['env_set'] ?: []); /* 设置环境 */
     }
 
     /**
@@ -548,5 +547,42 @@ class App
     public static function s()
     {
         return self::getInstance()->services;
+    }
+
+    /**
+     * 获取系统组件
+     * @return array
+     */
+    public function getComponents()
+    {
+        $core =  [
+            'log' => ['class' => 'CoreLog'], /* 日志组件 */
+            'error' => ['class' => 'PhpError'], /* 错误处理 */
+            'env' => ['class' => 'PhpEnv'], /* php环境设置*/
+            'cache' => [ /* 缓存 */
+                'class' => 'bee\cache\FileCache',
+                'config' => [
+                    'expire' => 3600,
+                    'cachePath' => \App::getInstance()->getRuntimeDir() . '/cache'
+                ],
+            ],
+            'curl' => ['class' => 'Curl'], /* curl 组件 */
+            'db' => function() {
+                return \CoreMysql::getInstance('db.main');
+            },
+            'redis' => function() {
+                return \CoreRedis::getInstance('redis.main');
+            }
+        ];
+        return array_merge($core, self::c('component') ?: []);
+    }
+
+    /**
+     * 框架版本号
+     * @return string
+     */
+    public static function version()
+    {
+        return '1.6';
     }
 }
