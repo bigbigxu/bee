@@ -23,39 +23,86 @@ use bee\core\ServiceLocator as ServiceLocator;
 class App
 {
     private static $_instance;
-    protected $packageMap = array(); //类的加载路径，为包名=>目录名
-    protected $classMap = array();  //类的加载地址，为类名/别名=>文件名
-    protected $sysDir; //框架目录
-    protected $config; //配置文件
-    protected $isRun = 0; //run方法是否已经运行。run只能运行一次。
-    protected $configDir; //配置文件目录
-    protected $isDebug = 0; //是否为debug模式
-    protected $baseDir; //项目根目录
-    protected $runtimeDir; //运行文件目录
-    protected $crontabDir; //命令行程序目录
-    protected static $_container; //对象容器
-    protected $namespace = array(); //所有注册的命令空间
-    protected $env; //环境类型。有3种
+    /**
+     * 类的加载路径，为包名=>目录名
+     * @var array
+     */
+    protected $packageMap = [];
+    /**
+     * 类的加载地址，为类名,别名=>文件名
+     * @var array
+     */
+    protected $classMap = [];
+    /**
+     * 框架目录
+     * @var string
+     */
+    protected $sysDir;
+    /**
+     * 全部配置
+     * @var []
+     */
+    protected $config;
+    /**
+     * run方法是否已经运行。run只能运行一次
+     * @var int
+     */
+    protected $isRun = 0;
+    /**
+     * 配置文件目录
+     * @var string
+     */
+    protected $configDir;
+    /**
+     * 是否为debug模式
+     * @var int
+     */
+    protected $isDebug = 0;
+    /**
+     * 项目根目录
+     * @var string
+     */
+    protected $baseDir;
+    /**
+     * 运行文件目录
+     * @var string
+     */
+    protected $runtimeDir;
+    /**
+     * 命令行程序目录
+     * @var string
+     */
+    protected $crontabDir;
+    /**
+     * 所有注册的命令空间
+     * @var array
+     */
+    protected $namespace = [];
+    /**
+     * 环境类型
+     * @var string
+     */
+    protected $env;
     /**
      * @var ServiceLocator
      */
     protected $services;
-    const ENV_TEST = 'test'; //开发环境
-    const ENV_DEV = 'dev'; //测试环境
-    const ENV_PRO = 'pro'; //生产环境
+    const ENV_TEST = 'test'; /* 开发环境 */
+    const ENV_DEV = 'dev'; /* 测试环境 */
+    const ENV_PRO = 'pro'; /* 生产环境 */
 
     private  function __construct($config = null)
     {
         $this->sysDir = dirname(__FILE__);
 
-        //得到配置文件。
+        /* 得到配置文件。*/
         if($config === null) {
-            //加载默认配置文件
+            /*加载默认配置文件 */
             $configFile = $this->sysDir . '/../config/main.php';
             $this->config = include $configFile;
-        } elseif(is_array($config)) {
+        } elseif (is_array($config)) {
             $this->config = $config;
-        } elseif(is_file($config)) {
+        } elseif (is_file($config)) {
             $this->config = include $config;
         } else {
             throw new Exception('配置错误');
@@ -69,7 +116,7 @@ class App
         $this->runtimeDir = $this->config['runtime_dir'] ?: $this->baseDir . '/runtime';
         $this->env = $this->config['env'] ?: self::ENV_DEV;
         $this->loadCore();
-        //注册自动加载函数
+        /* 注册自动加载函数 */
         spl_autoload_register(array($this, 'autoLoad'), true, true);
     }
 
@@ -542,7 +589,7 @@ class App
 
     /**
      * 获取对象管理器
-     * @return \bee\core\ServiceLocator
+     * @return ServiceLocator
      */
     public static function s()
     {

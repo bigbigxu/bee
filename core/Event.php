@@ -1,4 +1,7 @@
 <?php
+namespace bee\core;
+use CoreReflection;
+
 /**
  * Created by PhpStorm.
  * User: 123
@@ -9,13 +12,33 @@
  *  $event 就是前面提到的
  * }
  */
-class Event extends Object
+class Event
 {
-    public $name; //事件名称
-    public $sender; //事件发布者，通常是调用了 trigger() 的对象或类。
-    public $handled = false; //是否终止事件
-    public $data; //这个参数是事件发生的时候动态传递的参数
-    private static $_events = array(); //这里保存的所有事件。
+    /**
+     * 事件名称
+     * @var string
+     */
+    public $name;
+    /**
+     * 事件发布者，通常是调用了 trigger() 的对象或类
+     * @var mixed
+     */
+    public $sender;
+    /**
+     * 是否终止事件
+     * @var bool
+     */
+    public $handled = false;
+    /**
+     * 这个参数是事件发生的时候动态传递的参数
+     * @var mixed
+     */
+    public $data;
+    /**
+     * 这里保存的所有事件。
+     * @var array
+     */
+    private static $_events = [];
 
     /**
      * 注册一个事件，这里注册的是类级别的事件
@@ -32,9 +55,9 @@ class Event extends Object
         }
         $class = ltrim($class, '\\');
         if ($append || empty(self::$_events[$name][$class])) {
-            self::$_events[$name][$class][] = array($handler, $data);
+            self::$_events[$name][$class][] = [$handler, $data];
         } else {
-            array_unshift(self::$_events[$name][$class], array($handler, $data));
+            array_unshift(self::$_events[$name][$class], [$handler, $data]);
         }
     }
 
@@ -71,8 +94,6 @@ class Event extends Object
 
     /**
      * 判断一个事件是否定义了处理程序。
-     * 如果子类没有，需要判断父类有没有
-     * 事件是可以被继承的
      * @param $class
      * @param $name
      * @return bool
@@ -87,28 +108,26 @@ class Event extends Object
         } else {
             $class = ltrim($class, '\\');
         }
-        do {
-            if (!empty(self::$_events[$name][$class])) {
-                return true;
-            }
-        } while (($class = get_parent_class($class)) !== false);
+        if (!empty(self::$_events[$name][$class])) {
+            return true;
+        }
         return false;
     }
 
     /**
-     * 执行事件，子类父类的事件都会别执行
+     * 执行事件
      * @param $class
      * @param $name
      * @param $data
      * @param Event $event
      */
-    public static function trigger($class, $name, $data = array(), $event = null)
+    public static function trigger($class, $name, $data = [], $event = null)
     {
         if (empty(self::$_events[$name])) {
             return;
         }
         if ($event === null) {
-            $event = new self;
+            $event = new static;
         }
         $event->handled = false;
         $event->name = $name;
@@ -121,20 +140,21 @@ class Event extends Object
         } else {
             $class = ltrim($class, '\\');
         }
-        do {
-            if (!empty(self::$_events[$name][$class])) {
-                foreach (self::$_events[$name][$class] as $handler) {
-                    $event->data = $handler[1];
-                    $methodParam = CoreReflection::getMethodParam($handler[0]);
-                    if (current($methodParam) == 'event') {
-                        array_unshift($data, $event); //事件对象只在在参第一位
-                    }
-                    call_user_func_array($handler[0], $data);
-                    if ($event->handled) {
-                        return;
-                    }
+
+        foreach (self::$_events[$name][$class] as $handler) {
+            $event->data = $handler[1];
+            $methodParam = CoreReflection::getMethodParam($handler[0]);
+            foreach ($methodParam as $key => $value) {
+                if ($key === 'event') { /* 参数名称为event, 传递事件对象参数 */
+                    $methodParam[$key] = $event;
+                } elseif (isset($data[$key])) {
+                    $methodParam[$key] = $data[$key];
                 }
             }
-        } while (($class = get_parent_class($class)) !== false);
+            call_user_func_array($handler[0], $methodParam);
+            if ($event->handled) {
+                return;
+            }
+        }
     }
 }

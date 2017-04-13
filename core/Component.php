@@ -44,4 +44,29 @@ class Component
     {
         return get_called_class();
     }
+
+
+    /**
+     * 为当前类注册一个事件
+     * 注册在app对象上的事件是一个全局事件
+     * @param string $name 事件名称
+     * @param string $callback 事件处理函数
+     * @param array $data 事件处理的数据。
+     */
+    public function on($name, $callback, $data = [])
+    {
+        Event::on($this, $name, $callback, $data);
+    }
+
+    /**
+     * 执行当前模型的事件
+     * @param $name
+     * @param $data
+     * @param Event $event
+     */
+    public function trigger($name, $data = [], $event = null)
+    {
+        Event::trigger($this, $name, $data, $event);
+    }
+
 }
