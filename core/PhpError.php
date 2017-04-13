@@ -36,6 +36,9 @@ class PhpError
             (string)$e
         );
         CoreLog::error($msg);
+        if (ini_get('display_errors')) {
+            echo $msg;
+        }
     }
 
     /**

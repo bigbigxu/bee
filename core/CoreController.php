@@ -14,7 +14,7 @@ class CoreController
      */
     public function json($data = array(), $callback = null)
     {
-        $str = json_encode($data);
+        $str = json_encode($data, JSON_UNESCAPED_UNICODE);
         if ($callback) {
             $str = "{$callback}(" . $str . ")";
         }

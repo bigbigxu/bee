@@ -84,6 +84,11 @@ class App
      */
     protected $env;
     /**
+     * 当前运行的模块
+     * @var \bee\core\Module
+     */
+    protected $module;
+    /**
      * @var ServiceLocator
      */
     protected $services;
@@ -565,29 +570,6 @@ class App
     }
 
     /**
-     * 为当前类注册一个事件
-     * 注册在app对象上的事件是一个全局事件
-     * @param string $name 事件名称
-     * @param string $callback 事件处理函数
-     * @param array $data 事件处理的数据。
-     */
-    public static function on($name, $callback, $data = array())
-    {
-        Event::on(self::getInstance(), $name, $callback, $data);
-    }
-
-    /**
-     * 执行当前模型的事件
-     * @param $name
-     * @param $data
-     * @param Event $event
-     */
-    public static function trigger($name, $data = array(), $event = null)
-    {
-        Event::trigger(self::getInstance(), $name, $data, $event);
-    }
-
-    /**
      * 获取对象管理器
      * @return ServiceLocator
      */
@@ -631,5 +613,25 @@ class App
     public static function version()
     {
         return '1.6';
+    }
+
+    /**
+     * 运行，加载模块
+     * @param $moduleId
+     * @throws Exception
+     */
+    public function run($moduleId)
+    {
+        $config = self::c('module.' . $moduleId);
+        if (!$config) {
+            throw new \Exception("未知的模块");
+        }
+        $this->module = ServiceLocator::create($config);
+        $this->module->run();
+    }
+
+    public function getModule()
+    {
+        return $this->module;
     }
 }

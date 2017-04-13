@@ -22,12 +22,6 @@ abstract class Module extends Component
      */
     public $route;
 
-    /**
-     * 全部的模块
-     * @var array
-     */
-    private static $_modules = [];
-
     /*
      * 获取请求参数
      * @return mixed 数据
@@ -55,25 +49,5 @@ abstract class Module extends Component
         $this->checkAuth($data);
         $this->exec($data);
         $this->trigger(self::EVENT_AFTER_REQUEST);
-    }
-
-    /**
-     * 获取一个模块。
-     * 模块配置在module配置节中，是一个标准的对象配置
-     * @param $id
-     * @return Module
-     * @throws \Exception
-     */
-    public static function getModule($id)
-    {
-        if (is_object(self::$_modules[$id])) {
-            return self::$_modules[$id];
-        } else {
-            $config = \App::c('module.' . $id);
-            if (!$config) {
-                throw new \Exception("未知的模块");
-            }
-            return self::$_modules[$id] = ServiceLocator::create($config);
-        }
     }
 }
