@@ -626,10 +626,15 @@ class App
         if (!$config) {
             throw new \Exception("未知的模块");
         }
+        $config['config']['id'] = $moduleId;
         $this->module = ServiceLocator::create($config);
         $this->module->run();
     }
 
+    /**
+     * 获取模块
+     * @return \bee\core\Module
+     */
     public function getModule()
     {
         return $this->module;

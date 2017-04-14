@@ -5,7 +5,7 @@
  * Date: 2015/4/8
  * Time: 14:24
  */
-class CoreController
+class CoreController extends \bee\core\Component
 {
     /**
      * 输出一个json字符串
