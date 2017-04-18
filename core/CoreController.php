@@ -5,8 +5,9 @@
  * Date: 2015/4/8
  * Time: 14:24
  */
-class CoreController extends \bee\core\Component
+class CoreController
 {
+    use \bee\core\TComponent;
     /**
      * 输出一个json字符串
      * @param array $data

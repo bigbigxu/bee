@@ -5,10 +5,11 @@
  * @author xuen
  */
 namespace bee\cache;
-use bee\core\Component;
+use bee\core\TComponent;
 
-class RedisSession extends Component
+class RedisSession
 {
+    use TComponent;
     /**
      * session过期时间
      * @var int

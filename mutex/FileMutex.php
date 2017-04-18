@@ -9,10 +9,11 @@
  * 文件锁值能用于单服务器
  */
 namespace bee\mutex;
-use bee\core\Component;
+use bee\core\TComponent;
 
-class FileMutex extends Component implements IMutex
+class FileMutex implements IMutex
 {
+    use TComponent;
     /**
      * 锁文件保存位置
      * @var string

@@ -220,8 +220,8 @@ class ServiceLocator
             \App::getInstance()->loadClass([$className => $classFile]);
         }
         $re = new \ReflectionClass($className);
-        if ($re->isSubclassOf('bee\core\Component')) {
-            $params[] = $config; /* Component 类型对象，构造参数最后一个配置数组 */
+        if ($re->hasProperty('_isBeeComponent')) {
+            $params[] = $config; /* TComponent 类型对象，构造参数最后一个配置数组 */
             $o = $re->newInstanceArgs($params);
         } else {
             $o = $re->newInstanceArgs($params);

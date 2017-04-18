@@ -6,8 +6,9 @@
  * Time: 9:10
  */
 namespace bee\core;
-abstract class Module extends Component
+abstract class Module
 {
+    use TComponent;
     /**
      * 模型ID
      * @var string|int

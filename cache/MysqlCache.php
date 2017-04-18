@@ -11,10 +11,11 @@
  * expire int 过期时间
  */
 namespace bee\cache;
-use bee\core\Component;
+use bee\core\TComponent;
 
-class MysqlCache extends Component implements ICache
+class MysqlCache implements ICache
 {
+    use TComponent;
     /**
      * 使用的redis组件
      * @var string|\CoreRedis

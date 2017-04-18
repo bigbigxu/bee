@@ -14,10 +14,11 @@
  * 当连接断开的时候，锁会自动回收
  */
 namespace bee\mutex;
-use bee\core\Component;
+use bee\core\TComponent;
 
-class MysqlMutex extends Component implements IMutex
+class MysqlMutex implements IMutex
 {
+    use TComponent;
     /**
      * 使用的db组件
      * @var string|\CoreMysql

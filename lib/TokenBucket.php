@@ -7,8 +7,13 @@
  * 令牌桶算法。
  * 在一定的时间内发放指定数据量的令牌
  */
+namespace bee\lib;
+use bee\core\TComponent;
+
 class TokenBucket
 {
+    use TComponent;
+
     const ERR_NO = 0;
     const ERR_TOKEN_FINISH =  1; //没有令牌了
     const ERR_TOKEN_OVER = 2; //超出了可以使用的令牌

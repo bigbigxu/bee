@@ -6,10 +6,11 @@
  * Time: 11:46
  */
 namespace bee\mutex;
-use bee\core\Component;
+use bee\core\TComponent;
 
-class RedisMutex extends Component implements IMutex
+class RedisMutex implements IMutex
 {
+    use TComponent;
     /**
      * redis 组件
      * @var string|\CoreRedis

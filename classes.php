@@ -56,11 +56,12 @@ return [
     'bee\core\ServiceLocator' => $sysDir . '/core/ServiceLocator.php',
     'SwooleController' => $sysDir . '/core/SwooleController.php',
     'SphinxClient' => $sysDir . '/core/sphinxapi.php',
+    'bee\core\TComponent' => $sysDir . '/core/TComponent.php',
 
     /* lib　目录　*/
     'bee\lib\Hash' => $sysDir . '/lib/Hash.php',
     'bee\lib\LibEvent' => $sysDir . '/lib/LibEvent.php',
-    'TokenBucket' => $sysDir . '/lib/TokenBucket.php',
+    'bee\lib\TokenBucket' => $sysDir . '/lib/TokenBucket.php',
 
     /* mutex目录*/
     'bee\mutex\IMutex' => $sysDir . '/mutex/IMutex.php',

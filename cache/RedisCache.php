@@ -7,10 +7,11 @@
  * 基于redis 的缓存系统
  */
 namespace bee\cache;
-use bee\core\Component;
+use bee\core\TComponent;
 
-class RedisCache extends Component implements ICache
+class RedisCache implements ICache
 {
+    use TComponent;
     /**
      * 使用的redis组件
      * @var string|\CoreRedis

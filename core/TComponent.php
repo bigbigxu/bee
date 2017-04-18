@@ -12,8 +12,10 @@
  * 继承Component类，脱离Component任然是一个完整的类
  */
 namespace bee\core;
-class Component
+trait TComponent
 {
+    private $_isBeeComponent = 1;
+
     public function __construct($config = [])
     {
         /* 对象属性赋值 */
@@ -68,5 +70,4 @@ class Component
     {
         Event::trigger($this, $name, $data, $event);
     }
-
 }
