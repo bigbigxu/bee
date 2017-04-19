@@ -6,12 +6,15 @@
  * Time: 10:26
  * 配置文件管理器
  */
-namespace bee\common;
-use bee\cache\ICache;
-use bee\core\Component;
 
-class DbConfig extends Component
+namespace bee\common;
+
+use bee\cache\ICache;
+use bee\core\TComponent;
+
+class DbConfig
 {
+    use TComponent;
     const EVENT_BEFORE_SAVE = 'before_save';
     /**
      * 使用的db组件
@@ -34,15 +37,15 @@ class DbConfig extends Component
      */
     public function getCache()
     {
-        return \App::s()->sure($this->cache);
+        return \bee\App::s()->sure($this->cache);
     }
 
     /**
-     * @return \CoreMysql
+     * @return \bee\core\BeeMysql
      */
     public function getDb()
     {
-        return \App::s()->sure($this->db)->from($this->table);
+        return \bee\App::s()->sure($this->db)->from($this->table);
     }
 
     public function buildKey($k)

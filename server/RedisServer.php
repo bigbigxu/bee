@@ -49,7 +49,11 @@
  *   RPUSH 命令用于处理日志，异步入库或其他。
  *
  */
+
 namespace bee\server;
+
+use bee\core\SwooleController;
+
 class RedisServer extends BaseServer
 {
     protected $serverType = self::SERVER_REDIS;
@@ -154,7 +158,7 @@ class RedisServer extends BaseServer
             $this->errorLog("redis-server：{$class}不存在");
             return false;
         }
-        /* @var $object \SwooleController */
+        /* @var $object SwooleController */
         $object = new $class;
         $object->server = $this;
         $object->fd = $fd;

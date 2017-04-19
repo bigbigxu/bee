@@ -1,7 +1,7 @@
 <?php
 $sysDir = __DIR__;
 return [
-    'App' => $sysDir . '/App.php',
+    'bee\App' => $sysDir . '/App.php',
 
     /* cache目录 */
     'bee\cache\ICache' => $sysDir . '/cache/ICache.php',
@@ -13,48 +13,46 @@ return [
 
     /* client 目录 */
     'bee\client\BaseClient' => $sysDir . '/client/BaseClient.php',
-    'CoreSocket' => $sysDir . '/client/CoreSocket.php',
+    'bee\client\CoreSocket' => $sysDir . '/client/CoreSocket.php',
     'bee\client\LogClient' => $sysDir . '/client/LogClient.php',
     'bee\client\ProcOpen' => $sysDir . '/client/ProcOpen.php',
     'bee\client\Ssh' => $sysDir . '/client/Ssh.php',
-    'Curl' => $sysDir . '/client/Curl.php',
+    'bee\client\Curl' => $sysDir . '/client/Curl.php',
 
     /* common 目录 */
     'bee\common\BeeClassMap' => $sysDir . '/common/BeeClassMap.php',
-    'CoreFile' => $sysDir . '/common/CoreFile.php',
-    'CoreJson' => $sysDir . '/common/CoreJson.php',
-    'CoreMsg' => $sysDir . '/common/CoreMsg.php',
+    'bee\common\File' => $sysDir . '/common/File.php',
+    'bee\common\Json' => $sysDir . '/common/Json.php',
     'bee\common\Csv' => $sysDir . '/common/Csv.php',
-    'FileUpload' => $sysDir . '/common/FileUpload.php',
-    'Ftp' => $sysDir . '/common/Ftp.php',
-    'Functions' => $sysDir . '/common/Functions.php',
-    'Image' => $sysDir . '/common/Image.php',
-    'LinuxCrontab' => $sysDir . '/common/LinuxCrontab.php',
-    'Mcrypt' => $sysDir . '/common/Mcrypt.php',
-    'Pack' => $sysDir . '/common/Pack.php',
-    'SplitTable' => $sysDir . '/common/SplitTable.php',
-    'StructXml' => $sysDir . '/common/StructXml.php',
-    'Timer' => $sysDir . '/common/Timer.php',
-    'Zlib' => $sysDir . '/common/Zlib.php',
+    'bee\common\FileUpload' => $sysDir . '/common/FileUpload.php',
+    'bee\common\Ftp' => $sysDir . '/common/Ftp.php',
+    'bee\comm\Functions' => $sysDir . '/common/Functions.php',
+    'bee\common\Image' => $sysDir . '/common/Image.php',
+    'bee\common\LinuxCrontab' => $sysDir . '/common/LinuxCrontab.php',
+    'bee\common\Mcrypt' => $sysDir . '/common/Mcrypt.php',
+    'bee\common\Pack' => $sysDir . '/common/Pack.php',
+    'bee\common\SplitTable' => $sysDir . '/common/SplitTable.php',
+    'bee\common\StructXml' => $sysDir . '/common/StructXml.php',
+    'bee\common\Timer' => $sysDir . '/common/Timer.php',
+    'bee\common\Zlib' => $sysDir . '/common/Zlib.php',
 
     /* core目录 */
-    'Call' => $sysDir . '/core/Call.php',
-    'CoreController' => $sysDir . '/core/CoreController.php',
-    'CoreLog' => $sysDir . '/core/CoreLog.php',
-    'CoreModel' => $sysDir . '/core/CoreModel.php',
-    'CoreMysql' => $sysDir . '/core/CoreMysql.php',
-    'CoreRedis' => $sysDir . '/core/CoreRedis.php',
-    'CoreReflection' => $sysDir . '/core/CoreReflection.php',
-    'CoreSphinx' => $sysDir . '/core/CoreSphinx.php',
-    'CoreValidate' => $sysDir . '/core/CoreValidate.php',
+    'bee\core\Call' => $sysDir . '/core/Call.php',
+    'bee\core\Controller' => $sysDir . '/core/Controller.php',
+    'bee\core\Log' => $sysDir . '/core/Log.php',
+    'bee\core\Model' => $sysDir . '/core/Model.php',
+    'bee\core\BeeMysql' => $sysDir . '/core/BeeMysql.php',
+    'bee\core\BeeRedis' => $sysDir . '/core/BeeRedis.php',
+    'bee\core\BeeReflection' => $sysDir . '/core/BeeReflection.php',
+    'bee\core\BeeSphinx' => $sysDir . '/core/BeeSphinx.php',
+    'bee\core\Validate' => $sysDir . '/core/Validate.php',
     'bee\core\Event' => $sysDir . '/core/Event.php',
     'bee\core\Module' => $sysDir . '/core/Module.php',
-    'bee\core\Mongo' => $sysDir . '/core/Mongo.php',
-    'Object' => $sysDir . '/core/Object.php',
-    'PhpEnv' => $sysDir . '/core/PhpEnv.php',
-    'PhpError' => $sysDir . '/core/PhpError.php',
+    'bee\core\BeeMongo' => $sysDir . '/core/BeeMongo.php',
+    'bee\core\PhpEnv' => $sysDir . '/core/PhpEnv.php',
+    'bee\core\PhpError' => $sysDir . '/core/PhpError.php',
     'bee\core\ServiceLocator' => $sysDir . '/core/ServiceLocator.php',
-    'SwooleController' => $sysDir . '/core/SwooleController.php',
+    'bee\core\SwooleController' => $sysDir . '/core/SwooleController.php',
     'SphinxClient' => $sysDir . '/core/sphinxapi.php',
     'bee\core\TComponent' => $sysDir . '/core/TComponent.php',
 
@@ -71,10 +69,10 @@ return [
 
     /* object目录 */
     'bee\object\Arr' => $sysDir . '/object/Arr.php',
-    'HttpObject' => $sysDir . '/object/HttpObject.php',
+    'bee\object\HttpObject' => $sysDir . '/object/HttpObject.php',
     'bee\object\Math' => $sysDir . '/object/Math.php',
     'bee\object\Str' => $sysDir . '/object/Str.php',
-    'WeiXin' => $sysDir . '/object/WeiXin.php',
+    'bee\object\WeiXin' => $sysDir . '/object/WeiXin.php',
 
     /* server目录 */
     'bee\server\BaseServer' => $sysDir . '/server/BaseServer.php',

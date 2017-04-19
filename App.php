@@ -19,7 +19,15 @@
  *  'namespace' => '需要加载的命名空间'
  * );
  */
-use bee\core\ServiceLocator as ServiceLocator;
+
+namespace bee;
+
+use bee\core\BeeMysql;
+use bee\core\BeeRedis;
+use bee\core\Log;
+use bee\core\ServiceLocator;
+use Exception;
+
 class App
 {
     private static $_instance;
@@ -96,12 +104,12 @@ class App
     const ENV_DEV = 'dev'; /* 测试环境 */
     const ENV_PRO = 'pro'; /* 生产环境 */
 
-    private  function __construct($config = null)
+    private function __construct($config = null)
     {
         $this->sysDir = dirname(__FILE__);
 
         /* 得到配置文件。*/
-        if($config === null) {
+        if ($config === null) {
             /*加载默认配置文件 */
             $configFile = $this->sysDir . '/../config/main.php';
             $this->config = include $configFile;
@@ -145,7 +153,7 @@ class App
      */
     public static function getInstance($config = null)
     {
-        if (!is_object(self::$_instance)){
+        if (!is_object(self::$_instance)) {
             self::$_instance = new self($config);
             self::$_instance->init(); //对象实例化完成之后进行的操作
         }
@@ -183,7 +191,7 @@ class App
         //表法目前仅支持一级.php分布式配置。
         if (is_string($object->config[$pathArr[0]])) {
             $res = $object->_loadConfigFile($object->config[$pathArr[0]]);
-            if($res === null) {
+            if ($res === null) {
                 throw new Exception('不支持的配置文件格式');
             } else {
                 $object->config[$pathArr[0]] = $res;
@@ -202,11 +210,11 @@ class App
      * 得到一个模型类,这个模型类其实是CoreMysql的o类
      * @param string $name 表名
      * @param string $db 数据库连接配置项
-     * @return CoreMysql
+     * @return BeeMysql
      */
     public static function m($name, $db = 'db.main')
     {
-        return CoreMysql::getInstance($db)->from($name);
+        return BeeMysql::getInstance($db)->from($name);
     }
 
     /**
@@ -261,7 +269,7 @@ class App
     {
         foreach ((array)$class as $name => $path) {
             /* 如果类名不是一个字符串。则取文件名为为类名 */
-            if(is_int($name)) {
+            if (is_int($name)) {
                 $name = basename($path, '.php');
             }
             if ($this->classMap[$name] === null) {
@@ -288,7 +296,7 @@ class App
             if (strpos($name, '\\') !== false) {
                 throw new Exception('只可以注册一级命名空间');
             }
-            $baseDir = rtrim(str_replace('\\',  '/', $path), '/');
+            $baseDir = rtrim(str_replace('\\', '/', $path), '/');
             if ($this->namespace[$name] === null) {
                 $this->namespace[$name] = $baseDir;
             }
@@ -301,17 +309,17 @@ class App
      */
     public function load($arr)
     {
-        if(!is_array($arr)) {
+        if (!is_array($arr)) {
             $arr = array($arr);
         }
 
-        foreach($arr as $key => $row) {
+        foreach ($arr as $key => $row) {
             $load = array(
                 $key => $row,
             );
-            if(is_dir($row)) {
+            if (is_dir($row)) {
                 $this->loadPackage($load);
-            } elseif(is_file($row)) {
+            } elseif (is_file($row)) {
                 $this->loadClass($load);
             } else {
                 continue;
@@ -331,15 +339,22 @@ class App
      */
     public function autoLoad($className)
     {
+        if ($newClassName = $this->classAlias($className)) {
+            if ($newClassName != $className) {
+                return class_alias($newClassName, $className);
+            }
+        }
         $file = $this->classMap[$className];
         if ($file !== null) { /* 类地图中已经存在 */
-            if(is_file($file)) {
+            if (is_file($file)) {
                 require $file;
                 return true;
             } else {
                 return false;
             }
         }
+        $this->classAlias($className);
+
         $pos = strpos($className, '\\');
         if ($pos !== false) {  //如果类名包含命令空间
             if ('\\' == $className[0]) {
@@ -362,10 +377,10 @@ class App
                 return false;
             }
         } else { //非命名空间，遍历目录
-            foreach($this->packageMap as $package) {
+            foreach ($this->packageMap as $package) {
                 $file = $className . '.php';
                 $file = rtrim($package, '/') . '/' . $file;
-                if(!is_file($file)) {
+                if (!is_file($file)) {
                     continue;
                 } else {
                     $this->classMap[$className] = $file;
@@ -380,7 +395,7 @@ class App
     /**
      * 加载核心
      */
-    private  function loadCore()
+    private function loadCore()
     {
         $corePackage = array(
             'sys.cache' => $this->sysDir . '/cache',
@@ -472,7 +487,7 @@ class App
      */
     public function getPackage($name = '')
     {
-        if($name == '') {
+        if ($name == '') {
             return $this->packageMap;
         } else {
             return $this->packageMap[$name];
@@ -486,7 +501,7 @@ class App
      */
     public function getClass($name = '')
     {
-        if($name == '') {
+        if ($name == '') {
             return $this->classMap;
         } else {
             return $this->classMap[$name];
@@ -511,23 +526,23 @@ class App
     /**
      * 得到mysql数据库连接
      * @param $name
-     * @return CoreMysql
+     * @return BeeMysql
      */
     public static function db($name = null)
     {
         $name = $name === null ? 'db.main' : $name;
-        return CoreMysql::getInstance($name);
+        return BeeMysql::getInstance($name);
     }
 
     /**
      * 得到redis数据库连接
      * @param null $name
-     * @return CoreRedis
+     * @return BeeRedis
      */
     public static function redis($name = null)
     {
         $name = $name === null ? 'redis.main' : $name;
-        return CoreRedis::getInstance($name);
+        return BeeRedis::getInstance($name);
     }
 
     /**
@@ -536,7 +551,7 @@ class App
      */
     public static function getErrorLogFile()
     {
-        $file = CoreLog::getErrorLogFile();
+        $file = Log::getErrorLogFile();
         return $file;
     }
 
@@ -546,7 +561,7 @@ class App
      */
     public static function getAccessLogFile()
     {
-        $file = CoreLog::getAccessLogFile();
+        $file = Log::getAccessLogFile();
         return $file;
     }
 
@@ -556,7 +571,7 @@ class App
      */
     public static function getDebugLogFile()
     {
-        $file = CoreLog::getDebugLogFile();
+        $file = Log::getDebugLogFile();
         return $file;
     }
 
@@ -584,23 +599,23 @@ class App
      */
     public function getComponents()
     {
-        $core =  [
-            'log' => ['class' => 'CoreLog'], /* 日志组件 */
-            'error' => ['class' => 'PhpError'], /* 错误处理 */
-            'env' => ['class' => 'PhpEnv'], /* php环境设置*/
+        $core = [
+            'log' => ['class' => 'bee\core\Log'], /* 日志组件 */
+            'error' => ['class' => 'bee\core\PhpError'], /* 错误处理 */
+            'env' => ['class' => 'bee\core\PhpEnv'], /* php环境设置*/
             'cache' => [ /* 缓存 */
                 'class' => 'bee\cache\FileCache',
                 'config' => [
                     'expire' => 3600,
-                    'cachePath' => \App::getInstance()->getRuntimeDir() . '/cache'
+                    'cachePath' => $this->getRuntimeDir() . '/cache'
                 ],
             ],
             'curl' => ['class' => 'Curl'], /* curl 组件 */
-            'db' => function() {
-                return \CoreMysql::getInstance('db.main');
+            'db' => function () {
+                return BeeMysql::getInstance('db.main');
             },
-            'redis' => function() {
-                return \CoreRedis::getInstance('redis.main');
+            'redis' => function () {
+                return BeeRedis::getInstance('redis.main');
             }
         ];
         return array_merge($core, self::c('component') ?: []);
@@ -612,7 +627,7 @@ class App
      */
     public static function version()
     {
-        return '1.6';
+        return '2.0';
     }
 
     /**
@@ -638,5 +653,44 @@ class App
     public function getModule()
     {
         return $this->module;
+    }
+
+    /**
+     * 类别名。2.0版本兼容1.6方案
+     */
+    public function classAlias($class)
+    {
+        $map = [
+            'Curl' => 'bee\client\Curl',
+            'CoreSocket' => 'bee\client\CoreSocket',
+            'CoreFile' => 'bee\common\File',
+            'CoreJson' => 'bee\common\Json',
+            'FileUpload' => 'bee\common\FileUpload',
+            'Ftp' => 'bee\common\Ftp',
+            'Functions' => 'bee\common\Functions',
+            'Image' => 'bee\common\Image',
+            'LinuxCrontab' => 'bee\common\LinuxCrontab',
+            'Mcrypt' => 'bee\common\Mcrypt',
+            'Pack' => 'bee\common\Pack',
+            'SplitTable' => 'bee\common\SplitTable',
+            'StructXml' => 'bee\common\StructXml',
+            'Timer' => 'bee\common\Timer',
+            'Zlib' => 'bee\common\Zlib',
+            'Call' => 'bee\core\Call',
+            'CoreController' => 'bee\core\Controller',
+            'CoreLog' => 'bee\core\Log',
+            'CoreModel' => 'bee\core\Model',
+            'CoreMysql' => 'bee\core\BeeMysql',
+            'CoreRedis' => 'bee\core\BeeRedis',
+            'CoreReflection' => 'bee\core\BeeReflection',
+            'CoreSphinx' => 'bee\core\BeeSphinx',
+            'PhpEnv' => 'bee\core\PhpEnv',
+            'PhpError' => 'bee\core\PhpError',
+            'SwooleController' => 'bee\core\SwooleController',
+            'WeiXin' => 'bee\object\WeiXin',
+            'HttpObject' => 'bee\object\HttpObject',
+            'App' => 'bee\App'
+        ];
+        return $map[$class];
     }
 }

@@ -13,3 +13,9 @@
 3. [redis操作](doc/redis操作.md)
 4. [服务定位器](doc/服务定位器.md)
 5. [server使用](doc/server使用.md)
+
+
+## 2.0 版本升级说明
+2.0 修改了部分类名，并全部加上了命名空间。
+使用了类别名技术，使用老的类名，任然可以正常加载。
+入口文件中，`App::getInstance()`修改为： `bee\App::getInstance()`

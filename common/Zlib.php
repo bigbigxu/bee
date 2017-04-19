@@ -5,6 +5,9 @@
  * Date: 2016/8/5
  * Time: 17:02
  */
+
+namespace bee\common;
+
 class Zlib
 {
     const BLOCK_SIZE = 4096; //块大小

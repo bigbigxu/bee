@@ -9,7 +9,14 @@
  * 2. SCENE_开始的常量用于定义模型执行操场景
  * 3. EVENT_开始的常量用于定义事件。
  */
-class CoreModel
+
+namespace bee\core;
+
+use Exception;
+use PDO;
+use PDOStatement;
+
+class Model
 {
     private static $_instance;
     protected $errmsg = ''; //错误消息
@@ -47,7 +54,7 @@ class CoreModel
     /**
      * 得到表名,这个方法其实是CoreModel的别名。
      * 这里单独一个方法，主要是基于分表的考量
-     * @return CoreMysql
+     * @return BeeMysql
      * @desc 此方法是模型的核心方法，用于设置查询表名
      * 设置模型场景，调用数据验证，字段设置等
      */
@@ -61,7 +68,7 @@ class CoreModel
         $params = func_get_args();
         $tableName = call_user_func_array(array($this, 'tableName'), $params);
         $fieldMap = call_user_func_array(array($this, 'fieldMap'), $params);
-        if($fieldMap == false) {
+        if ($fieldMap == false) {
             return $this->db()->from($tableName);
         } else {
             return $this->db()->from($tableName)->fieldAlias($fieldMap);
@@ -108,7 +115,7 @@ class CoreModel
         if (version_compare(PHP_VERSION, '5.4.0', '>=')) {
             $name = get_called_class();
         }
-        if(!isset(self::$_instance[$name])) {
+        if (!isset(self::$_instance[$name])) {
             self::$_instance[$name] = new $name();
         }
         return self::$_instance[$name];
@@ -117,23 +124,23 @@ class CoreModel
     /**
      * 得到mysql数据库连接
      * @param $name
-     * @return CoreMysql
+     * @return BeeMysql
      */
     public function db($name = null)
     {
         $name = $name === null ? 'db.main' : $name;
-        return CoreMysql::getInstance($name);
+        return BeeMysql::getInstance($name);
     }
 
     /**
      * 得到redis数据库连接
      * @param null $name
-     * @return CoreRedis
+     * @return BeeRedis
      */
     public function redis($name = null)
     {
         $name = $name === null ? 'redis.main' : $name;
-        return CoreRedis::getInstance($name);
+        return BeeRedis::getInstance($name);
     }
 
     /**
@@ -329,7 +336,7 @@ class CoreModel
      * @param bool $mulit
      * @return bool
      */
-    public function save($data, $findAttr = array() , $mulit = false)
+    public function save($data, $findAttr = array(), $mulit = false)
     {
         return $this->from()->save($data, $findAttr, $mulit);
     }
@@ -346,7 +353,7 @@ class CoreModel
 
     /**
      * 开启一个复杂的查询。
-     * @return CoreMysql
+     * @return BeeMysql
      */
     public function beginQuery()
     {
@@ -426,11 +433,11 @@ class CoreModel
      * @param $field
      * @param $op
      * @param $value
-     * @return CoreMysql
+     * @return BeeMysql
      */
     public function andFilter($field, $op, $value)
     {
-        return  $this->from()->addFilter($field, $op, $value, 'and');
+        return $this->from()->addFilter($field, $op, $value, 'and');
     }
 
     /**
@@ -438,7 +445,7 @@ class CoreModel
      * @param $field
      * @param $op
      * @param $value
-     * @return CoreMysql
+     * @return BeeMysql
      */
     public function orFilter($field, $op, $value)
     {
@@ -478,7 +485,7 @@ class CoreModel
      * 执行非查询的sql语句
      * @param $sql
      * @param array $params
-     * @return 返回受影响行数或false
+     * @return int|bool 返回受影响行数或false
      */
     public function exec($sql, $params = array())
     {
@@ -577,7 +584,7 @@ class CoreModel
             }
 
             //组织校验参数，这一步主要为了保证函数参数按顺序传递
-            $params = CoreReflection::getMethodParam($config['callback']);
+            $params = BeeReflection::getMethodParam($config['callback']);
             foreach ($params as $key => $item) {
                 if (isset($config[$key])) {
                     $params[$key] = $config[$key];
@@ -647,7 +654,7 @@ class CoreModel
      */
     public function getPkName()
     {
-        $pk = $this->from()->getTableColumns(CoreMysql::PK_MARK);
+        $pk = $this->from()->getTableColumns(BeeMysql::PK_MARK);
         return $pk;
     }
 

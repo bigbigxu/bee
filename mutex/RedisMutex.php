@@ -13,7 +13,7 @@ class RedisMutex implements IMutex
     use TComponent;
     /**
      * redis 组件
-     * @var string|\CoreRedis
+     * @var string|\bee\core\BeeRedis
      */
     public $redis = 'redis';
     /**
@@ -51,11 +51,11 @@ class RedisMutex implements IMutex
 
     /**
      * 获取redis组件
-     * @return \CoreRedis
+     * @return \bee\core\BeeRedis
      */
     public function getRedis()
     {
-        return \App::s()->sure($this->redis);
+        return \bee\App::s()->sure($this->redis);
     }
 
     /**

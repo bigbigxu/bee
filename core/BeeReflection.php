@@ -1,5 +1,4 @@
 <?php
-
 /**
  * Created by PhpStorm.
  * User: VigoXu
@@ -7,7 +6,13 @@
  * Time: 14:26
  * php反射的一些封装
  */
-class CoreReflection
+
+namespace bee\core;
+
+use ReflectionClass;
+use ReflectionFunction;
+
+class BeeReflection
 {
     const PARAM_ASSOC = 1; //传参使用关联数组。
     const PARAM_INDEX = 2; //传参使用索引数组。、

@@ -10,7 +10,9 @@
  * data text 数据
  * expire int 过期时间
  */
+
 namespace bee\cache;
+
 use bee\core\TComponent;
 
 class MysqlCache implements ICache
@@ -18,7 +20,7 @@ class MysqlCache implements ICache
     use TComponent;
     /**
      * 使用的redis组件
-     * @var string|\CoreRedis
+     * @var string|\bee\core\BeeRedis
      */
     public $db = 'db';
     /**
@@ -86,11 +88,11 @@ class MysqlCache implements ICache
 
     /**
      * 获取db组件
-     * @return \CoreMysql
+     * @return \bee\core\BeeMysql
      */
     public function getDb()
     {
-        return \App::s()->sure($this->db)->from($this->table);
+        return \bee\App::s()->sure($this->db)->from($this->table);
     }
 
     /**

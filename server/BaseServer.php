@@ -879,7 +879,7 @@ class BaseServer
         if ($this->c('server.load_bee')) {
             require __DIR__ . '/../App.php';
             $configPath = $this->c('server.bee_config');
-            \App::getInstance($configPath);
+            \bee\App::getInstance($configPath);
         }
         $this->loadTaskData();
     }

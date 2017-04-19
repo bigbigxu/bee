@@ -20,6 +20,9 @@
  * 主机字节序代表本机的字节序。一般是小端序，但也有一些是大端序。
  * 主机字节序用在协议描述中则是指小端序。
  */
+
+namespace bee\common;
+
 class Pack
 {
     protected $sendBuffer = ''; //发送了字符串
@@ -44,11 +47,11 @@ class Pack
         'UnLong' => array('J', 8), //大端字节序，无符号长整数
 
         //字符串
-        'String' =>array('a'), //将字符串空白以 NULL 字符填满
+        'String' => array('a'), //将字符串空白以 NULL 字符填满
         'StringSpace' => array('A'), // 将字符串空白以 SPACE 字符 (空格) 填满
 
         'Hex' => array('h'), //16进制字符串，低位在前以半字节为单位
-        'HexHigh'=> array('H'), //16进制字符串，高位在前以半字节为单位
+        'HexHigh' => array('H'), //16进制字符串，高位在前以半字节为单位
 
         'Char' => array('c', 1), //有符号字符
         'UnChar' => array('C', 1), // 无符号字符, byte类型也是这个
@@ -280,7 +283,7 @@ class Pack
      * @param $method
      * @param $value
      * @return $this
-     * @throws Exception
+     * @throws \Exception
      */
     private function _write($method, $value)
     {
@@ -290,7 +293,7 @@ class Pack
 
         //如果字节数为空表示需要计算字节数
         //使用如下方式表法，一个无符号整数+串来表示
-        if($size == false) {
+        if ($size == false) {
             $len = strlen($value) + 1;
             $this->sendBuffer .= pack("N", $len);
             $this->sendBuffer .= $value;
@@ -318,7 +321,7 @@ class Pack
 
         //如果字节数为空表示需要计算字节数
         //使用如下方式表法，一个无符号整数+串来表示
-        if($size == false) {
+        if ($size == false) {
             $key = 'string_length';
             $this->readUnInt($key);
             $size = $this->recvArr[$key];
@@ -339,19 +342,19 @@ class Pack
      * @param $method
      * @param $params
      * @return $this
-     * @throws Exception
+     * @throws \Exception
      */
     public function __call($method, $params)
     {
         //这里这么做是为了__METHOD__传递的参数保持一致。
         $class = get_class($this);
         $method = $class . "::" . $method;
-        if(strpos($method, $class . '::read') === 0 ) {
+        if (strpos($method, $class . '::read') === 0) {
             $this->_read($method, $params[0]);
-        } elseif(strpos($method, $class . '::write') === 0) {
+        } elseif (strpos($method, $class . '::write') === 0) {
             $this->_write($method, $params[0]);
         } else {
-            throw new Exception('方法不存在');
+            throw new \Exception('方法不存在');
         }
 
         return $this;
@@ -361,17 +364,17 @@ class Pack
      * 根据函数方法名，取得模式的类型和字节数。
      * @param $method
      * @return mixed
-     * @throws Exception
+     * @throws \Exception
      */
-    private  function _getFormat($method)
+    private function _getFormat($method)
     {
         //从方法名中取得类型
         $type = str_replace(array(
             get_class($this) . '::read',
             get_class($this) . '::write',
         ), '', $method);
-        if(!array_key_exists($type, $this->f)) {
-            throw new Exception("不支持的：{$type} 数据类型");
+        if (!array_key_exists($type, $this->f)) {
+            throw new \Exception("不支持的：{$type} 数据类型");
         }
 
         $typeInfo = $this->f[$type];
@@ -405,7 +408,7 @@ class Pack
      */
     public function getItem($key = null)
     {
-        if($key === null) {
+        if ($key === null) {
             return $this->recvArr;
         } else {
             return $this->recvArr[$key];

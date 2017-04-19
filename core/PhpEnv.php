@@ -6,6 +6,11 @@
  * Time: 15:13
  * php环境配置相关
  */
+
+namespace bee\core;
+
+use bee\App;
+
 class PhpEnv
 {
     protected $env = null; //环境类型
@@ -67,24 +72,24 @@ class PhpEnv
      */
     public function getDefaultSet()
     {
-        $set =  array(
+        $set = array(
             App::ENV_DEV => array(
                 'display_errors' => 1,
                 'error_reporting' => E_ALL & ~E_NOTICE & ~E_STRICT & ~E_DEPRECATED,
                 'log_errors' => 1,
-                'error_log' => CoreLog::getErrorLogFile()
+                'error_log' => Log::getErrorLogFile()
             ),
             App::ENV_TEST => array(
                 'display_errors' => 1,
                 'error_reporting' => E_ALL & ~E_NOTICE & ~E_STRICT & ~E_DEPRECATED,
                 'log_errors' => 1,
-                'error_log' => CoreLog::getErrorLogFile()
+                'error_log' => Log::getErrorLogFile()
             ),
             App::ENV_PRO => array(
                 'display_errors' => 0,
-                'error_reporting' =>  E_ALL & ~E_NOTICE & ~E_STRICT & ~E_DEPRECATED,
+                'error_reporting' => E_ALL & ~E_NOTICE & ~E_STRICT & ~E_DEPRECATED,
                 'log_errors' => 1,
-                'error_log' => CoreLog::getErrorLogFile()
+                'error_log' => Log::getErrorLogFile()
             ),
         );
         $r = $set[$this->env];

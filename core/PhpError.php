@@ -1,5 +1,4 @@
 <?php
-
 /**
  * Created by PhpStorm.
  * User: VigoXu
@@ -7,6 +6,9 @@
  * Time: 15:24
  * 自定义php错误处理类
  */
+
+namespace bee\core;
+
 class PhpError
 {
     /**
@@ -35,7 +37,7 @@ class PhpError
             "PHP Fatal error: Uncaught %s",
             (string)$e
         );
-        CoreLog::error($msg);
+        Log::error($msg);
         if (ini_get('display_errors')) {
             echo $msg;
         }
@@ -55,7 +57,7 @@ class PhpError
                 $error['file'],
                 $error['line']
             );
-            CoreLog::error($msg);
+            Log::error($msg);
         }
     }
 
@@ -76,7 +78,7 @@ class PhpError
                 $file,
                 $line
             );
-            CoreLog::error($msg);
+            Log::error($msg);
         }
     }
 

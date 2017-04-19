@@ -1,5 +1,4 @@
 <?php
-
 /**
  * Class LinuxCrontab
  * php解析linux crontab格式
@@ -18,6 +17,9 @@
  *  ,分开几个离散的数字
  * @TODO 星期，月份不支持使用英文符号
  */
+
+namespace bee\common;
+
 class LinuxCrontab
 {
     const ERR_NO = 0;
@@ -127,7 +129,7 @@ class LinuxCrontab
      * @param int $fMax 此部分的最大取值
      *
      * @return array 若为空数组则表示可任意取值
-     * @throws Exception
+     * @throws \Exception
      */
     protected function parseCronPart($part, $fMin, $fMax)
     {

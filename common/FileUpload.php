@@ -1,9 +1,11 @@
 <?php
-
 /**
  * 文件上传相关
  * Class FileUpload
  */
+
+namespace bee\common;
+
 class FileUpload
 {
     /**

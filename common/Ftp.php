@@ -1,5 +1,4 @@
 <?php
-
 /**
  * ftp上传相关的操作类。
  * 默认将使用随机文件名基于年月的创建目录。
@@ -18,6 +17,9 @@
  * echo $ftp->error;
  *
  */
+
+namespace bee\common;
+
 class Ftp
 {
     protected $ch;
@@ -41,7 +43,7 @@ class Ftp
     /**
      * Ftp constructor.
      * @param $option
-     * @throws Exception
+     * @throws \Exception
      */
     public function __construct($option)
     {
@@ -54,10 +56,10 @@ class Ftp
         $this->ch = ftp_connect($this->host, $this->port, $this->option['time_out']);
         //登录ftp
         if (!$this->ch) {
-            throw new Exception($this, '无法链接ftp服务器');
+            throw new \Exception($this, '无法链接ftp服务器');
         }
         if (!ftp_login($this->ch, $this->username, $this->password)) {
-            throw new Exception('无法登录ftp服务器');
+            throw new \Exception('无法登录ftp服务器');
         }
 
         //得到根目录
@@ -121,8 +123,8 @@ class Ftp
     /**
      * 得到新随机文件目录名称。
      * 基于年月
-     * @param $sourceFileName 要上传的文件名称。
-     * @param $dirFormat 目录格式。
+     * @param $sourceFileName
+     * @param $dirFormat
      * @return string
      */
     public function getRandFileName($sourceFileName, $dirFormat = 'Y/m')

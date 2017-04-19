@@ -1,5 +1,4 @@
 <?php
-
 /**
  * Created by PhpStorm.
  * User: VigoXu
@@ -8,7 +7,10 @@
  * 校验基类
  * 校验使用回调发起调用。所有方法中不能使用this;
  */
-class CoreValidate
+
+namespace bee\core;
+
+class Validate
 {
     public static $required = array('CoreValidate', 'required'); //必须参数验证器
     public static $stringLength = array('CoreValidate', 'stringLength');
