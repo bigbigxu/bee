@@ -339,6 +339,7 @@ class App
      */
     public function autoLoad($className)
     {
+        /* 类命名加载。2.0兼容 1.x */
         if ($newClassName = $this->classAlias($className)) {
             if ($newClassName != $className) {
                 return class_alias($newClassName, $className);
@@ -354,7 +355,6 @@ class App
                 return false;
             }
         }
-        $this->classAlias($className);
 
         $pos = strpos($className, '\\');
         if ($pos !== false) {  //如果类名包含命令空间
