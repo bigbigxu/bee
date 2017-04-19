@@ -1,6 +1,4 @@
 <?php
-namespace bee\core;
-
 /**
  * Created by PhpStorm.
  * User: 123
@@ -11,6 +9,9 @@ namespace bee\core;
  *  $event 就是前面提到的
  * }
  */
+
+namespace bee\core;
+
 class Event
 {
     /**

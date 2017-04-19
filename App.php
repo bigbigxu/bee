@@ -344,6 +344,7 @@ class App
                 return class_alias($newClassName, $className);
             }
         }
+
         $file = $this->classMap[$className];
         if ($file !== null) { /* 类地图中已经存在 */
             if (is_file($file)) {
@@ -657,6 +658,7 @@ class App
 
     /**
      * 类别名。2.0版本兼容1.6方案
+     * @param $class
      */
     public function classAlias($class)
     {
