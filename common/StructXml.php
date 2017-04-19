@@ -5,6 +5,11 @@
  * @author xuen
  * @version 1.0
  */
+
+namespace bee\common;
+
+use SimpleXMLElement;
+
 class StructXml
 {
     public $name; //节点名
@@ -63,7 +68,7 @@ class StructXml
             $node->addAttr($attr);
         }
         if ($value !== null) {
-            if(is_string($value)) {
+            if (is_string($value)) {
                 //如果是一个字符串，变成cdata
                 $value = "<![CDATA[{$value}]]>";
             }

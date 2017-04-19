@@ -5,6 +5,8 @@
  * Date: 2015/6/30
  * Time: 8:57
  */
+namespace bee\client;
+
 class CoreSocket
 {
     const PROTOCOL_TCP = 'tcp';
@@ -12,23 +14,23 @@ class CoreSocket
 
     private static $_instance;
     protected $connString;
-    protected  $fp; //socket资源连接
+    protected $fp; //socket资源连接
     protected $pack;
 
     /**
      * @param $ip
      * @param $port
      * @param string $type
-     * @throws Exception
+     * @throws \Exception
      */
     public function __construct($ip, $port, $type = self::PROTOCOL_TCP)
     {
         $this->connString = "{$type}://{$ip}:{$port}";
         $this->fp = stream_socket_client($this->connString, $errno, $errstr, 0.5);
-        if($this->fp == false) {
-            throw new Exception($errstr, $errno);
+        if ($this->fp == false) {
+            throw new \Exception($errstr, $errno);
         }
-        $this->pack = new Pack();
+        $this->pack = new \bee\common\Pack();
     }
 
     /**
@@ -41,13 +43,13 @@ class CoreSocket
      */
     public static function getInstance($config, $class = __CLASS__)
     {
-        if(!is_array($config)) {
-            $config = App::c($config);
+        if (!is_array($config)) {
+            $config = \bee\App::c($config);
         }
         $pid = intval(getmypid());
         $k = md5($config[0] . $config[1] . $pid);
-        if(!isset(self::$_instance[$k])){
-            if($config[2] == false) {
+        if (!isset(self::$_instance[$k])) {
+            if ($config[2] == false) {
                 //默认使用tcp协议
                 $config[2] = self::PROTOCOL_TCP;
             }
@@ -75,11 +77,11 @@ class CoreSocket
     public function fread($len = null)
     {
         $content = '';
-        if($len !== null) {
+        if ($len !== null) {
             $content = fread($this->fp, $len);
         } else {
             //读取全部
-            while($r = fread($this->fp, 1024)) {
+            while ($r = fread($this->fp, 1024)) {
                 $content .= $r;
             }
         }

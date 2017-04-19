@@ -7,7 +7,9 @@
  * 类地图管理控制器
  * 这是一个辅助工具
  */
+
 namespace bee\common;
+
 class BeeClassMap
 {
     const TYPE_BEE = 'bee';
@@ -34,16 +36,16 @@ class BeeClassMap
     }
     public function createBeeClassMap($type)
     {
-        $app = \App::getInstance();
+        $app = \bee\App::getInstance();
         $appDir = $app->getBaseDir();
         $sysDir = $app->getSysDir();
         $beeClassMap = require $sysDir . '/classes.php';
         if ($type == self::TYPE_BEE) {
-            $classArr = (array)\CoreFile::getAllFiles($sysDir, array(
+            $classArr = (array)\bee\common\File::getAllFiles($sysDir, array(
                 'allow_ext' => 'php'
             ));
         } elseif ($type == self::TYPE_APP) {
-            $classArr =  (array)\CoreFile::getAllFiles($appDir, array(
+            $classArr =  (array)\bee\common\File::getAllFiles($appDir, array(
                 'allow_ext' => 'php'
             ));
         } else {

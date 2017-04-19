@@ -54,7 +54,7 @@ class ServiceLocator
     public static function create($objConfig)
     {
         if (is_string($objConfig)) { /* 字符串认为是一个bee配置节 */
-            $objConfig = \App::c($objConfig);
+            $objConfig = \bee\App::c($objConfig);
         }
         if (is_array($objConfig) && isset($objConfig['class'])) {
             return self::build($objConfig);
@@ -124,7 +124,7 @@ class ServiceLocator
 
     /**
      * 获取日志对象
-     * @return \CoreLog
+     * @return \bee\core\Log
      */
     public function getLog()
     {
@@ -133,7 +133,7 @@ class ServiceLocator
 
     /**
      * 获取日志对象
-     * @return \PhpError
+     * @return \bee\core\PhpError
      */
     public function getError()
     {
@@ -143,7 +143,7 @@ class ServiceLocator
 
     /**
      * 获取日志对象
-     * @return \PhpEnv
+     * @return \bee\core\PhpEnv
      */
     public function getEnv()
     {
@@ -180,7 +180,7 @@ class ServiceLocator
 
     /**
      * 获取curl组件
-     * @return \Curl
+     * @return \bee\client\Curl
      */
     public function getCurl()
     {
@@ -189,7 +189,7 @@ class ServiceLocator
 
     /**
      * 获取一个redis 组件
-     * @return \CoreRedis
+     * @return \bee\core\BeeRedis
      */
     public function getRedis()
     {
@@ -198,7 +198,7 @@ class ServiceLocator
 
     /**
      * 获取一个mysql组件
-     * @return \CoreMysql
+     * @return \bee\core\BeeMysql
      */
     public function getDb()
     {
@@ -217,7 +217,7 @@ class ServiceLocator
         $config = $objConfig['config'] ?: []; /* 对象属性配置 */
         $classFile = $objConfig['path'] ?: ''; /* 对象文件路径 */
         if ($classFile) { /* 加载类文件 */
-            \App::getInstance()->loadClass([$className => $classFile]);
+            \bee\App::getInstance()->loadClass([$className => $classFile]);
         }
         $re = new \ReflectionClass($className);
         if ($re->hasProperty('_isBeeComponent')) {

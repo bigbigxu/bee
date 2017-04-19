@@ -5,9 +5,13 @@
  * Date: 2015/4/8
  * Time: 14:24
  */
-class CoreController
+
+namespace bee\core;
+
+class Controller
 {
-    use \bee\core\TComponent;
+    use TComponent;
+
     /**
      * 输出一个json字符串
      * @param array $data

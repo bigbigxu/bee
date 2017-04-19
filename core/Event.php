@@ -1,6 +1,6 @@
 <?php
 namespace bee\core;
-use CoreReflection;
+use bee\core\BeeReflection;
 
 /**
  * Created by PhpStorm.
@@ -143,7 +143,7 @@ class Event
 
         foreach (self::$_events[$name][$class] as $handler) {
             $event->data = $handler[1];
-            $methodParam = CoreReflection::getMethodParam($handler[0]);
+            $methodParam = BeeReflection::getMethodParam($handler[0]);
             foreach ($methodParam as $key => $value) {
                 if ($key === 'event') { /* 参数名称为event, 传递事件对象参数 */
                     $methodParam[$key] = $event;

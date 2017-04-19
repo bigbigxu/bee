@@ -1,14 +1,20 @@
 <?php
-
 /**
  * redis操作类
  * 说明，任何为false的串，存在redis中都是空串。
  * 只有在key不存在时，才会返回false。
  * 这点可用于防止缓存穿透
  * @author xuen
- *
  */
-class CoreRedis
+
+namespace bee\core;
+
+use bee\App;
+use Exception;
+use Redis;
+use RedisException;
+
+class BeeRedis
 {
     /**
      * 异常处理模式
@@ -34,7 +40,7 @@ class CoreRedis
     protected $auth;
     /**
      * 所有连接实例
-     * @var self[]
+     * @var BeeRedis[]
      */
     static private $_instance = array();
     /**
@@ -120,7 +126,7 @@ class CoreRedis
      * 为每个数据库建立一个连接
      * 如果连接超时，将会重新建立一个连接
      * @param array $config
-     * @return self
+     * @return BeeRedis
      */
     public static function getInstance($config)
     {
@@ -1576,7 +1582,7 @@ class CoreRedis
      * 位运算
      * 命令: bitop and retkey key1 key2
      * 复杂度: O(N)
-     * @param string $op  操作类型 "AND", "OR", "NOT", "XOR"
+     * @param string $op 操作类型 "AND", "OR", "NOT", "XOR"
      * @param string $retKey 要改变得key
      * @param string $keys 参数运算的key， 空的 key 也被看作是包含 0 的字符串序列
      *                     除了 NOT 操作之外，其他操作都可以接受一个或多个 key 作为输入
@@ -1600,8 +1606,8 @@ class CoreRedis
     public function evalCmd($cmd)
     {
         $params = preg_split('/\s+/', trim($cmd));
-        $params = array_map(function($v) {
-           return "'{$v}'";
+        $params = array_map(function ($v) {
+            return "'{$v}'";
         }, $params);
         $str = "return redis.pcall(" . implode(',', $params) . ")";
         return $this->_execForRedis('evaluate', [$str]);

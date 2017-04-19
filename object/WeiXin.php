@@ -6,18 +6,27 @@
  * Time: 9:31
  * 微信基础封装类
  */
-class WeiXin extends Object
+
+namespace bee\object;
+
+use bee\App;
+use bee\client\Curl;
+use bee\common\Functions;
+use bee\common\Json;
+use bee\common\StructXml;
+use bee\core\Log;
+use bee\core\TComponent;
+use Exception;
+
+class WeiXin
 {
+    use TComponent;
     protected $appID;
     protected $appKey;
     protected $checkToken; //验证服务器权限的token
     public $msg; //消息模板
     public $menu;
-
-    public static function getInstance($config = array(), $name = __CLASS__)
-    {
-        return parent::getInstance($config, $name);
-    }
+    public $redis;
 
     /**
      * 用户用户发送消息时的自动回复
@@ -31,7 +40,7 @@ class WeiXin extends Object
         $xml = new StructXml();
         $root = $xml->addRoot('xml');
         $root->addChild('ToUserName', $to);
-        $root->addChild('FromUserName',  $from);
+        $root->addChild('FromUserName', $from);
         $root->addChild('CreateTime', time());
         $root->addChild('MsgType', 'text');
         $root->addChild('Content', $msg);
@@ -55,7 +64,7 @@ class WeiXin extends Object
         $tmpStr = implode($tmpArr);
         $tmpStr = sha1($tmpStr);
 
-        if ($tmpStr == $signature){
+        if ($tmpStr == $signature) {
             return true;
         } else {
             return false;
@@ -76,8 +85,8 @@ class WeiXin extends Object
         $str = sprintf($str, $openId, $msg);
         $res = Curl::simplePost($url, $str);
         $arr = json_decode($res, true);
-        if($arr['errmsg'] != 'ok') {
-            CoreLog::error($res);
+        if ($arr['errmsg'] != 'ok') {
+            Log::error($res);
         }
     }
 
@@ -101,7 +110,7 @@ class WeiXin extends Object
         $url = $baseUrl . '?' . http_build_query($params);
         $str = Curl::simpleGet($url);
         $arr = json_decode($str, true);
-        if($arr['access_token'] == false) {
+        if ($arr['access_token'] == false) {
             throw new Exception('获取微信access_token失败');
         } else {
             $token = $arr['access_token'];
@@ -252,7 +261,7 @@ class WeiXin extends Object
             'access_token' => $this->getAccessToken()
         );
         $url = $baseUrl . '?' . http_build_query($params);
-        $post = CoreJson::encode($menu, true);
+        $post = Json::encode($menu, true);
         $res = Curl::simplePost($url, $post);
         echo $res;
     }
@@ -300,7 +309,12 @@ class WeiXin extends Object
             'state' => '123',
         );
         $baseUrl = 'https://open.weixin.qq.com/connect/oauth2/authorize';
-        $url =  $baseUrl . '?' . http_build_query($params) . '#wechat_redirect';
+        $url = $baseUrl . '?' . http_build_query($params) . '#wechat_redirect';
         return $url;
+    }
+
+    public function redis()
+    {
+        return App::s()->sure($this->redis);
     }
 }

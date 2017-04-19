@@ -6,6 +6,9 @@
  * Time: 14:32
  * http处理的函数
  */
+
+namespace bee\object;
+
 class HttpObject
 {
     const CLIENT_WINDOWS = 'windows';

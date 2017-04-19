@@ -35,7 +35,7 @@ class CrontabServer extends BaseServer
         }
         $this->lastCrontabTime = $time = time();
         $timerTask = $this->config['timer_task'];
-        $model = new \LinuxCrontab();
+        $model = new \bee\common\LinuxCrontab();
         foreach ((array)$timerTask['linux_crontab'] as $key => $row) {
             $tmp = preg_split('/[\s]+/', trim($row));
             $cron = implode(' ', array_slice($tmp, 0, 5));

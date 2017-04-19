@@ -5,11 +5,13 @@
  * Date: 2015/7/22
  * Time: 9:48
  */
+
 namespace bee\cache;
+
 class RedisAnalysis
 {
     /**
-     * @var \CoreRedis
+     * @var \bee\core\BeeRedis
      */
     protected $redis;
     protected $keyArr; //随机key
@@ -22,7 +24,7 @@ class RedisAnalysis
     public static function getInstance($config)
     {
         $o = new static();
-        $o->redis = \CoreRedis::getInstance($config);
+        $o->redis = \bee\core\BeeRedis::getInstance($config);
         return $o;
     }
 

@@ -5,6 +5,7 @@
  * Date: 2017/2/16
  * Time: 18:17
  */
+
 namespace bee\client;
 class LogClient
 {

@@ -6,7 +6,13 @@
  * Time: 11:22
  * 日志系统
  */
-class CoreLog
+
+namespace bee\core;
+
+use bee\App;
+use bee\common\Json;
+
+class Log
 {
     /**
      * @var bool 是否使用udp发送日志。必须配置udp_log 组件
@@ -61,8 +67,8 @@ class CoreLog
      */
     private static function _log($file, $msg)
     {
-        if(is_array($msg)) {
-            $msg = CoreJson::encode($msg);
+        if (is_array($msg)) {
+            $msg = Json::encode($msg);
         }
         $time = date('Y-m-d H:i:s');
         $zone = date_default_timezone_get();
@@ -85,7 +91,7 @@ class CoreLog
     {
         $o = App::getInstance();
         $dir = $o->getRuntimeDir() . '/error_log/' . date('Y/m');
-        if(!is_dir($dir)) {
+        if (!is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
         $file = $dir . '/error_' . date('d') . '.log';
@@ -104,7 +110,7 @@ class CoreLog
     {
         $o = App::getInstance();
         $dir = $o->getRuntimeDir() . '/access_log/' . date('Y/m');
-        if(!is_dir($dir)) {
+        if (!is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
         $file = $dir . '/access_' . date('d') . '.log';
@@ -119,7 +125,7 @@ class CoreLog
     {
         $o = App::getInstance();
         $dir = $o->getRuntimeDir() . '/debug_log/' . date('Y/m');
-        if(!is_dir($dir)) {
+        if (!is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
         $file = $dir . '/debug_' . date('d') . '.log';

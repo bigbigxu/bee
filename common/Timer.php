@@ -36,12 +36,16 @@
  * y - 年，二位数字; 如: "99"
  * z - 一年中的第几天; 如: "0" 至 "365"
  */
+
+namespace bee\common;
+
 class Timer
 {
     const DAY_SECOND = 86400; //1天的秒数
     const WEEK_SECOND = 604800; // 1周的秒数
     const MONTH_SECOND = 2592000; //1个月的秒数，参考
     const YEAR_SECOND = 31536000; //1年的秒数，参考
+
     /**
      * 得到今天0点0分的时间戳
      * @return int
@@ -219,7 +223,7 @@ class Timer
      */
     public static function someDayByStamp($start, $end)
     {
-        $r  = array();
+        $r = array();
         if ($start > $end) {
             return $r;
         }

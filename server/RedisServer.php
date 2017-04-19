@@ -154,7 +154,7 @@ class RedisServer extends BaseServer
             $this->errorLog("redis-server：{$class}不存在");
             return false;
         }
-        /* @var $object \SwooleController */
+        /* @var $object \bee\core\SwooleController */
         $object = new $class;
         $object->server = $this;
         $object->fd = $fd;

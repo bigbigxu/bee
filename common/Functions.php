@@ -1,11 +1,13 @@
 <?php
-
 /**
  * Created by PhpStorm.
  * User: VigoXu
  * Date: 2015/5/12
  * Time: 15:50
  */
+
+namespace bee\common;
+
 class Functions
 {
     public static function numToChinese($num)
@@ -272,16 +274,16 @@ class Functions
 
     public static function stripslashesDeep()
     {
-        $_POST = array_map(array('self', '_stripslashes'), $_POST);
-        $_GET = array_map(array('self', '_stripslashes'), $_GET);
-        $_COOKIE = array_map(array('self', '_stripslashes'), $_COOKIE);
-        $_REQUEST = array_map(array('self', '_stripslashes'), $_REQUEST);
+        $_POST = array_map(array('bee\common\Functions', '_stripslashes'), $_POST);
+        $_GET = array_map(array('bee\common\Functions', '_stripslashes'), $_GET);
+        $_COOKIE = array_map(array('bee\common\Functions', '_stripslashes'), $_COOKIE);
+        $_REQUEST = array_map(array('bee\common\Functions', '_stripslashes'), $_REQUEST);
     }
 
     private static function _stripslashes($value)
     {
         if (is_array($value)) {
-            $value = array_map(array('self', '_stripslashes'), $value);
+            $value = array_map(array('bee\common\Functions', '_stripslashes'), $value);
         } else {
             $value = stripslashes($value);
         }
