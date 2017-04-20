@@ -4,6 +4,7 @@
  * User: VigoXu
  * Date: 2017/4/13
  * Time: 9:10
+ * 模块代码
  */
 namespace bee\core;
 abstract class Module
@@ -39,25 +40,30 @@ abstract class Module
      * @var mixed
      */
     public $response;
+    /**
+     * 模块可以加载的控制器命名空间
+     * @var array
+     */
+    public $namespace = [];
     /*
      * 获取请求参数
-     * 这种$this->request的值
-     * @return mixed 数据
+     * 设置 $this->request的值
+     * @return bool
      */
     abstract public function setRequest();
 
     /**
      * 权限校验
-     * @return mixed
+     * @return bool
      */
     abstract public function checkAuth();
 
     /**
-     * 运行，实例化控制器，调用方法
-     * 设置$this->request的值
-     * @return mixed
+     * 从路由中解析 class method
+     * 返回一个数组，包含class method
+     * @return array
      */
-    abstract public function runAction();
+    abstract public function parseRoute();
 
     /**
      * 请求执行前执行的占位方法
@@ -77,22 +83,36 @@ abstract class Module
         return true;
     }
 
+    /**
+     * 执行动作请求
+     * @return bool
+     * @throws \Exception
+     */
+    public function runAction()
+    {
+        list($class, $method) = $this->parseRoute();
+        $class = $this->findController($class);
+        if ($class == false) {
+            throw new \Exception("类 [{$class}] 不存在");
+        }
+        if (!method_exists($class, $method)) {
+            throw new \Exception("方法 [{$class}::{$method}] 不存在");
+        }
+        $o = new $class;
+        $this->ctrl = $o;
+        $this->response = $o->$method($this->request);
+        return true;
+    }
+
     public function run()
     {
-        $this->setRequest();
+        $this->setRequest()
+        && $this->beforeAction()
+        && $this->checkAuth()
+        && $this->runAction()
+        && $this->afterAction()
+        && $this->send();
 
-        if (!$this->beforeAction()) {
-            return null;
-        }
-
-        $this->checkAuth();
-        $this->runAction();
-
-        if (!$this->afterAction()) {
-            return null;
-        }
-
-        $this->send();
     }
 
     /**
@@ -101,6 +121,32 @@ abstract class Module
     public function send()
     {
         header('Content-Type: text/html;charset=utf-8');
-        die($this->response);
+        if (is_array($this->response)) {
+            die(json_encode($this->response, JSON_UNESCAPED_UNICODE));
+        } else {
+            die($this->response);
+        }
+    }
+
+    /**
+     * 查找controller
+     * @param $class
+     * @return bool|string
+     * @throws \Exception
+     */
+    public function findController($class)
+    {
+        if (!$this->namespace) {
+            throw new \Exception('模块没有定义namespace');
+        }
+        $class = ucfirst($class);
+        $realClass = false;
+        foreach ($this->namespace as $name) {
+            $realClass = "{$name}\\{$class}Controller";
+            if (class_exists($realClass)) {
+                break;
+            }
+        }
+        return $realClass;
     }
 }
