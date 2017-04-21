@@ -35,6 +35,7 @@ return [
     'bee\common\StructXml' => $sysDir . '/common/StructXml.php',
     'bee\common\Timer' => $sysDir . '/common/Timer.php',
     'bee\common\Zlib' => $sysDir . '/common/Zlib.php',
+    'bee\common\BeePack' => $sysDir . '/common/BeePack.php',
 
     /* core目录 */
     'bee\core\Call' => $sysDir . '/core/Call.php',
