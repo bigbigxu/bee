@@ -18,23 +18,23 @@ class FileMutex implements IMutex
      * 锁文件保存位置
      * @var string
      */
-    public $mutexPath = '';
+    protected $mutexPath = '';
     /**
      * 文件权限
      * @var int
      */
-    public $fileMode = 0755;
+    protected $fileMode = 0755;
     /**
      * 目录权限
      * @var int
      */
-    public $dirMode = 0755;
+    protected $dirMode = 0755;
 
     /**
      * 锁的文件前缀
      * @var string
      */
-    public $prefix = 'bee_lock_';
+    protected $prefix = 'bee_lock_';
 
     /**
      * 锁定的文件
@@ -47,7 +47,7 @@ class FileMutex implements IMutex
      * @var array
      */
     private $_locks = [];
-    public $autoRelease = true;
+    protected $autoRelease = true;
 
     public function init()
     {

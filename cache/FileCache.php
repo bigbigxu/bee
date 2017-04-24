@@ -9,6 +9,7 @@
 
 namespace bee\cache;
 
+use bee\core\Log;
 use bee\core\TComponent;
 
 class FileCache implements ICache
@@ -18,52 +19,52 @@ class FileCache implements ICache
      * key 前缀
      * @var string
      */
-    public $prefix = 'bee_cache_';
+    protected $prefix = 'bee_cache_';
     /**
      * 缓存路径
      * @var string
      */
-    public $cachePath = './';
+    protected $cachePath = './';
     /**
      * cache 文件后缀
      * @var string
      */
-    public $cacheFileSuffix = '.cache';
+    protected $cacheFileSuffix = '.cache';
     /**
      * 目录等级
      * @var int
      */
-    public $dirLevel = 0;
+    protected $dirLevel = 0;
     /**
      * 数据结构化函数
      * @var string
      */
-    public $serializer;
+    protected $serializer;
     /**
      * 创建的目录权限
      * @var int
      */
-    public $dirMode = 0775;
+    protected $dirMode = 0775;
     /**
      * 创建的文件权限
      * @var int
      */
-    public $fileMode = 0775;
+    protected $fileMode = 0775;
     /**
      * 过期文件回收概率。最大为 1000000
      * @var int
      */
-    public $gcProbability = 10;
+    protected $gcProbability = 10;
     /**
      * 默认的过期时间
      * @var null
      */
-    public $expire = 3600;
+    protected $expire = 3600;
     /**
      * 版本号，用于刷新cache
      * @var int
      */
-    public $version = 0;
+    protected $version = 0;
 
 
     /**
@@ -223,13 +224,13 @@ class FileCache implements ICache
                 if (!$expiredOnly) {
                     if (!@rmdir($fullPath)) {
                         $error = error_get_last();
-                        \bee\core\Log::error("Unable to remove dir {$fullPath}: {$error['message']}");
+                        Log::error("Unable to remove dir {$fullPath}: {$error['message']}");
                     }
                 }
             } elseif (!$expiredOnly || $expiredOnly && @filemtime($fullPath) < time()) {
                 if (!@unlink($fullPath)) {
                     $error = error_get_last();
-                    \bee\core\Log::error("Unable to remove file '{$fullPath}': {$error['message']}");
+                    Log::error("Unable to remove file '{$fullPath}': {$error['message']}");
                 }
             }
         }

@@ -23,25 +23,21 @@ class MysqlMutex implements IMutex
      * 使用的db组件
      * @var string|\bee\core\BeeMysql
      */
-    public $db = 'db';
+    protected $db = 'db';
     /**
      * 前缀
      * @var string
      */
-    public $prefix = 'bee_lock_';
+    protected $prefix = 'bee_lock_';
     /**
      * 当前锁
      * @var array
      */
     private $_locks = [];
 
-    /**
-     * 获取DB组件
-     * @return \bee\core\BeeMysql
-     */
-    public function getDb()
+    public function init()
     {
-        return \bee\App::s()->sure($this->db);
+        $this->db =  $this->sureComponent($this->db);
     }
 
     /**

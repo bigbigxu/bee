@@ -7,6 +7,7 @@
  * 服务定位器
  */
 namespace bee\core;
+use bee\App;
 use bee\cache\ICache;
 use bee\client\LogClient;
 
@@ -54,7 +55,7 @@ class ServiceLocator
     public static function create($objConfig)
     {
         if (is_string($objConfig)) { /* 字符串认为是一个bee配置节 */
-            $objConfig = \bee\App::c($objConfig);
+            $objConfig = App::c($objConfig);
         }
         if (is_array($objConfig) && isset($objConfig['class'])) {
             return self::build($objConfig);
@@ -220,7 +221,7 @@ class ServiceLocator
             \bee\App::getInstance()->loadClass([$className => $classFile]);
         }
         $re = new \ReflectionClass($className);
-        if ($re->hasProperty('_isBeeComponent')) {
+        if ($re->hasProperty('__isBeeComponent__')) {
             $params[] = $config; /* TComponent 类型对象，构造参数最后一个配置数组 */
             $o = $re->newInstanceArgs($params);
         } else {
@@ -237,18 +238,22 @@ class ServiceLocator
 
     /**
      * 如果一个对象的属性是个一个组件配置，调用此方法获取对象
-     * @param $id
+     * @param mixed $id 一个组件ID或者配置
+     * @param static $sl
      * @return bool|object
      * @throws \Exception
      */
-    public function sure(&$id)
+    public static function sure($id, $sl = null)
     {
+        if ($sl === null) { /* 如果没有配置服务定位器，设置为系统的*/
+            $sl = App::s();
+        }
         if (!$id) { /* 如果id不是一个有效值 */
             return false;
         } elseif (is_object($id) && (!$id instanceof \Closure)) { /* 是一个对象，但不是回调函数*/
             return $id;
         } elseif (is_string($id) || is_int($id)) { /* 是一个组件对象 */
-            $id = $this->get($id);
+            $id = $sl->get($id);
         } else { /* 创建一个对象 */
             $id = self::create($id);
         }

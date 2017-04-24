@@ -698,7 +698,7 @@ class Model
     }
 
     /**
-     * @see CoreMysql::useMaster()
+     * @see BeeMysql::useMaster()
      * @return $this
      */
     public function useMaster()
@@ -709,5 +709,17 @@ class Model
     public static function className()
     {
         return get_called_class();
+    }
+
+    /**
+     * @see BeeMysql::upsert()
+     * @param $data
+     * @param $updateField
+     * @param array $incField
+     * @return bool|int
+     */
+    public function upsert($data, $updateField, $incField = [])
+    {
+        return $this->from()->upsert($data, $updateField, $incField);
     }
 }

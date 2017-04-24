@@ -12,9 +12,15 @@
  * 继承Component类，脱离Component任然是一个完整的类
  */
 namespace bee\core;
+use bee\App;
+
 trait TComponent
 {
-    private $_isBeeComponent = 1;
+    /**
+     * 组件实例化判断的特殊变量
+     * @var int
+     */
+    protected $__isBeeComponent__ = 1;
 
     public function __construct($config = [])
     {
@@ -69,5 +75,25 @@ trait TComponent
     public function trigger($name, $data = [], $event = null)
     {
         Event::trigger($this, $name, $data, $event);
+    }
+
+    /**
+     * 如果一个对象的属性是个一个组件配置，调用此方法获取对象
+     * @param mixed $id 一个组件ID或者配置
+     * @return bool|object
+     * @throws \Exception
+     */
+    public function sureComponent($id)
+    {
+        if (!$id) { /* 如果id不是一个有效值 */
+            return false;
+        } elseif (is_object($id) && (!$id instanceof \Closure)) { /* 是一个对象，但不是回调函数*/
+            return $id;
+        } elseif (is_string($id) || is_int($id)) { /* 是一个组件对象 */
+            $id = App::s()->get($id);
+        } else { /* 创建一个对象 */
+            $id = ServiceLocator::create($id);
+        }
+        return $id;
     }
 }

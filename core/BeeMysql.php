@@ -1633,7 +1633,7 @@ class BeeMysql
 	 * @param array $incField 发送update操作时，更新的c = c + 1字段
 	 * @return bool|int
 	 */
-	public function upsert($data, $updateField = [], $incField = [])
+	public function upsert($data, $updateField, $incField = [])
 	{
 		$columns = $this->getTableColumns();
 		$insert = [];

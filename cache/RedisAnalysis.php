@@ -8,24 +8,21 @@
 
 namespace bee\cache;
 
+use bee\core\TComponent;
+
 class RedisAnalysis
 {
+    use TComponent;
     /**
      * @var \bee\core\BeeRedis
      */
-    protected $redis;
-    protected $keyArr; //随机key
-    protected $keyReg = '/^[0-9a-zA-Z]+[\-_|:]{1}/';//key前缀匹配正则表达式
+    public $redis;
+    public $keyArr; //随机key
+    public $keyReg = '/^[0-9a-zA-Z]+[\-_|:]{1}/';//key前缀匹配正则表达式
 
-    /**
-     * @param array $config
-     * @return static
-     */
-    public static function getInstance($config)
+    public function init()
     {
-        $o = new static();
-        $o->redis = \bee\core\BeeRedis::getInstance($config);
-        return $o;
+        $this->redis = $this->sureComponent($this->redis);
     }
 
     /**
