@@ -5,6 +5,9 @@
  * Date: 2016/9/23
  * Time: 14:14
  */
+
+namespace bee\common;
+
 class SplitTable
 {
     /**

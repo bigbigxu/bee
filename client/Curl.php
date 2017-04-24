@@ -9,6 +9,9 @@
  * @author xuen
  * @version 1.0
  */
+
+namespace bee\client;
+
 class Curl
 {
     /**
@@ -63,7 +66,7 @@ class Curl
     {
         $this->options = $this->defaultOptions;
         if (extension_loaded('curl') == false) {
-            throw new Exception('当前环境不支持curl');
+            throw new \Exception('当前环境不支持curl');
         }
         $this->_ch = curl_init();
     }
@@ -76,7 +79,7 @@ class Curl
     public static function getInstance($single = true)
     {
         if ($single) {
-            if(!is_object(self::$_instance)){
+            if (!is_object(self::$_instance)) {
                 self::$_instance = new self();
             }
             return self::$_instance;
@@ -172,7 +175,7 @@ class Curl
      * 执行一个curl请求
      * @param array $options
      * @return array|bool|mixed
-     * @throws Exception
+     * @throws \Exception
      */
     public function exec($options = array())
     {
@@ -182,12 +185,12 @@ class Curl
         $str = curl_exec($this->_ch);
 
         if ($this->getErrno() != 0) {
-            throw new Exception('curl请求失败: ' . $this->getErrmsg());
+            throw new \Exception('curl请求失败: ' . $this->getErrmsg());
         }
         if ($this->dataType == self::DATA_JSON) {
             $r = json_decode($str, true);
         } elseif ($this->dataType == self::DATA_XML) {
-            $r = StructXml::getTreeArray($str);
+            $r = \bee\common\StructXml::getTreeArray($str);
         } elseif ($this->dataType == self::DATA_JSONP) {
             preg_match('/\(([\s\S]+)\)/', $str, $ma);
             $r = json_decode($ma[1], true);
@@ -246,29 +249,6 @@ class Curl
         $this->url = '';
         $this->data = '';
         $this->type = self::HTTP_GET;
-    }
-
-    /**
-     * 使用phpquery来进行html页面采集
-     * @desc 如果没有声明charset，phpquery会自动匹配编码。这个有可能出错。
-     * 比如不支持gb2312,会导至创建dom对象失败。
-     * 建议在使用先将编码转成utf8,创建对象时显示声明文档所使用编码。
-     *
-     * @param string $str 字符串
-     * @param $charset
-     * @return phpQueryObject
-     */
-    public static function pq($str, $charset = self::CHARSET_UTF8)
-    {
-        $app = App::getInstance();
-        $app->loadClass(array(
-            'phpQuery' => $app->getSysDir() . '/extension/phpQuery/phpQuery.php'
-        ));
-        if (count(phpQuery::$documents) > 512) {
-            phpQuery::$documents = array(); //清空html文档缓存
-        }
-        $domObject = phpQuery::newDocumentHTML($str, $charset);
-        return $domObject;
     }
 
     /**
@@ -474,7 +454,7 @@ class Curl
      */
     public function clientType($type)
     {
-        $userAgent =array(
+        $userAgent = array(
             self::CLIENT_PC => 'Mozilla/5.0 (Windows NT 6.1; rv:23.0) Gecko/20100101 Firefox/23.0',
             self::CLIENT_IOS => 'Mozilla/5.0 (iPad; U; CPU OS 3_2_2 like Mac OS X; en-us) AppleWebKit/531.21.10 (KHTML, like Gecko) Version/4.0.4 Mobile/7B500 Safari/531.21.10',
             self::CLIENT_ANDROID => 'Mozilla/5.0 (Linux; U; Android 2.2; en-us; Nexus One Build/FRF91) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1'
@@ -519,7 +499,7 @@ class Curl
     {
         if ($ip != false) {
             $this->options[CURLOPT_HTTPHEADER][] = 'X-FORWARDED-FOR: ' . $ip;
-            $this->options[CURLOPT_HTTPHEADER][] = 'CLIENT-IP: '. $ip;
+            $this->options[CURLOPT_HTTPHEADER][] = 'CLIENT-IP: ' . $ip;
         }
         return $this;
     }
@@ -532,7 +512,7 @@ class Curl
     public function cookieFile($fileName = '')
     {
         if (!is_file($fileName)) {
-            $fileName = App::getInstance()->getRuntimeDir() . '/cookie.txt';
+            $fileName = \bee\App::getInstance()->getRuntimeDir() . '/cookie.txt';
         }
         $this->options[CURLOPT_COOKIEFILE] = $fileName; //发送COOKIE;
         $this->options[CURLOPT_COOKIEJAR] = $fileName; //设置cookie

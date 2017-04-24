@@ -1,5 +1,4 @@
 <?php
-
 /**
  * 数据库操作基类 基于pdo
  * @author xuen
@@ -11,7 +10,7 @@
  * INSERT/UPDATE/DELETE所有关联数据都会被锁定，加上排它锁。
  * 这时候的select结果取决于事务隔离级别。（select 默认情况下，不会加锁。）
  * mysql默认级别：
- * 	不读取未提交数据。
+ *    不读取未提交数据。
  *  不允许非重复读，一个事务内，读取的结果一致。无论数据是否有提交的修改。
  *  不可以幻像读，一个事务内，读取的结果集数量一致。无论数据是否有提交的修改。
  *
@@ -21,8 +20,8 @@
  * 3. innodb 是对索引加缩。主键索引是行锁。其他索引是意向锁(锁住相关记录)，如果记录太多可能会变成表锁。
  * 4. 锁在事务提交或回滚或才会释放。自动提交加锁意义不大。
  * 5. LOCK IN SHARE MODE 会产生死锁了，假如两个事务 A 、 B 都读取同一行记录，那么在这一行就加上了共享锁
- * 	  ，但是 A 和 B 事务中都需要修改这一行，那么都要等待对方释放共享锁才能进行，结果造成了死锁。
- * 	  只能使用 for update 来防止死锁和重复插入。
+ *      ，但是 A 和 B 事务中都需要修改这一行，那么都要等待对方释放共享锁才能进行，结果造成了死锁。
+ *      只能使用 for update 来防止死锁和重复插入。
  * 6. 锁的作用域是事务（自动提交也是事务）之间。同一事务内，反复加锁，相同记录只会加一次锁。
  * 7. for update 加锁熟悉必须一致，不如会造成死锁。
  *    session 1, 加锁 id=1, id=2。 session 2，加锁id=2, id=1，会产生死锁。
@@ -35,7 +34,15 @@
  * 这4个方法，先select后update/insert 在搞并发情况下，可能会出现数据不一致。
  * 如过select 加锁，容易造成死锁。
  */
-class CoreMysql
+
+namespace bee\core;
+use bee\App;
+use Exception;
+use PDO;
+use PDOException;
+use PDOStatement;
+
+class BeeMysql
 {
 	/**
 	 * @var PDO
@@ -105,9 +112,9 @@ class CoreMysql
 	protected $pid = 0;
 
 	/*
-	 * mysql常用错误码定义
-	 * 驱动错误码保存在 errInfo[1]中
-	*/
+     * mysql常用错误码定义
+     * 驱动错误码保存在 errInfo[1]中
+    */
 	const ERR_DRIVER_TABLE = 1146; /* 表不存存 */
 	const ERR_DRIVER_CONN = 2006; /* 连接已经断开 */
 	const ERR_DRIVER_INTERRUP = 70100; /* 查询执行被中断 */
@@ -116,8 +123,8 @@ class CoreMysql
 	const DB_SLAVE = 'slave'; /* 从DB */
 
 	/*
-	 * 定义驱动类型
-	 */
+     * 定义驱动类型
+     */
 	const DRIVER_MYSQL = 'mysql';
 	const DRIVER_SQLITE = 'sqlite';
 
@@ -152,10 +159,10 @@ class CoreMysql
 	 *   slaves => [
 	 *     'mysql:host=localhost;dbname=test',
 	 *     [
-	 * 			'dsn' => 'mysql:host=localhost;dbname=test'
+	 *            'dsn' => 'mysql:host=localhost;dbname=test'
 	 *          'username' => 'xx'
-	 * 	   ]
-	 * 	]
+	 *       ]
+	 *    ]
 	 * @var array
 	 */
 	public $slaves = [];
@@ -169,13 +176,13 @@ class CoreMysql
 	 * 构造方法
 	 * config 应该包含如下配置：
 	 * [
-	 * 	'dsn' => '数据库驱动',
-	 * 	'username' => '用户名',
-	 *	'password' => '用户密码',
+	 *    'dsn' => '数据库驱动',
+	 *    'username' => '用户名',
+	 *    'password' => '用户密码',
 	 *  'slaves' => '从库列表，数组',
-	 *	'cache' => '字段缓存使用的组件名',
-	 * 	'charset' => '字符集',
-	 * 	'attr' => '属性',
+	 *    'cache' => '字段缓存使用的组件名',
+	 *    'charset' => '字符集',
+	 *    'attr' => '属性',
 	 *  'prefix' => '表前缀'
 	 * ]
 	 * @param array $config 配置文件
@@ -241,7 +248,7 @@ class CoreMysql
 
 	/**
 	 * @param $config
-	 * @return self
+	 * @return BeeMysql
 	 */
 	public static function getInstance($config)
 	{
@@ -761,7 +768,7 @@ class CoreMysql
 				} else {
 					return $stmt;
 				}
-			} catch(PDOException $e) {
+			} catch (PDOException $e) {
 				/* 事务状态下，不可以使用断线重连。应该直接报错，rollback事务。 */
 				if ($i == 0 && $this->transactions < 1 && $e->errorInfo[1] == self::ERR_DRIVER_CONN) {
 					continue;
@@ -889,7 +896,7 @@ class CoreMysql
 	/**
 	 * 设置字段映射
 	 * @param array $map
-	 * @return CoreMysql
+	 * @return BeeMysql
 	 * @example $map = array(
 	 *  'id' => 'mid', //id使用mid表示
 	 *  'name', //仅表示查询此字段
@@ -1271,7 +1278,7 @@ class CoreMysql
 	public function commit()
 	{
 		$flag = true;
-		if ($this->transactions == 1)  {
+		if ($this->transactions == 1) {
 			$flag = $this->_pdo->commit();
 		}
 		$this->transactions = max(0, $this->transactions - 1);
@@ -1286,7 +1293,7 @@ class CoreMysql
 	{
 		$flag = true;
 		if ($this->transactions == 1) {
-			 $flag = $this->_pdo->rollBack();
+			$flag = $this->_pdo->rollBack();
 		}
 		$this->transactions = max(0, $this->transactions - 1);
 		return $flag;
@@ -1476,7 +1483,7 @@ class CoreMysql
 	/**
 	 * 得到从库
 	 * 从库会继承主库的配置文件选项。
-	 * @return $this|CoreMysql
+	 * @return $this|BeeMysql
 	 */
 	public function getSlaveDb()
 	{
@@ -1505,7 +1512,7 @@ class CoreMysql
 
 	/**
 	 * 获取实际执行的db
-	 * @return CoreMysql
+	 * @return BeeMysql
 	 */
 	public function getDb()
 	{
@@ -1538,7 +1545,7 @@ class CoreMysql
 	 * 获取一个db实例
 	 * @param string $type
 	 * @param int $k
-	 * @return CoreMysql
+	 * @return BeeMysql
 	 */
 	public function selectDB($type = self::DB_MASTER, $k = 0)
 	{
@@ -1618,7 +1625,7 @@ class CoreMysql
 	 * 3. 如果唯一索引的字段值为空，会导致唯一索引失效。唯一索引的字段应该设置not null
 	 * 4. on duplicate key update 是一个原子操作。
 	 * 5. last_id：如果受影响行数为0， last_id = 0，
-	 * 	  如果为1，是插入行id
+	 *      如果为1，是插入行id
 	 *    如果为2，是修改行id
 	 *
 	 * @param array $data
@@ -1649,7 +1656,7 @@ class CoreMysql
 		}
 		$sql = "insert into {$this->tableName} (" . implode(', ', $insert) . ') values (' .
 			implode(', ', $placeholder) . ')';
-		$sql .= ' on duplicate key update ' . implode(',' , $update);
+		$sql .= ' on duplicate key update ' . implode(',', $update);
 		return $this->exec($sql, $this->sqlQuery['params']);
 	}
 

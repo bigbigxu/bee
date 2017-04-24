@@ -1,5 +1,4 @@
 <?php
-
 /**
  * Created by PhpStorm.
  * User: VigoXu
@@ -7,7 +6,10 @@
  * Time: 10:52
  * 文件操作类
  */
-class CoreFile
+
+namespace bee\common;
+
+class File
 {
     private static $_instance;
     private $_spl;
@@ -17,14 +19,14 @@ class CoreFile
 
     public function __construct($fileName, $mode = 'r')
     {
-        $this->_spl = new SplFileObject($fileName, $mode);
+        $this->_spl = new \SplFileObject($fileName, $mode);
         $this->fileName = $fileName;
     }
 
     /**
      * @param $fileName
      * @param string $mode
-     * @return CoreFile
+     * @return File
      */
     public static function getInstance($fileName, $mode = 'r')
     {
@@ -159,7 +161,7 @@ class CoreFile
      */
     public static function savePhpArr($fileName, $arr)
     {
-        $str="<?php\nreturn ".var_export($arr, true).';';
+        $str = "<?php\nreturn " . var_export($arr, true) . ';';
         file_put_contents($fileName, $str);
     }
 }

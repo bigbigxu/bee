@@ -6,6 +6,9 @@
  * Time: 14:19
  * 代理一个对象调用
  */
+
+namespace bee\core;
+
 class Call
 {
     private $_errno = 0;
@@ -41,24 +44,24 @@ class Call
 
         if (method_exists($class, 'getInstance')) {
             $this->object = $class::getInstance();
-        } elseif (method_exists($class, 'g')){
-            $this->object  = $class::g();
+        } elseif (method_exists($class, 'g')) {
+            $this->object = $class::g();
         } else {
-            $this->object  = new $class;
+            $this->object = new $class;
         }
 
-        if (method_exists($this->object , $method) == false) {
+        if (method_exists($this->object, $method) == false) {
             return $this->_setErrno(self::ERR_METHOD);
         }
 
         //得到方法的参数列表
-        $methodParams = CoreReflection::getMethodParam(array($class, $method));
+        $methodParams = BeeReflection::getMethodParam(array($class, $method));
         foreach ($methodParams as $key => $value) {
             if ($params[$key] !== null) {
                 $methodParams[$key] = $params[$key];
             }
         }
-        return call_user_func_array(array($this->object , $method), $methodParams);
+        return call_user_func_array(array($this->object, $method), $methodParams);
     }
 
     public function control($r, $params = array(), $sp = '.')
@@ -121,7 +124,7 @@ class Call
      */
     public function exec($method, $data)
     {
-        $return  = $this->route($method, $data);
+        $return = $this->route($method, $data);
         if ($this->getErrno() != 0) {
             $r = array(
                 'flag' => $this->getErrno(),

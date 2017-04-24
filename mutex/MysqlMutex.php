@@ -21,7 +21,7 @@ class MysqlMutex implements IMutex
     use TComponent;
     /**
      * 使用的db组件
-     * @var string|\CoreMysql
+     * @var string|\bee\core\BeeMysql
      */
     public $db = 'db';
     /**
@@ -37,11 +37,11 @@ class MysqlMutex implements IMutex
 
     /**
      * 获取DB组件
-     * @return \CoreMysql
+     * @return \bee\core\BeeMysql
      */
     public function getDb()
     {
-        return \App::s()->sure($this->db);
+        return \bee\App::s()->sure($this->db);
     }
 
     /**

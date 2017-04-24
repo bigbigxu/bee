@@ -207,7 +207,7 @@ class DbServer extends BaseServer
         $num = 0;
         foreach ($execArr as $key => $dbArr) {
             try {
-                $db = \App::db($key);
+                $db = \bee\App::db($key);
             } catch (\PDOException $e) {
                 $this->errorLog("{$key} 数据库配置不存在" . $e->getMessage());
                 continue;
@@ -235,7 +235,7 @@ class DbServer extends BaseServer
     {
         $r = 0;
         try  {
-            $model = \App::m($data['table_name'], $data['db']);
+            $model = \bee\App::m($data['table_name'], $data['db']);
             switch ($data['op']) {
                 case self::OP_INSERT :
                     $r = $model->insert($data['data']);
@@ -255,7 +255,7 @@ class DbServer extends BaseServer
             $this->runInfo[$data['op']]++;
         } catch (\PDOException $e) {
             $this->runInfo[self::OP_ERROR]++;
-            $this->errorLog(\CoreJson::encode($data) . '：' . $e->getMessage());
+            $this->errorLog(\bee\common\Json::encode($data) . '：' . $e->getMessage());
             return false;
         }
         return $r;
@@ -270,7 +270,7 @@ class DbServer extends BaseServer
     {
         $r = 0;
         try  {
-            $model = \App::m($data['db'], $data['table_name']);
+            $model = \bee\App::m($data['db'], $data['table_name']);
             switch ($data['op']) {
                 case self::OP_SELECT :
                     $r = $model->all($data['sql'], $data['params']);
@@ -281,7 +281,7 @@ class DbServer extends BaseServer
             $this->runInfo[$data['op']]++;
         } catch (\PDOException $e) {
             $this->runInfo[self::OP_ERROR]++;
-            $this->errorLog(\CoreJson::encode($data) . '：' . $e->getMessage());
+            $this->errorLog(\bee\common\Json::encode($data) . '：' . $e->getMessage());
             return $r;
         }
         return $r;
@@ -299,7 +299,7 @@ class DbServer extends BaseServer
             'code' => $errno,
             'msg' => $this->errArr[$errno],
         );
-        return $this->send($fd, \CoreJson::encode($data));
+        return $this->send($fd, \bee\common\Json::encode($data));
     }
 
     /**
@@ -314,6 +314,6 @@ class DbServer extends BaseServer
             'msg' => 'ok',
             'data' => $res
         );
-        return $this->send($fd, \CoreJson::encode($data));
+        return $this->send($fd, \bee\common\Json::encode($data));
     }
 }

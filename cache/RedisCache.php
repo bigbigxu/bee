@@ -6,7 +6,9 @@
  * Time: 10:49
  * 基于redis 的缓存系统
  */
+
 namespace bee\cache;
+
 use bee\core\TComponent;
 
 class RedisCache implements ICache
@@ -14,7 +16,7 @@ class RedisCache implements ICache
     use TComponent;
     /**
      * 使用的redis组件
-     * @var string|\CoreRedis
+     * @var string|\bee\core\BeeRedis
      */
     public $redis = 'redis';
     /**
@@ -72,11 +74,11 @@ class RedisCache implements ICache
 
     /**
      * 获取redis组件
-     * @return \CoreRedis
+     * @return \bee\core\BeeRedis
      */
     public function getRedis()
     {
-        return \App::s()->sure($this->redis);
+        return \bee\App::s()->sure($this->redis);
     }
 
     /**

@@ -6,6 +6,9 @@
  * thumb()，制作缩略图
  * waterMark(),添加印
  ****************************************************/
+
+namespace bee\common;
+
 class Image
 {
     const THUMB_WHITE = 1; //生成图片的时候补白

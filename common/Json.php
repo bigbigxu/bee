@@ -5,7 +5,10 @@
  * Date: 2015/8/12
  * Time: 16:15
  */
-class CoreJson
+
+namespace bee\common;
+
+class Json
 {
     /**
      * json编码字符串
@@ -21,10 +24,10 @@ class CoreJson
             $json = json_encode($arr);
         } else {
             //如果想原样显示中文
-            if(version_compare(PHP_VERSION, '5.4', '>=')) {
+            if (version_compare(PHP_VERSION, '5.4', '>=')) {
                 $json = json_encode($arr, JSON_UNESCAPED_UNICODE);
             } else {
-                 //5.4以下版本不支持 JSON_UNESCAPED_UNICODE参数
+                //5.4以下版本不支持 JSON_UNESCAPED_UNICODE参数
                 $json = json_encode($arr);
                 $json = self::unicodeDecode($json);
             }
@@ -50,7 +53,7 @@ class CoreJson
     {
         $str = preg_replace_callback(
             '/\\\\u([0-9a-f]{4})/i',
-            array('self', 'replaceUnicode'),
+            array('bee\common\Json', 'replaceUnicode'),
             $str
         );
         return $str;
@@ -71,7 +74,7 @@ class CoreJson
      * @param int $repeatNum 缩进符每次重复次数
      * @return string 格式化后的字符串
      * @example
-     * 	    html页面
+     *        html页面
      *     echo Json::formatJson(array('xx'=>$res),"<br>",'&nbsp',4);
      *     文本返回
      *     echo Json::formatJson(array('xx'=>$res),"\n",' ',4);
@@ -79,7 +82,7 @@ class CoreJson
     public static function formatJson($json, $newLine = "\n", $indentStr = " ", $repeatNum = 4)
     {
         //如果是一个数组，先变成字符串。
-        if(is_array($json)) {
+        if (is_array($json)) {
             $json = self::encode($json);
         }
         $result = '';

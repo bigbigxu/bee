@@ -5,7 +5,9 @@
  * Date: 2016/8/11
  * Time: 11:03
  */
+
 namespace bee\client;
+
 class BaseClient
 {
     protected $host = ''; //主机地址

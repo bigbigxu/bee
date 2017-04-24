@@ -4,7 +4,9 @@
  * 建议session使用单一的数据来保存
  * @author xuen
  */
+
 namespace bee\cache;
+
 use bee\core\TComponent;
 
 class RedisSession
@@ -40,11 +42,11 @@ class RedisSession
 
     /**
      * 获取redis组件
-     * @return \CoreRedis
+     * @return \bee\core\BeeRedis
      */
     public function getRedis()
     {
-        return \App::s()->sure($this->redis);
+        return \bee\App::s()->sure($this->redis);
     }
 
     /**

@@ -6,7 +6,9 @@
  * Time: 14:21
  * 基于文件系统的缓存
  */
+
 namespace bee\cache;
+
 use bee\core\TComponent;
 
 class FileCache implements ICache
@@ -147,7 +149,7 @@ class FileCache implements ICache
             return @touch($cacheFile, time() + $this->getExpire($expire));
         } else {
             $error = error_get_last();
-            \CoreLog::error("Unable to write cache file '{$cacheFile}': {$error['message']}");
+            \bee\core\Log::error("Unable to write cache file '{$cacheFile}': {$error['message']}");
             return false;
         }
     }
@@ -209,7 +211,7 @@ class FileCache implements ICache
     {
         $handle = opendir($path);
         if ($handle === false) {
-            \CoreLog::error("Unable to open dir {$path}");
+            \bee\core\Log::error("Unable to open dir {$path}");
         }
         while (($file = readdir($handle)) !== false) {
             if ($file[0] === '.') { /* 过滤 . ..*/
@@ -221,13 +223,13 @@ class FileCache implements ICache
                 if (!$expiredOnly) {
                     if (!@rmdir($fullPath)) {
                         $error = error_get_last();
-                        \CoreLog::error("Unable to remove dir {$fullPath}: {$error['message']}");
+                        \bee\core\Log::error("Unable to remove dir {$fullPath}: {$error['message']}");
                     }
                 }
             } elseif (!$expiredOnly || $expiredOnly && @filemtime($fullPath) < time()) {
                 if (!@unlink($fullPath)) {
                     $error = error_get_last();
-                    \CoreLog::error("Unable to remove file '{$fullPath}': {$error['message']}");
+                    \bee\core\Log::error("Unable to remove file '{$fullPath}': {$error['message']}");
                 }
             }
         }

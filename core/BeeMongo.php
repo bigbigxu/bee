@@ -12,7 +12,7 @@ use MongoDB\Driver\Manager;
 use MongoDB\Driver\Query;
 use MongoDB\Driver\WriteConcern;
 
-class Mongo
+class BeeMongo
 {
     /**
      * 默认连接选项
@@ -144,7 +144,7 @@ class Mongo
     public static function getInstance($config)
     {
         if (!is_array($config)) {
-            $config = \App::c($config);
+            $config = \bee\App::c($config);
         }
         $pid = intval(getmypid());
         $k = md5(implode('', $config['server']) . $pid);
