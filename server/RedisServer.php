@@ -52,6 +52,7 @@
 
 namespace bee\server;
 
+use bee\core\Log;
 use bee\core\SwooleController;
 
 class RedisServer extends BaseServer
@@ -155,7 +156,7 @@ class RedisServer extends BaseServer
         /* redis key 被认为是一个路由 */
         list($class, $method) = $this->parseRoute($key);
         if (!class_exists($class)) {
-            $this->errorLog("redis-server：{$class}不存在");
+            $this->errorLog("redis-server：类 [{$class}] 不存在");
             return false;
         }
         /* @var $object SwooleController */
@@ -163,11 +164,18 @@ class RedisServer extends BaseServer
         $object->server = $this;
         $object->fd = $fd;
         if (!is_callable(array($object, $method))) {
-            $this->errorLog("redis-server：{$class}.{$method}不可调用");
+            $this->errorLog("redis-server：[{$class}::{$method}] 不可调用");
             return false;
         }
-        /* 按照redis 命令顺序传递参数 */
-        return call_user_func_array(array($object, $method), $data);
+
+        /* 捕获异常，防止进程异常退出，fork会消耗系统资源 */
+        try {
+            /* 按照redis 命令顺序传递参数 */
+            return call_user_func_array(array($object, $method), $data);
+        } catch (\Exception $e) {
+            Log::error(sprintf("PHP Fatal error: Uncaught %s", (string)$e));
+            return false;
+        }
     }
 
     /**
