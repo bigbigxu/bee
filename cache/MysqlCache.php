@@ -13,6 +13,7 @@
 
 namespace bee\cache;
 
+use bee\core\BeeMysql;
 use bee\core\TComponent;
 
 class MysqlCache implements ICache
@@ -20,19 +21,19 @@ class MysqlCache implements ICache
     use TComponent;
     /**
      * 使用的redis组件
-     * @var string|\bee\core\BeeRedis
+     * @var string|BeeMysql
      */
-    public $db = 'db';
+    protected $db = 'db';
     /**
      * cache使用的表
      * @var string
      */
-    public $table = 'bee_cache';
+    protected $table = 'bee_cache';
     /**
      * key 前缀
      * @var string
      */
-    public $prefix = 'bee_cache_';
+    protected $prefix = 'bee_cache_';
     /**
      * 数据结构化函数
      * @var string
@@ -42,17 +43,22 @@ class MysqlCache implements ICache
      * 默认的过期时间
      * @var null
      */
-    public $expire = 3600;
+    protected $expire = 3600;
     /**
      * 版本号，用于刷新cache
      * @var int
      */
-    public $version = 0;
+    protected $version = 0;
     /**
      * 过期文件回收概率。最大为 1000000
      * @var int
      */
-    public $gcProbability = 10;
+    protected $gcProbability = 10;
+
+    public function init()
+    {
+        $this->db = $this->sureComponent($this->db);
+    }
 
     /**
      * 创建一个key
@@ -87,15 +93,6 @@ class MysqlCache implements ICache
     }
 
     /**
-     * 获取db组件
-     * @return \bee\core\BeeMysql
-     */
-    public function getDb()
-    {
-        return \bee\App::s()->sure($this->db)->from($this->table);
-    }
-
-    /**
      * 获取一个key
      * @param $key
      * @return bool|mixed
@@ -103,7 +100,7 @@ class MysqlCache implements ICache
     public function get($key)
     {
         $key = $this->buildKey($key);
-        $res = $this->getDb()
+        $res = $this->db
             ->andFilter('id', '>=', $key)
             ->andFilter('expire', '>', time())
             ->one();
@@ -139,7 +136,7 @@ class MysqlCache implements ICache
             'data' => $value,
             'expire' => time() + $this->getExpire($expire)
         ];
-        $flag = $this->getDb()
+        $flag = $this->db
             ->upsert($data, ['data', 'expire']);
         if ($flag) {
             $this->gc();
@@ -155,7 +152,7 @@ class MysqlCache implements ICache
     public function ttl($key)
     {
         $key = $this->buildKey($key);
-        $res = $this->getDb()
+        $res = $this->db
             ->findById($key);
         if ($res == false) {
             return 0;
@@ -172,7 +169,7 @@ class MysqlCache implements ICache
     public function exists($key)
     {
         $key = $this->buildKey($key);
-        $res = $this->getDb()
+        $res = $this->db
             ->andFilter('id', '>=', $key)
             ->andFilter('expire', '>', time())
             ->one();
@@ -182,7 +179,7 @@ class MysqlCache implements ICache
     public function del($key)
     {
         $key = $this->buildKey($key);
-        return $this->getDb()
+        return $this->db
             ->andFilter('id', '=', $key)
             ->delete();
     }
@@ -195,7 +192,7 @@ class MysqlCache implements ICache
     public function gc($force = false, $expiredOnly = true)
     {
         if ($force || mt_rand(0, 1000000) < $this->gcProbability) {
-            $this->getDb()
+            $this->db
                 ->andFilter('expire', '<' , time())
                 ->delete();
         }

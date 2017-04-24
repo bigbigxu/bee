@@ -18,27 +18,32 @@ class RedisCache implements ICache
      * 使用的redis组件
      * @var string|\bee\core\BeeRedis
      */
-    public $redis = 'redis';
+    protected $redis = 'redis';
     /**
      * key 前缀
      * @var string
      */
-    public $prefix = 'bee_cache_';
+    protected $prefix = 'bee_cache_';
     /**
      * 数据结构化函数
      * @var string
      */
-    public $serializer;
+    protected $serializer;
     /**
      * 默认的过期时间
      * @var null
      */
-    public $expire = 0;
+    protected $expire = 3600;
     /**
      * 版本号，用于刷新cache
      * @var int
      */
-    public $version = 0;
+    protected $version = 0;
+
+    public function init()
+    {
+        $this->redis = $this->sureComponent($this->redis);
+    }
 
     /**
      * 创建一个key
@@ -73,15 +78,6 @@ class RedisCache implements ICache
     }
 
     /**
-     * 获取redis组件
-     * @return \bee\core\BeeRedis
-     */
-    public function getRedis()
-    {
-        return \bee\App::s()->sure($this->redis);
-    }
-
-    /**
      * 判断key 是否存在
      * @param $key
      * @return bool
@@ -89,7 +85,7 @@ class RedisCache implements ICache
     public function exists($key)
     {
         $key = $this->buildKey($key);
-        return $this->getRedis()->exists($key);
+        return $this->redis->exists($key);
     }
 
     /**
@@ -100,7 +96,7 @@ class RedisCache implements ICache
     public function get($key)
     {
         $key = $this->buildKey($key);
-        $value = $this->getRedis()->get($key);
+        $value = $this->redis->get($key);
         if ($this->serializer === null) {
             $value = json_decode($value, true);
         } else {
@@ -128,7 +124,7 @@ class RedisCache implements ICache
         } else {
             $value = call_user_func($this->serializer[0], $value);
         }
-        return $this->getRedis()->setex($key, $this->getExpire($expire), $value);
+        return $this->redis->setex($key, $this->getExpire($expire), $value);
     }
 
     public function gc($force = false, $expiredOnly = true)
@@ -143,12 +139,12 @@ class RedisCache implements ICache
     public function ttl($key)
     {
         $key = $this->buildKey($key);
-        return $this->getRedis()->ttl($key);
+        return $this->redis->ttl($key);
     }
 
     public function del($key)
     {
         $key = $this->buildKey($key);
-        return $this->getRedis()->del($key);
+        return $this->redis->del($key);
     }
 }

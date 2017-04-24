@@ -15,22 +15,22 @@ class RedisMutex implements IMutex
      * redis 组件
      * @var string|\bee\core\BeeRedis
      */
-    public $redis = 'redis';
+    protected $redis = 'redis';
     /**
      * 最大锁定时间
      * @var int
      */
-    public $expire = 30;
+    protected $expire = 30;
     /**
      * 前缀
      * @var string
      */
-    public $prefix = 'bee_lock_';
+    protected $prefix = 'bee_lock_';
     /**
      * 进程结束后是否自动释放锁
      * @var bool
      */
-    public $autoRelease = true;
+    protected $autoRelease = true;
 
     /**
      * 当前锁住的key
@@ -47,15 +47,7 @@ class RedisMutex implements IMutex
                 }
             });
         }
-    }
-
-    /**
-     * 获取redis组件
-     * @return \bee\core\BeeRedis
-     */
-    public function getRedis()
-    {
-        return \bee\App::s()->sure($this->redis);
+        $this->redis = $this->sureComponent($this->redis);
     }
 
     /**
@@ -86,14 +78,14 @@ class RedisMutex implements IMutex
     {
         $key = $this->getLockName($name);
         $waitTime = 0;
-        while (!$this->getRedis()->setnx($key, 1)) {
+        while (!$this->redis->setnx($key, 1)) {
             $waitTime++;
             if ($waitTime > $timeout) {
                 return false;
             }
             sleep(1);
         }
-        $this->getRedis()->expire($key, $this->expire);
+        $this->redis->expire($key, $this->expire);
         $this->_locks[$key] = $name;
         return true;
     }
@@ -109,7 +101,7 @@ class RedisMutex implements IMutex
         if ($this->_locks[$key] === null) {
             return false;
         }
-        if ($this->getRedis()->del($key)) {
+        if ($this->redis->del($key)) {
             unset($this->_locks[$key]);
             return true;
         } else {

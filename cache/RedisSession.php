@@ -7,6 +7,7 @@
 
 namespace bee\cache;
 
+use bee\core\BeeRedis;
 use bee\core\TComponent;
 
 class RedisSession
@@ -16,17 +17,17 @@ class RedisSession
      * session过期时间
      * @var int
      */
-    public $expire = 1440;
+    protected $expire = 1440;
     /**
      * session前缀
      * @var string
      */
-    public $prefix = 'sess_';
+    protected $prefix = 'sess_';
     /**
      * 使用的redis组件
-     * @var array
+     * @var BeeRedis
      */
-    public $redis = 'redis';
+    protected $redis = 'redis';
 
     public function init()
     {
@@ -38,16 +39,9 @@ class RedisSession
             array($this, 'destroy'),
             array($this, 'gc')
         );
+        $this->redis = $this->sureComponent($this->redis);
     }
 
-    /**
-     * 获取redis组件
-     * @return \bee\core\BeeRedis
-     */
-    public function getRedis()
-    {
-        return \bee\App::s()->sure($this->redis);
-    }
 
     /**
      * 开启session
@@ -95,7 +89,7 @@ class RedisSession
      */
     public function read($sessId)
     {
-        return $this->getRedis()->get($sessId);
+        return $this->redis->get($sessId);
     }
 
     /**
@@ -106,7 +100,7 @@ class RedisSession
      */
     public function write($sessId, $data)
     {
-        $this->getRedis()->setex($sessId, $this->expire, $data);
+        $this->redis->setex($sessId, $this->expire, $data);
         return true;
     }
 
@@ -117,7 +111,7 @@ class RedisSession
      */
     public function destroy($sessId)
     {
-        return $this->getRedis()->del($sessId);
+        return $this->redis->del($sessId);
     }
 
     /**
