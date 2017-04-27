@@ -14,7 +14,7 @@ return [
     /* client 目录 */
     'bee\client\BaseClient' => $sysDir . '/client/BaseClient.php',
     'bee\client\CoreSocket' => $sysDir . '/client/CoreSocket.php',
-    'bee\client\LogClient' => $sysDir . '/client/LogClient.php',
+    'bee\client\RemoteLog' => $sysDir . '/client/RemoteLog.php',
     'bee\client\ProcOpen' => $sysDir . '/client/ProcOpen.php',
     'bee\client\Ssh' => $sysDir . '/client/Ssh.php',
     'bee\client\Curl' => $sysDir . '/client/Curl.php',

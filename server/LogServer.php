@@ -34,7 +34,7 @@ class LogServer extends BaseServer
             'max_request' => 100240,
             'max_conn' => 1000,
             'dispatch_mode' => 2,
-            'daemonize' => false,
+            'daemonize' => true,
             'backlog' => 128,
         ],
 

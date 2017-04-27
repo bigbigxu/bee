@@ -1380,30 +1380,6 @@ class BeeRedis
     }
 
     /**
-     * @param string $cmd redis-cli 命令路径
-     * @return \bee\client\ProcOpenn
-     */
-    public function proc($cmd = 'redis-cli')
-    {
-        $redisInfo = $this->getConnInfo();
-        if ($redisInfo['auth'] == false) {
-            $redisInfo['auth'] = '8888';
-        }
-        $cmdArr = array(
-            $cmd,
-            '-a',
-            $redisInfo['auth'],
-            '-h',
-            $redisInfo['host'],
-            '-p',
-            $redisInfo['port'],
-        );
-        $redisStr = implode(' ', $cmdArr);
-        $proc = new \bee\client\ProcOpen($redisStr);
-        return $proc;
-    }
-
-    /**
      * @see Redis::slowLog()
      * 慢是志相关命令
      * 得到10条慢查询：$redis->slowlog('get', 10);

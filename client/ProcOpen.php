@@ -10,8 +10,12 @@
  */
 
 namespace bee\client;
+
+use bee\core\TComponent;
+
 class ProcOpen
 {
+    use TComponent
     /**
      * @var resource 写入管道
      */
@@ -33,15 +37,6 @@ class ProcOpen
      * @var string 命令
      */
     protected $cmd;
-    /**
-     * ProcOpen constructor.
-     * @param $cmd
-     * @throws Exception
-     */
-    public function __construct($cmd)
-    {
-        $this->cmd = $cmd;
-    }
 
     private function _conn()
     {
@@ -49,13 +44,13 @@ class ProcOpen
             return null;
         }
         $desc = array(
-            0 => array("pipe", "r"),  // 标准输入，子进程从此管道中读取数据
-            1 => array("pipe", "w"),  // 标准输出，子进程向此管道中写入数据
-            2 => array("pipe", "w") // 标准错误，
+            0 => array("pipe", "r"),  /* 标准输入，子进程从此管道中读取数据 */
+            1 => array("pipe", "w"),  /* 标准输出，子进程向此管道中写入数据 */
+            2 => array("pipe", "w") /* 标准错误 */
         );
         $this->fp = proc_open($this->cmd, $desc, $pipes);
         if (!$this->fp) {
-            throw new Exception("{$this->cmd}：创建管道失败");
+            throw new \Exception("{$this->cmd}：创建管道失败");
         }
         $this->writePipe = $pipes[0];
         $this->readPipe = $pipes[1];

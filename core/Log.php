@@ -10,19 +10,45 @@
 namespace bee\core;
 
 use bee\App;
+use bee\client\RemoteLog;
 use bee\common\Json;
 
 class Log
 {
+    use TComponent;
     /**
-     * @var bool 是否使用udp发送日志。必须配置udp_log 组件
+     * @var bool 是否使用远程发送日志。必须配置remote_log 组件
      */
-    public $enableUdp = false;
+    protected $enableRemote = false;
     /**
      * @var bool 日志是否写文件
      */
-    public $enableFile = true;
+    protected $enableFile = true;
+    /**
+     * 目录权限
+     * @var int
+     */
+    protected $dirMode = 0755;
+    /**
+     * 文件权限
+     * @var int
+     */
+    protected $fileMode = 0664;
+    /**
+     * 远程日志发送组件
+     * @var bool|RemoteLog
+     */
+    protected $remoteLog = false;
 
+    public function init()
+    {
+        $this->remoteLog = $this->sureComponent($this->remoteLog);
+    }
+
+    /**
+     * 记录错误日志
+     * @param $msg
+     */
     public static function error($msg)
     {
         $file = self::getErrorLogFile();
@@ -30,7 +56,7 @@ class Log
     }
 
     /**
-     * 访问是日志保持一行一条记录。
+     * 访问日志
      * @param $msg
      */
     public static function access($msg)
@@ -75,11 +101,28 @@ class Log
         $msg = "[{$time} {$zone}] {$msg}";
         $o = App::s()->getLog();
         if ($o->enableFile) {
+            $o->createLogFile($file);
             file_put_contents($file, "{$msg}\n", FILE_APPEND);
         }
-        if ($o->enableUdp) {
+        if ($o->enableRemote && $o->remoteLog) {
             $mark = explode('_', basename($file, '.log'))[0];
-            App::s()->getUpdLog()->log($mark, $msg);
+            $o->remoteLog->log($mark, $msg);
+        }
+    }
+
+    /**
+     * 日志和文件的创建
+     * @param $file
+     */
+    public function createLogFile($file)
+    {
+        $dir = dirname($file);
+        if (!is_dir($dir)) {
+            mkdir($dir, $this->dirMode, true);
+        }
+        if (!is_file($file)) {
+            touch($file);
+            @chmod($file, $this->fileMode);
         }
     }
 
@@ -91,14 +134,7 @@ class Log
     {
         $o = App::getInstance();
         $dir = $o->getRuntimeDir() . '/error_log/' . date('Y/m');
-        if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
         $file = $dir . '/error_' . date('d') . '.log';
-        if (!is_file($file)) {
-            touch($file);
-            @chmod($file, 0664);
-        }
         return $file;
     }
 
@@ -110,9 +146,6 @@ class Log
     {
         $o = App::getInstance();
         $dir = $o->getRuntimeDir() . '/access_log/' . date('Y/m');
-        if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
         $file = $dir . '/access_' . date('d') . '.log';
         return $file;
     }
@@ -125,9 +158,6 @@ class Log
     {
         $o = App::getInstance();
         $dir = $o->getRuntimeDir() . '/debug_log/' . date('Y/m');
-        if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
         $file = $dir . '/debug_' . date('d') . '.log';
         return $file;
     }
