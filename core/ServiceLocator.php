@@ -9,7 +9,7 @@
 namespace bee\core;
 use bee\App;
 use bee\cache\ICache;
-use bee\client\LogClient;
+use bee\client\RemoteLog;
 
 class ServiceLocator
 {
@@ -162,12 +162,12 @@ class ServiceLocator
     }
 
     /**
-     * udp 日志发送组件
-     * @return LogClient
+     * 远程日志发送组件
+     * @return RemoteLog
      */
-    public function getUpdLog()
+    public function getRemoteLog()
     {
-        return $this->get('udp_log');
+        return $this->get('remote_log');
     }
 
     /**

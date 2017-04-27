@@ -623,15 +623,6 @@ class App
     }
 
     /**
-     * 框架版本号
-     * @return string
-     */
-    public static function version()
-    {
-        return '2.0';
-    }
-
-    /**
      * 运行，加载模块
      * @param $moduleId
      * @throws Exception
@@ -694,5 +685,14 @@ class App
             'App' => 'bee\App'
         ];
         return $map[$class];
+    }
+
+    /**
+     * 框架版本号
+     * @return string
+     */
+    public static function version()
+    {
+        return '2.1';
     }
 }
