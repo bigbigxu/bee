@@ -833,6 +833,19 @@ class BeeRedis
     }
 
     /**
+     * @see Redis::sPop()
+     * 随机返回集合一个元素，并删除
+     * @param $key
+     * @return mixed
+     * @throws Exception
+     * @throws RedisException
+     */
+    public function spop($key)
+    {
+        return $this->_execForRedis(__FUNCTION__, [$key]);
+    }
+
+    /**
      * @see Redis::sRandMember()
      * 返回一个随机元素
      * @param $key
