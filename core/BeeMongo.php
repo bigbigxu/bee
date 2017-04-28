@@ -6,6 +6,8 @@
  * Time: 14:32
  */
 namespace bee\core;
+
+use bee\App;
 use MongoDB\Driver\BulkWrite;
 use MongoDB\Driver\Command;
 use MongoDB\Driver\Manager;
@@ -144,7 +146,7 @@ class BeeMongo
     public static function getInstance($config)
     {
         if (!is_array($config)) {
-            $config = \bee\App::c($config);
+            $config = App::c($config);
         }
         $pid = intval(getmypid());
         $k = md5(implode('', $config['server']) . $pid);

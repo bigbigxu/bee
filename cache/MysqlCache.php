@@ -57,7 +57,7 @@ class MysqlCache implements ICache
 
     public function init()
     {
-        $this->db = $this->sureComponent($this->db);
+        $this->sureComponent($this->db);
     }
 
     /**

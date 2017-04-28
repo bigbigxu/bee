@@ -37,7 +37,7 @@ class MysqlMutex implements IMutex
 
     public function init()
     {
-        $this->db =  $this->sureComponent($this->db);
+        $this->sureComponent($this->db);
     }
 
     /**

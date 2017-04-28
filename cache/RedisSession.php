@@ -39,7 +39,7 @@ class RedisSession
             array($this, 'destroy'),
             array($this, 'gc')
         );
-        $this->redis = $this->sureComponent($this->redis);
+        $this->sureComponent($this->redis);
     }
 
 

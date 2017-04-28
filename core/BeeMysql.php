@@ -179,25 +179,24 @@ class BeeMysql
 	 *    'dsn' => '数据库驱动',
 	 *    'username' => '用户名',
 	 *    'password' => '用户密码',
-	 *  'slaves' => '从库列表，数组',
+	 *    'slaves' => '从库列表，数组',
 	 *    'cache' => '字段缓存使用的组件名',
 	 *    'charset' => '字符集',
 	 *    'attr' => '属性',
-	 *  'prefix' => '表前缀'
+	 *    'prefix' => '表前缀'
 	 * ]
 	 * @param array $config 配置文件
 	 */
 	public function __construct($config)
 	{
 		$this->dbConfig = $config;
-		$this->attr = (array)$config['attr'] + $this->attr;
-		$this->prefix = (string)$config['prefix'];
-		$this->charset = $config['charset'] ?: 'utf8';
-		$this->dsn = (string)$config['dsn'];
-		$this->username = (string)$config['username'];
-		$this->password = (string)$config['password'];
-		$this->slaves = (array)$config['slaves'];
-		$this->cache = $config['cache'] ?: false;
+		foreach ($config as $key => $row) {
+			if ($key == 'attr' && is_array($row)) {
+				$this->attr = $row + $this->attr;
+			} else {
+				$this->$key = $row;
+			}
+		}
 	}
 
 	/**
@@ -256,10 +255,16 @@ class BeeMysql
 			$config = App::c($config);
 		}
 		$pid = intval(getmypid());
+		if (!isset($config['username'])) {
+			$config['username'] = '';
+		}
+		if (!isset($config['password'])) {
+			$config['password'] = '';
+		}
 		$k = md5($config['dsn'] . $config['username'] . $config['password'] . $pid);
 
 		/* 如果连接没有创建 */
-		if (!(self::$_instance[$k] instanceof self)) {
+		if (!isset(self::$_instance[$k])) {
 			self::$_instance[$k] = null;
 			self::$_instance[$k] = new self($config);
 			self::$_instance[$k]->k = $k;
