@@ -47,7 +47,7 @@ class RedisMutex implements IMutex
                 }
             });
         }
-        $this->redis = $this->sureComponent($this->redis);
+        $this->sureComponent($this->redis);
     }
 
     /**

@@ -22,7 +22,7 @@ class RedisAnalysis
 
     public function init()
     {
-        $this->redis = $this->sureComponent($this->redis);
+        $this->sureComponent($this->redis);
     }
 
     /**

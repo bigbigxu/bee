@@ -19,12 +19,12 @@
  *  'namespace' => '需要加载的命名空间'
  * );
  */
-
 namespace bee;
 
 use bee\core\BeeMysql;
 use bee\core\BeeRedis;
 use bee\core\Log;
+use bee\core\Module;
 use bee\core\ServiceLocator;
 use Exception;
 
@@ -77,11 +77,6 @@ class App
      */
     protected $runtimeDir;
     /**
-     * 命令行程序目录
-     * @var string
-     */
-    protected $crontabDir;
-    /**
      * 所有注册的命令空间
      * @var array
      */
@@ -93,7 +88,7 @@ class App
     protected $env;
     /**
      * 当前运行的模块
-     * @var \bee\core\Module
+     * @var Module
      */
     protected $module;
     /**
@@ -122,12 +117,35 @@ class App
         }
 
         $this->isRun = 1;
-        $this->baseDir = $this->config['base_dir'] ?: $this->sysDir . '/../';
-        $this->configDir = $this->config['config_dir'] ?: $this->baseDir . '/config';
-        $this->isDebug = (int)$this->config['debug'];
-        $this->crontabDir = $this->config['crontab_dir'] ?: $this->baseDir . '/crontab';
-        $this->runtimeDir = $this->config['runtime_dir'] ?: $this->baseDir . '/runtime';
-        $this->env = $this->config['env'] ?: self::ENV_DEV;
+
+        /* 设置框架核心变量  */
+        if (isset($this->config['base_dir'])) {
+            $this->baseDir = $this->config['base_dir'];
+        } else {
+            $this->baseDir = $this->sysDir . '/..';
+        }
+        if (isset($this->config['config_dir'])) {
+            $this->configDir = $this->config['config_dir'];
+        } else {
+            $this->configDir = $this->baseDir . '/config';
+        }
+        if (isset($this->config['debug'])) {
+            $this->isDebug = (int)$this->config['debug'];
+        } else {
+            $this->isDebug = 0;
+        }
+        if (isset($this->config['runtime_dir'])) {
+            $this->runtimeDir = $this->config['runtime_dir'];
+        } else {
+            $this->runtimeDir =  $this->baseDir . '/runtime';
+        }
+        if (isset($this->config['env'])) {
+            $this->env = $this->config['env'];
+        } else {
+            $this->env = self::ENV_PRO;
+        }
+
+        /* 加载核心类 */
         $this->loadCore();
         /* 注册自动加载函数 */
         spl_autoload_register(array($this, 'autoLoad'), true, true);
@@ -144,7 +162,7 @@ class App
 
         $this->services = new ServiceLocator(self::getComponents()); /* 加载组件 */
         $this->services->getError()->register(); /* 注册错误处理 */
-        $this->services->getEnv()->exec($this->env, $this->config['env_set'] ?: []); /* 设置环境 */
+        $this->services->getEnv()->set(); /* 设置环境 */
     }
 
     /**
@@ -187,9 +205,11 @@ class App
         }
 
         $pathArr = explode('.', $path);
-        //如果第一个配置节为.php或.ini表示需要加载一个文件
-        //表法目前仅支持一级.php分布式配置。
-        if (is_string($object->config[$pathArr[0]])) {
+        /**
+         * 如果第一个配置节为.php或.ini表示需要加载一个文件
+         * 目前仅支持一级.php分布式配置
+         */
+        if (isset($object->config[$pathArr[0]]) && is_string($object->config[$pathArr[0]])) {
             $res = $object->_loadConfigFile($object->config[$pathArr[0]]);
             if ($res === null) {
                 throw new Exception('不支持的配置文件格式');
@@ -200,7 +220,12 @@ class App
 
         $tmp = $object->config;
         foreach ($pathArr as $row) {
-            $tmp = $tmp[$row];
+            if (isset($tmp[$row])) {
+                $tmp = $tmp[$row];
+            } else {
+                $tmp = null;
+                break;
+            }
         }
 
         return $tmp;
@@ -250,7 +275,10 @@ class App
      */
     public function loadPackage($package)
     {
-        foreach ((array)$package as $name => $path) {
+        if (!is_array($package)) {
+            return false;
+        }
+        foreach ($package as $name => $path) {
             /* 如果包名不是一个字符串。则取最后一个目录名作为包名 */
             if (is_int($name)) {
                 $name = basename($path);
@@ -259,15 +287,20 @@ class App
                 $this->packageMap[$name] = $path;
             }
         }
+        return true;
     }
 
     /**
      * 加载一个类
      * @param $class
+     * @return bool
      */
     public function loadClass($class)
     {
-        foreach ((array)$class as $name => $path) {
+        if (!is_array($class)) {
+            return false;
+        }
+        foreach ($class as $name => $path) {
             /* 如果类名不是一个字符串。则取文件名为为类名 */
             if (is_int($name)) {
                 $name = basename($path, '.php');
@@ -276,6 +309,7 @@ class App
                 $this->classMap[$name] = $path;
             }
         }
+        return true;
     }
 
     /**
@@ -288,11 +322,15 @@ class App
      * 注册 bee => system 那么bee\server\BaseServer类将位于
      * system/server目录下的BaseServer.php文件。
      * @param array $map 命名空间名称
+     * @return bool
      * @throws Exception
      */
     public function loadNamespace($map)
     {
-        foreach ((array)$map as $name => $path) {
+        if (!is_array($map)) {
+            return false;
+        }
+        foreach ($map as $name => $path) {
             if (strpos($name, '\\') !== false) {
                 throw new Exception('只可以注册一级命名空间');
             }
@@ -301,6 +339,7 @@ class App
                 $this->namespace[$name] = $baseDir;
             }
         }
+        return $map;
     }
 
     /**
@@ -346,10 +385,9 @@ class App
             }
         }
 
-        $file = $this->classMap[$className];
-        if ($file !== null) { /* 类地图中已经存在 */
-            if (is_file($file)) {
-                require $file;
+        if (isset($this->classMap[$className])) { /* 类地图中已经存在 */
+            if (is_file($this->classMap[$className])) {
+                require $this->classMap[$className];
                 return true;
             } else {
                 return false;
@@ -444,15 +482,6 @@ class App
     public function getRuntimeDir()
     {
         return $this->runtimeDir;
-    }
-
-    /**
-     * 得到控制台程序目录
-     * @return mixed
-     */
-    public function getCrontabDir()
-    {
-        return $this->crontabDir;
     }
 
     /**
@@ -650,6 +679,7 @@ class App
     /**
      * 类别名。2.0版本兼容1.6方案
      * @param $class
+     * @return string|null
      */
     public function classAlias($class)
     {
@@ -682,9 +712,9 @@ class App
             'SwooleController' => 'bee\core\SwooleController',
             'WeiXin' => 'bee\object\WeiXin',
             'HttpObject' => 'bee\object\HttpObject',
-            'App' => 'bee\App'
+            'App' => 'bee\App',
         ];
-        return $map[$class];
+        return isset($map[$class]) ? $map[$class] : null;
     }
 
     /**
@@ -693,6 +723,6 @@ class App
      */
     public static function version()
     {
-        return '2.1';
+        return '2.2';
     }
 }

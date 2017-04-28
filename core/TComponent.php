@@ -83,7 +83,7 @@ trait TComponent
      * @return bool|object
      * @throws \Exception
      */
-    public function sureComponent($id)
+    public function sureComponent(&$id)
     {
         if (!$id) { /* 如果id不是一个有效值 */
             return false;

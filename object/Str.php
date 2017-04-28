@@ -36,4 +36,23 @@ class Str
         $offset = ($page - 1) * $pageSize;
         return "{$offset},{$pageSize}";
     }
+
+    /**
+     * 下划线转驼峰
+     * @param $name
+     * @param $ucfirst
+     * @return mixed|string
+     */
+    public static function lineToUpper($name, $ucfirst = false)
+    {
+        if (!strpos($name, '_')) {
+            return $name;
+        }
+        $name = ucwords(str_replace('_', ' ', $name));
+        $name = str_replace(' ', '', $name);
+        if ($ucfirst) {
+            $name = ucfirst($name);
+        }
+        return $name;
+    }
 }

@@ -6,30 +6,49 @@
  * Time: 15:13
  * php环境配置相关
  */
-
 namespace bee\core;
 
 use bee\App;
 
 class PhpEnv
 {
-    protected $env = null; //环境类型
-    protected $options = array();
+    use TComponent;
+    /**
+     * 环境类型
+     * @var string
+     */
+    protected $env;
+    /**
+     * php.ini 相关配置选项
+     * @var array
+     */
+    protected $phpIni = [];
+    /**
+     * php环境变量配置
+     * @var array
+     */
+    protected $phpEnv = [];
 
     const SAPI_CLI = 'cli'; //命令行运行模式
     const SAPI_CGI = 'cgi'; //cgi模式
     const SAPI_FPM = 'fpm';
     const SAPI_APACHE = 'apache';
 
-    /**
-     * 设置运行环境
-     * @param $env
-     * @return $this
-     */
-    public function setEnv($env)
+    public function init()
     {
-        $this->env = $env;
-        return $this;
+        $this->env = App::getInstance()->getEnv();
+        $this->phpIni = array_merge($this->getPhpIniDefaultSet(), $this->phpIni);
+    }
+
+    /**
+     * 设置环境
+     */
+    public function set()
+    {
+        /* 设置php.ini 相关配置 */
+        foreach ($this->phpIni as $key => $value) {
+            ini_set($key, $value);
+        }
     }
 
     /**
@@ -39,7 +58,7 @@ class PhpEnv
      */
     public function setDisplayError($flag)
     {
-        $this->options['display_errors'] = $flag;
+        $this->phpIni['display_errors'] = $flag;
         return $this;
     }
 
@@ -50,7 +69,7 @@ class PhpEnv
      */
     public function setErrorReporting($level)
     {
-        $this->options['error_reporting'] = $level;
+        $this->phpIni['error_reporting'] = $level;
         return $this;
     }
 
@@ -61,8 +80,8 @@ class PhpEnv
      */
     public function setErrorLog($file)
     {
-        $this->options['log_errors'] = 1;
-        $this->options['error_log'] = $file;
+        $this->phpIni['log_errors'] = 1;
+        $this->phpIni['error_log'] = $file;
         return $this;
     }
 
@@ -70,51 +89,23 @@ class PhpEnv
      * 默认3种环境的设置
      * @return array
      */
-    public function getDefaultSet()
+    public function getPhpIniDefaultSet()
     {
-        $set = array(
-            App::ENV_DEV => array(
+        $set = [
+            App::ENV_DEV => [
                 'display_errors' => 1,
                 'error_reporting' => E_ALL & ~E_NOTICE & ~E_STRICT & ~E_DEPRECATED,
-                'log_errors' => 1,
-                'error_log' => Log::getErrorLogFile()
-            ),
-            App::ENV_TEST => array(
+            ],
+            App::ENV_TEST => [
                 'display_errors' => 1,
                 'error_reporting' => E_ALL & ~E_NOTICE & ~E_STRICT & ~E_DEPRECATED,
-                'log_errors' => 1,
-                'error_log' => Log::getErrorLogFile()
-            ),
-            App::ENV_PRO => array(
+            ],
+            App::ENV_PRO => [
                 'display_errors' => 0,
                 'error_reporting' => E_ALL & ~E_NOTICE & ~E_STRICT & ~E_DEPRECATED,
-                'log_errors' => 1,
-                'error_log' => Log::getErrorLogFile()
-            ),
-        );
-        $r = $set[$this->env];
-        if ($r == false) {
-            $r = $set[App::ENV_DEV];
-        }
-        return $r;
-    }
-
-    /**
-     * 执行选项
-     * @param bool $env 环境
-     * @param array $options
-     * @return null
-     */
-    public function exec($env = false, $options = array())
-    {
-        if ($env !== false) {
-            $this->env = $env;
-        }
-        $this->options = $options ?: $this->getDefaultSet();
-        foreach ($this->options as $key => $value) {
-            ini_set($key, $value);
-        }
-        return true;
+            ]
+        ];
+        return $set[$this->env] ?: [];
     }
 
     public static function isCli()
@@ -124,5 +115,10 @@ class PhpEnv
         } else {
             return true;
         }
+    }
+
+    public function getPhpIni()
+    {
+        return $this->phpIni;
     }
 }

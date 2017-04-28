@@ -42,7 +42,7 @@ class RedisCache implements ICache
 
     public function init()
     {
-        $this->redis = $this->sureComponent($this->redis);
+        $this->sureComponent($this->redis);
     }
 
     /**

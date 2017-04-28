@@ -214,20 +214,24 @@ class ServiceLocator
     public static function build($objConfig)
     {
         $className = $objConfig['class']; /* 类名 */
-        $params = $objConfig['params'] ?: []; /* 构造函数参数 */
-        $config = $objConfig['config'] ?: []; /* 对象属性配置 */
-        $classFile = $objConfig['path'] ?: ''; /* 对象文件路径 */
-        if ($classFile) { /* 加载类文件 */
-            \bee\App::getInstance()->loadClass([$className => $classFile]);
+        if (!isset($objConfig['params'])) {
+            $objConfig['params'] = [];
+        }
+        if (!isset($objConfig['config'])) {
+            $objConfig['config'] = [];
+        }
+        if (isset($objConfig['path'])) { /* 加载类文件 */
+            App::getInstance()->loadClass([$className => $objConfig['path']]);
         }
         $re = new \ReflectionClass($className);
         if ($re->hasProperty('__isBeeComponent__')) {
-            $params[] = $config; /* TComponent 类型对象，构造参数最后一个配置数组 */
-            $o = $re->newInstanceArgs($params);
+            /* TComponent 类型对象，构造参数最后一个配置数组 */
+            $objConfig['params'][] = $objConfig['config'];
+            $o = $re->newInstanceArgs($objConfig['params']);
         } else {
-            $o = $re->newInstanceArgs($params);
+            $o = $re->newInstanceArgs($objConfig['params']);
             $vars = get_object_vars($o);
-            foreach ($config as $key => $row) {
+            foreach ($objConfig['config'] as $key => $row) {
                 if (isset($vars[$key])) {
                     $o->$key = $row;
                 }
@@ -243,7 +247,7 @@ class ServiceLocator
      * @return bool|object
      * @throws \Exception
      */
-    public static function sure($id, $sl = null)
+    public static function sure(&$id, $sl = null)
     {
         if ($sl === null) { /* 如果没有配置服务定位器，设置为系统的*/
             $sl = App::s();

@@ -27,7 +27,7 @@ class BeeRedis
     /**
      * @var Redis
      */
-    protected $redis = null;
+    protected $redis;
     /**
      * 当前数据库ID号
      * @var int
@@ -42,7 +42,7 @@ class BeeRedis
      * 所有连接实例
      * @var BeeRedis[]
      */
-    static private $_instance = array();
+    static private $_instance = [];
     /**
      * 连接标识户
      * @var string
@@ -62,17 +62,17 @@ class BeeRedis
      * 连接端口
      * @var string
      */
-    protected $port;
+    protected $port = 6379;
     /**
      * 连接超时时间
      * @var float
      */
-    protected $timeout;
+    protected $timeout = 30;
     /**
      * 错误处理模式
      * @var string
      */
-    protected $errMode;
+    protected $errMode = self::ERR_MODE_WARNING;
 
     /**
      * 配置文件包含如下参数
@@ -81,8 +81,8 @@ class BeeRedis
      *  'port'=> '端口'，
      *  'auth' => '密码',
      *  'timeout' => '连接超时时间',
-     *  'db_id' => '数据库ID',
-     *  'err_mode' => '错误处理模式'
+     *  'dbId' => '数据库ID',
+     *  'errMode' => '错误处理模式'
      * ]
      * CoreRedis constructor.
      * @param $config
@@ -90,13 +90,9 @@ class BeeRedis
     public function __construct($config)
     {
         $this->config = $config;
-        $this->host = $config['host'] ?: '127.0.0.1';
-        $this->port = $config['port'] ?: 6379;
-        $this->auth = (string)$config['auth'];
-        $this->slaves = (array)$config['slaves'];
-        $this->timeout = $config['timeout'] ?: 30;
-        $this->dbId = (int)$config['db_id'];
-        $this->errMode = $config['err_mode'] ?: self::ERR_MODE_WARNING;
+        foreach ($config as $key => $row) {
+            $this->$key = $row;
+        }
     }
 
     /**
@@ -133,11 +129,16 @@ class BeeRedis
         if (!is_array($config)) {
             $config = App::c($config);
         }
-        $config['db_id'] = (int)$config['db_id'];
+        if (!isset($config['dbId'])) {
+            $config['dbId'] = 0;
+        }
+        if (!isset($config['port'])) {
+            $config['port'] = 6379;
+        }
         $pid = intval(getmypid());
-        $k = md5($config['host'] . $config['port'] . $config['db_id'] . $pid);
+        $k = md5($config['host'] . $config['port'] . $config['dbId'] . $pid);
 
-        if (!(self::$_instance[$k] instanceof self)) {
+        if (!isset(self::$_instance[$k])) {
             self::$_instance[$k] = null;
             self::$_instance[$k] = new self($config);
             self::$_instance[$k]->k = $k;
@@ -1161,7 +1162,7 @@ class BeeRedis
             'host' => $this->host,
             'port' => $this->port,
             'auth' => $this->auth,
-            'db_id' => $this->dbId
+            'dbId' => $this->dbId
         );
     }
 
@@ -1267,7 +1268,7 @@ class BeeRedis
             '-p',
             $redisInfo['port'],
             '-n',
-            $redisInfo['db_id'],
+            $redisInfo['dbId'],
         );
         $redisStr = implode(' ', $cmdArr);
         $cmd = "{$redisStr} KEYS \"{$keys}\" | xargs {$redisStr} del";
