@@ -120,11 +120,11 @@ class BeeRedis
         $this->redis = null;
         $this->redis = new Redis();
         $this->redis->connect($this->host, $this->port, $this->timeout);
-        if ($this->dbId != 0) {
-            $this->redis->select($this->dbId);
-        }
         if ($this->auth) {
             $this->redis->auth($this->auth);
+        }
+        if ($this->dbId != 0) {
+            $this->redis->select($this->dbId);
         }
         return $this->redis;
     }
