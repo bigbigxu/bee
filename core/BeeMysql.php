@@ -146,7 +146,7 @@ class BeeMysql
 	 * 字段缓存使用的组件名称，如果不想使用，设置为false。
 	 * @var string|object|array
 	 */
-	public $cache = false;
+	protected $cache = false;
 
 	/**
 	 * 从库配置文件。是一个标准的bee配置节。
@@ -165,12 +165,12 @@ class BeeMysql
 	 *    ]
 	 * @var array
 	 */
-	public $slaves = [];
+	protected $slaves = [];
 	/**
 	 * 配置文件保存
 	 * @var array
 	 */
-	public $dbConfig;
+	protected $dbConfig;
 
 	/**
 	 * 构造方法
@@ -190,11 +190,25 @@ class BeeMysql
 	public function __construct($config)
 	{
 		$this->dbConfig = $config;
-		foreach ($config as $key => $row) {
-			if ($key == 'attr' && is_array($row)) {
-				$this->attr = $row + $this->attr;
-			} else {
-				$this->$key = $row;
+		$map = [
+			'dsn' => 'dsn',
+			'username' => 'username',
+			'password' => 'password',
+			'slaves' => 'slaves',
+			'cache' => 'cache',
+			'attr' => 'attr',
+			'prefix' => 'prefix',
+			'charset' => 'charset'
+		];
+
+		/* 对象成员赋值 */
+		foreach ($map as $key => $row) {
+			if (isset($config[$key])) {
+				if ($key == 'attr') {
+					$this->attr = $config[$key] + $this->attr;
+				} else {
+					$this->$row = $config[$key];
+				}
 			}
 		}
 	}
@@ -1709,5 +1723,19 @@ class BeeMysql
 			'select release_lock(:key) c ',
 			[':name' => $key]
 		);
+	}
+
+	/**
+	 * 获取配置项
+	 * @param null $key
+	 * @return array
+	 */
+	public function getConfig($key = null)
+	{
+		if ($key === null) {
+			return $this->dbConfig[$key];
+		} else {
+			return $this->dbConfig;
+		}
 	}
 }
