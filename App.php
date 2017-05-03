@@ -12,7 +12,6 @@
  *  'base_dir' => '应用的相关文件根目录',
  *  'config_dir' => '配置文件目录'
  *  'debug' => '是否为调试模式'
- *  'crontab_dir' => '定时器脚本目录'
  *  'runtime_dir' => '运行时目录，比如日志',
  *  'class_map' => '类地图，用于减少自动加载的开销',
  *  'package_map' => '自动加载的包（目录加载）',
@@ -101,11 +100,9 @@ class App
 
     private function __construct($config = null)
     {
-        $this->sysDir = dirname(__FILE__);
+        $this->sysDir = __DIR__; /* 框架目录 */
 
-        /* 得到配置文件。*/
-        if ($config === null) {
-            /*加载默认配置文件 */
+        if ($config === null) {  /*加载默认配置文件 */
             $configFile = $this->sysDir . '/../config/main.php';
             $this->config = include $configFile;
         } elseif (is_array($config)) {
@@ -117,7 +114,6 @@ class App
         }
 
         $this->isRun = 1;
-
         /* 设置框架核心变量  */
         if (isset($this->config['base_dir'])) {
             $this->baseDir = $this->config['base_dir'];
@@ -434,23 +430,15 @@ class App
     /**
      * 加载核心
      */
-    private function loadCore()
+    public function loadCore()
     {
         $corePackage = array(
-            'sys.cache' => $this->sysDir . '/cache',
-            'sys.client' => $this->sysDir . '/client',
-            'sys.common' => $this->sysDir . '/common',
-            'sys.core' => $this->sysDir . '/core',
-            'sys.lib' => $this->sysDir . '/lib',
-            'sys.object' => $this->sysDir . '/object',
-            'sys.server' => $this->sysDir . '/server',
-
             'app.common' => $this->baseDir . '/common',
             'app.model' => $this->baseDir . '/model',
             'app.controller' => $this->baseDir . '/controller',
         );
         $this->packageMap = $corePackage;
-        $this->classMap = require __DIR__ . '/classes.php';
+        $this->classMap = include __DIR__ . '/classes.php';
         $this->namespace = [
             'bee' => $this->sysDir,
             'app' => $this->baseDir
@@ -710,7 +698,6 @@ class App
             'PhpEnv' => 'bee\core\PhpEnv',
             'PhpError' => 'bee\core\PhpError',
             'SwooleController' => 'bee\core\SwooleController',
-            'WeiXin' => 'bee\object\WeiXin',
             'HttpObject' => 'bee\object\HttpObject',
             'App' => 'bee\App',
         ];

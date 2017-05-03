@@ -52,7 +52,7 @@ class BeeRedis
      * 默认配置文件数组
      * @var array
      */
-    protected $config = [];
+    protected $redisConfig = [];
     /**
      * 连接主机
      * @var string
@@ -81,17 +81,28 @@ class BeeRedis
      *  'port'=> '端口'，
      *  'auth' => '密码',
      *  'timeout' => '连接超时时间',
-     *  'dbId' => '数据库ID',
-     *  'errMode' => '错误处理模式'
+     *  'db_id' => '数据库ID',
+     *  'err_mode' => '错误处理模式'
      * ]
      * CoreRedis constructor.
      * @param $config
      */
     public function __construct($config)
     {
-        $this->config = $config;
-        foreach ($config as $key => $row) {
-            $this->$key = $row;
+        $map = [
+            'host' => 'host',
+            'port' => 'port',
+            'timeout' => 'timeout',
+            'db_id' => 'dbId',
+            'err_mode' => 'errMode'
+        ];
+        $this->redisConfig = $config;
+
+        /* 对象成员赋值 */
+        foreach ($map as $key => $row) {
+            if (isset($config[$key])) {
+                $this->$row = $config[$key];
+            }
         }
     }
 
@@ -129,14 +140,14 @@ class BeeRedis
         if (!is_array($config)) {
             $config = App::c($config);
         }
-        if (!isset($config['dbId'])) {
-            $config['dbId'] = 0;
+        if (!isset($config['db_id'])) {
+            $config['db_id'] = 0;
         }
         if (!isset($config['port'])) {
             $config['port'] = 6379;
         }
         $pid = intval(getmypid());
-        $k = md5($config['host'] . $config['port'] . $config['dbId'] . $pid);
+        $k = md5($config['host'] . $config['port'] . $config['db_id'] . $pid);
 
         if (!isset(self::$_instance[$k])) {
             self::$_instance[$k] = null;
@@ -1175,7 +1186,7 @@ class BeeRedis
             'host' => $this->host,
             'port' => $this->port,
             'auth' => $this->auth,
-            'dbId' => $this->dbId
+            'db_id' => $this->dbId
         );
     }
 
@@ -1281,7 +1292,7 @@ class BeeRedis
             '-p',
             $redisInfo['port'],
             '-n',
-            $redisInfo['dbId'],
+            $redisInfo['db_id'],
         );
         $redisStr = implode(' ', $cmdArr);
         $cmd = "{$redisStr} KEYS \"{$keys}\" | xargs {$redisStr} del";
@@ -1676,5 +1687,20 @@ class BeeRedis
     public function hScan($key, &$iterator, $pattern = '', $count = 0)
     {
         return $this->_execForRedis(__FUNCTION__, [$key, &$iterator, $pattern, $count]);
+    }
+
+
+    /**
+     * 获取配置项
+     * @param null $key
+     * @return array
+     */
+    public function getConfig($key = null)
+    {
+        if ($key === null) {
+            return $this->redisConfig[$key];
+        } else {
+            return $this->redisConfig;
+        }
     }
 }

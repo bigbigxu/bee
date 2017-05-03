@@ -45,6 +45,11 @@ abstract class Module
      * @var array
      */
     public $namespace = [];
+    /**
+     * 错误是否抛出异常。
+     * @var bool
+     */
+    public $throw = true;
     /*
      * 获取请求参数
      * 设置 $this->request的值
@@ -93,10 +98,18 @@ abstract class Module
         list($class, $method) = $this->parseRoute();
         $class = $this->findController($class);
         if ($class == false) {
-            throw new \Exception("类 [{$class}] 不存在");
+            if ($this->throw == true) {
+                throw new \Exception("类 [{$class}] 不存在");
+            } else {
+                return false;
+            }
         }
         if (!method_exists($class, $method)) {
-            throw new \Exception("方法 [{$class}::{$method}] 不存在");
+            if ($this->throw == true) {
+                throw new \Exception("方法 [{$class}::{$method}] 不存在");
+            } else {
+                return false;
+            }
         }
         $o = new $class;
         $this->ctrl = $o;
