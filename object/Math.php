@@ -34,4 +34,32 @@ class Math
         }
         return $rise;
     }
+
+    /**
+     * 计算n1 占 n2 的百分比
+     * @param $n1
+     * @param $n2
+     * @param int $round
+     * @return float|int
+     */
+    public static function percent($n1, $n2, $round = 4)
+    {
+        return self::ratio($n1, $n2, $round) * 100;
+    }
+
+    /**
+     * 计算n1 / n2
+     * @param $n1
+     * @param $n2
+     * @param int $round
+     * @return float|int
+     */
+    public static function ratio($n1, $n2, $round = 4)
+    {
+        if ($n2 == 0) {
+            return 0;
+        }
+        $s = round($n1 / $n2, $round);
+        return $s;
+    }
 }

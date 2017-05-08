@@ -55,4 +55,28 @@ class Str
         }
         return $name;
     }
+
+    /**
+     * 驼峰转下划线
+     * @param string $name
+     * @param string $sp
+     * @return string
+     */
+    public static function upperToLine($name, $sp = '_')
+    {
+        $arr = [];
+        for ($i = 0, $n = mb_strlen($name); $i < $n; $i++) {
+            $code = ord($name[$i]);
+            if ($code >= 65 && $code <= 90) {
+                if ($i == 0) {
+                    $arr[] = chr($code + 32);
+                } else {
+                    $arr[] = '_' . chr($code + 32);
+                }
+            } else {
+                $arr[] = $name[$i];
+            }
+        }
+        return implode($sp, $arr);
+    }
 }

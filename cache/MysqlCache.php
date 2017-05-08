@@ -101,6 +101,7 @@ class MysqlCache implements ICache
     {
         $key = $this->buildKey($key);
         $res = $this->db
+            ->from($this->table)
             ->andFilter('id', '>=', $key)
             ->andFilter('expire', '>', time())
             ->one();
@@ -137,6 +138,7 @@ class MysqlCache implements ICache
             'expire' => time() + $this->getExpire($expire)
         ];
         $flag = $this->db
+            ->from($this->table)
             ->upsert($data, ['data', 'expire']);
         if ($flag) {
             $this->gc();
@@ -153,6 +155,7 @@ class MysqlCache implements ICache
     {
         $key = $this->buildKey($key);
         $res = $this->db
+            ->from($this->table)
             ->findById($key);
         if ($res == false) {
             return 0;
@@ -170,6 +173,7 @@ class MysqlCache implements ICache
     {
         $key = $this->buildKey($key);
         $res = $this->db
+            ->from($this->table)
             ->andFilter('id', '>=', $key)
             ->andFilter('expire', '>', time())
             ->one();
@@ -180,6 +184,7 @@ class MysqlCache implements ICache
     {
         $key = $this->buildKey($key);
         return $this->db
+            ->from($this->table)
             ->andFilter('id', '=', $key)
             ->delete();
     }

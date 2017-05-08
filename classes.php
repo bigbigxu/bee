@@ -26,7 +26,7 @@ return [
     'bee\common\Csv' => $sysDir . '/common/Csv.php',
     'bee\common\FileUpload' => $sysDir . '/common/FileUpload.php',
     'bee\common\Ftp' => $sysDir . '/common/Ftp.php',
-    'bee\comm\Functions' => $sysDir . '/common/Functions.php',
+    'bee\common\Functions' => $sysDir . '/common/Functions.php',
     'bee\common\Image' => $sysDir . '/common/Image.php',
     'bee\common\LinuxCrontab' => $sysDir . '/common/LinuxCrontab.php',
     'bee\common\Mcrypt' => $sysDir . '/common/Mcrypt.php',
@@ -36,6 +36,7 @@ return [
     'bee\common\Timer' => $sysDir . '/common/Timer.php',
     'bee\common\Zlib' => $sysDir . '/common/Zlib.php',
     'bee\common\BeePack' => $sysDir . '/common/BeePack.php',
+    'bee\common\BeeConfig' => $sysDir . '/common/BeeConfig.php',
 
     /* core目录 */
     'bee\core\Call' => $sysDir . '/core/Call.php',

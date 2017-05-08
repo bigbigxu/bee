@@ -67,7 +67,7 @@ class MysqlMutex implements IMutex
     public function acquire($name, $timeout = 0)
     {
         $key = $this->getLockName($name);
-        $flag = $this->getDb()->acquireLock($name, $timeout);
+        $flag = $this->db->acquireLock($name, $timeout);
         if ($flag) {
             $this->_locks[$key] = $name;
         }
@@ -82,7 +82,7 @@ class MysqlMutex implements IMutex
     public function release($name)
     {
         $key = $this->getLockName($name);
-        $flag = $this->getDb()->releaseLock($key);
+        $flag = $this->db->releaseLock($key);
         if ($flag) {
             unset($this->_locks[$key]);
         }
