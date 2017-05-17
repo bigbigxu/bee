@@ -97,6 +97,9 @@ class RedisCache implements ICache
     {
         $key = $this->buildKey($key);
         $value = $this->redis->get($key);
+        if ($value === false) { /* key不存在，表示已经过期 */
+            return false;
+        }
         if ($this->serializer === null) {
             $value = json_decode($value, true);
         } else {
@@ -106,7 +109,7 @@ class RedisCache implements ICache
     }
 
     /**
-     * 获取一个key
+     * 设置一个key
      * @param array|string $key
      * @param mixed $value
      * @param null $expire
@@ -114,10 +117,6 @@ class RedisCache implements ICache
      */
     public function set($key, $value, $expire = null)
     {
-        $expire = $expire ?: $this->expire;
-        if ($expire <= 0) {
-            $expire = 31536000; /* 1年 */
-        }
         $key = $this->buildKey($key);
         if ($this->serializer === null) {
             $value = json_encode($value);
