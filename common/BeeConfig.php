@@ -49,7 +49,7 @@ class BeeConfig
      * @param $v
      * @throws \Exception
      */
-    public function save($k, $v)
+    public function set($k, $v)
     {
         $data = [
             'k' => $k,

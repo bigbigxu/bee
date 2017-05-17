@@ -398,7 +398,7 @@ class App
             $namespace = substr($className, 0, $pos);
             $baseName = substr($className, $pos + 1);
             if ($this->namespace[$namespace] == false) {
-                throw new Exception("没有注册的命名空间");
+                return false;
             }
             $file = $this->namespace[$namespace]
                 . '/'
