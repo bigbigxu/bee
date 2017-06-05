@@ -9,6 +9,7 @@
 
 namespace bee\client;
 
+use bee\App;
 use bee\core\TComponent;
 
 class Stream
@@ -39,18 +40,57 @@ class Stream
      * 连接超时时间
      * @var float
      */
-    protected $timeout = 0.1;
+    protected $connTimeout = 0.1;
+    /**
+     * 读取超时时间
+     * @var int
+     */
+    protected $readTimeout = 0;
+    /**
+     * 连接标识符
+     * @var string
+     */
+    protected $k;
+
+    /**
+     * 连接实例
+     * @var self[]
+     */
+    private static $_instance;
 
     public function connect($force = false)
     {
         if ($this->fp !== null && $force == false) {
             return $this->fp;
         }
-        $this->fp = stream_socket_client($this->remote, $this->errno, $this->error, $this->timeout);
+        $this->fp = stream_socket_client($this->remote, $this->errno, $this->error, $this->readTimeout);
         if (!$this->fp) {
             throw new \Exception("{$this->remote} 连接失败：{$this->errno} -- {$this->error}");
         }
         return $this->fp;
+    }
+
+    /**
+     * 获取实例
+     * @param $config
+     * @return static
+     * @throws \Exception
+     */
+    public static function getInstance($config)
+    {
+        if (is_string($config)) {
+            $config = App::c($config);
+        }
+        $pid = intval(getmypid());
+        $k = md5($config['remote'] . $pid);
+
+        if (!isset(self::$_instance[$k])) {
+            self::$_instance[$k] = null;
+            self::$_instance[$k] = new static($config);
+            self::$_instance[$k]->k = $k;
+        }
+
+        return self::$_instance[$k];
     }
 
     /**
@@ -59,6 +99,7 @@ class Stream
      */
     public function getSock()
     {
+        $this->connect();
         return $this->fp;
     }
 
@@ -109,6 +150,7 @@ class Stream
      */
     public function read($length = 8192, $timeout = 0)
     {
+        $timeout = $timeout ?: $this->readTimeout;
         $this->connect();
         if ($timeout) {
             stream_set_timeout($this->fp, $timeout);

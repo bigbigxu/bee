@@ -18,13 +18,13 @@ class BeePack
 
     /**
      * 开始写入
-     * @param $buffer
      * @return $this
      */
-    public function writeBegin($buffer)
+    public function writeBegin()
     {
-        $this->buffer = $buffer;
-        $this->size = strlen($buffer);
+        $this->buffer = '';
+        $this->size = 0;
+        $this->data = [];
         return $this;
     }
 
@@ -89,9 +89,19 @@ class BeePack
     /**
      * 写入一个字符
      * @param $value
-     * @return mixed
+     * @return BeePack
      */
     public function writeByte($value)
+    {
+        return $this->pack($value, 'C', 1);
+    }
+
+    /**
+     * 写入一个字符
+     * @param $value
+     * @return BeePack
+     */
+    public function writeChar($value)
     {
         return $this->pack($value, 'C', 1);
     }
@@ -111,7 +121,7 @@ class BeePack
      * @param string $value 数值
      * @param string $type 格式化字符
      * @param int $size $type 的字节数
-     * @return $this
+     * @return BeePack
      */
     protected function pack($value, $type, $size)
     {
@@ -122,6 +132,7 @@ class BeePack
     /**
      * 写入一个字符串
      * @param $value
+     * @return BeePack
      */
     public function writeString($value)
     {
@@ -130,6 +141,18 @@ class BeePack
         $this->buffer .= $value;
         $this->buffer .= pack('C', 0);
         $this->size += $len + 5;
+        return $this;
+    }
+
+    /**
+     * 直接连接字符串，不计算长度
+     * @param $value
+     * @return $this
+     */
+    public function writeNoPack($value)
+    {
+        $this->buffer .= $value;
+        return $this;
     }
 
     /**
@@ -170,9 +193,19 @@ class BeePack
     /**
      * 读取一个字符
      * @param $name
-     * @return BeePack
+     * @return $this
      */
     public function readByte($name)
+    {
+        return $this->unpack($name, 'C', 1);
+    }
+
+    /**
+     * 读取一个字符
+     * @param $name
+     * @return $this
+     */
+    public function readChar($name)
     {
         return $this->unpack($name, 'C', 1);
     }

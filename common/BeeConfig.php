@@ -51,12 +51,20 @@ class BeeConfig
      */
     public function set($k, $v)
     {
+        $version = time();
         $data = [
             'k' => $k,
-            'v' => json_encode($v)
+            'v' => json_encode($v),
+            'version' => $version
         ];
         $this->db->from($this->table)->upsert($data, ['v']);
         $this->cache->set($this->buildKey($k), $v);
+        $this->cache->set($this->buildVersionKey($k), $version);
+    }
+
+    public function buildVersionKey($k)
+    {
+        return $this->buildKey("{$k}__ver");
     }
     /**
      * 删除一个配置
@@ -97,7 +105,8 @@ create table bee_config
    k varchar(64) not null primary key not null comment 'key',
    v text not null comment '数据',
    name varchar(64) not null comment '配置名称',
-   show tinyint not null comment '是否显示',
+   `show` tinyint not null comment '是否显示',
+   version int not null comment '版本号',
    tpl varchar(64) not null comment '加载的视图文件'
 )ENGINE=innodb DEFAULT CHARSET=utf8 comment '配置定义表';
 SQL;
@@ -114,5 +123,23 @@ SQL;
             ->field('k, v, name, show, tpl')
             ->all();
         return $res;
+    }
+
+    /**
+     * 获取版本号
+     * @param $k
+     * @return bool|mixed
+     */
+    public function getVersion($k)
+    {
+        $cacheKey = $this->buildVersionKey($k);
+        $version = $this->cache->get($cacheKey);
+        if ($version === false) {
+            $version = $this->db->from($this->table)
+                ->andFilter('k', '=', $k)
+                ->column('version');
+            $this->cache->set($cacheKey, $version);
+        }
+        return $version;
     }
 }
