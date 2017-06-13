@@ -1616,6 +1616,18 @@ class BeeRedis
     }
 
     /**
+     * 代理执行redis命令
+     * @param string $cmd 命令字符串
+     * @return mixed
+     */
+    public function proxy($cmd)
+    {
+        $params = preg_split('/\s+/', trim($cmd));
+        $first = array_shift($params);
+        return $this->_execForRedis($first, $params);
+    }
+
+    /**
      * @see Redis::getLastError()
      * 获取最后redis的执行错误。如果没有错返回null
      * @return mixed

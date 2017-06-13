@@ -39,6 +39,7 @@ return [
     'bee\common\BeeConfig' => $sysDir . '/common/BeeConfig.php',
 
     /* core目录 */
+    'bee\core\BeeMemcache' => $sysDir . '/core/BeeMemcache.php',
     'bee\core\Call' => $sysDir . '/core/Call.php',
     'bee\core\Controller' => $sysDir . '/core/Controller.php',
     'bee\core\Log' => $sysDir . '/core/Log.php',
@@ -47,6 +48,7 @@ return [
     'bee\core\BeeRedis' => $sysDir . '/core/BeeRedis.php',
     'bee\core\BeeReflection' => $sysDir . '/core/BeeReflection.php',
     'bee\core\BeeSphinx' => $sysDir . '/core/BeeSphinx.php',
+    'bee\core\BeeSqlite' => $sysDir . '/core/BeeSqlite.php',
     'bee\core\Validate' => $sysDir . '/core/Validate.php',
     'bee\core\Event' => $sysDir . '/core/Event.php',
     'bee\core\Module' => $sysDir . '/core/Module.php',
