@@ -10,6 +10,7 @@ namespace bee\core;
 use bee\App;
 use bee\cache\ICache;
 use bee\client\RemoteLog;
+use bee\server\LocalManager;
 
 class ServiceLocator
 {
@@ -141,6 +142,15 @@ class ServiceLocator
         return $this->get('error');
     }
 
+    /**
+     * server 管理组件
+     * @return LocalManager
+     * @throws \Exception
+     */
+    public function getServerManager()
+    {
+        return $this->get('server_manager');
+    }
 
     /**
      * 获取日志对象
@@ -232,7 +242,7 @@ class ServiceLocator
             $o = $re->newInstanceArgs($objConfig['params']);
             $vars = get_object_vars($o);
             foreach ($objConfig['config'] as $key => $row) {
-                if (isset($vars[$key])) {
+                if(array_key_exists($key, $vars)) {
                     $o->$key = $row;
                 }
             }

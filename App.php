@@ -22,6 +22,7 @@ namespace bee;
 
 use bee\core\BeeMysql;
 use bee\core\BeeRedis;
+use bee\core\BeeSqlite;
 use bee\core\Log;
 use bee\core\Module;
 use bee\core\ServiceLocator;
@@ -634,7 +635,17 @@ class App
             },
             'redis' => function () {
                 return BeeRedis::getInstance('redis.main');
-            }
+            },
+            'server_manager' => [ /* server 管理组件 */
+                'class' => 'bee\server\LocalManager',
+                'config' => [
+                    'db' => function() {
+                        return BeeSqlite::getInstance([
+                            'dsn' => 'sqlite:' . $this->getRuntimeDir() . '/sqlite/server_manger.db'
+                        ]);
+                    }
+                ],
+            ],
         ];
         return array_merge($core, self::c('component') ?: []);
     }
@@ -710,6 +721,6 @@ class App
      */
     public static function version()
     {
-        return '2.3.0';
+        return '2.4.0';
     }
 }

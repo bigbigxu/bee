@@ -84,6 +84,7 @@ return [
     'bee\server\CrontabServer' => $sysDir . '/server/CrontabServer.php',
     'bee\server\DbServer' => $sysDir . '/server/DbServer.php',
     'bee\server\HttpServer' => $sysDir . '/server/HttpServer.php',
+    'bee\server\LocalManager' => $sysDir . '/server/LocalManager.php',
     'bee\server\LogServer' => $sysDir . '/server/LogServer.php',
     'bee\server\Process' => $sysDir . '/server/Process.php',
     'bee\server\RedisServer' => $sysDir . '/server/RedisServer.php',

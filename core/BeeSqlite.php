@@ -45,6 +45,7 @@ class BeeSqlite
     private static $_instance = array();
 
     protected $dsn; /* 驱动dsn */
+    protected $dbPath; /* 数据库文件名 */
     protected $k; /* 当前数据库连接标识符 */
 
     /* PDO链接属性数组 */
@@ -104,6 +105,17 @@ class BeeSqlite
                 } else {
                     $this->$row = $config[$key];
                 }
+            }
+        }
+
+        /* 获取数据库路径 */
+        $tmp = explode(':', $this->dsn);
+        $this->dbPath = $tmp[1];
+        /*　如果使用磁盘系统，创建目录 */
+        if ($this->dbPath != ':memory:') {
+            $dir = dirname($this->dbPath);
+            if (!is_dir($dir)) {
+                mkdir($dir, 0775, true);
             }
         }
     }

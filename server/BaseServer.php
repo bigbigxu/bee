@@ -1,14 +1,15 @@
 <?php
-namespace bee\server;
-
 /**
  * Class BaseServer
- * @package bee\server
  * swoole server基础封装类。
  * 1. 解决代码提示问题
  * 2. 增加server的默认行为和配置
  * 3. 注释
  */
+namespace bee\server;
+
+use bee\App;
+
 class BaseServer
 {
     /**
@@ -54,10 +55,6 @@ class BaseServer
      * @var string server 运行根目录
      */
     protected $baseDir;
-    /**
-     * @var string 当前运行环境
-     */
-    protected $env;
     /**
      * @var int 是否为调试模式
      */
@@ -142,17 +139,11 @@ class BaseServer
      * 此数据会在进程启动时从文件载入， 停止时写入文件
      */
     protected $processData = [];
-
-    //运行环境常量
-    const ENV_DEV = 'dev'; //开发环境
-    const ENV_TEST = 'test'; //测试环境
-    const ENV_PRO = 'pro'; //生产环境
-
-    //server命令
-    const CMD_START = 'start';
-    const CMD_STOP = 'stop';
-    const CMD_RESTART = 'restart';
-    const CMD_RELOAD = 'reload';
+    /**
+     * server 启动脚本路径
+     * @var string
+     */
+    protected $cmdPath;
 
     /* 协议类型常量 */
     const PROTOCOL_TCP = 'tcp';
@@ -165,6 +156,15 @@ class BaseServer
     const SERVER_HTTP = '\swoole_http_server'; /* http swoole server */
     const SERVER_WEBSOCKET = '\swoole_websocket_server'; /* websocket server */
     const SERVER_REDIS = '\swoole_redis_server'; /* redis 协议server */
+
+    /**
+     * 服务上线动作
+     */
+    const STATUS_ONLINE = 'online';
+    /**
+     * 服务下线动作
+     */
+    const STATUS_OFFLINE = 'offline';
 
     /**
      * 执行环境检查
@@ -198,7 +198,6 @@ class BaseServer
             die("server.base_dir 不可使用\n");
         }
         $this->debug = (int)$this->c('server.debug');
-        $this->env = $this->c('server.env');
         $this->eof = $this->c('serverd.package_eof');
         $this->name = $this->c('server.server_name');
 
@@ -223,33 +222,7 @@ class BaseServer
         if ($this->c('serverd.daemonize') == false) {
             unset($this->config['serverd']['log_file']);
         }
-    }
-
-    /**
-     * 设置php运行时的环境
-     * server.php_env配置节用于在server运行修改php.ini的配置
-     */
-    public function setPhpEnv()
-    {
-        $env = array_merge($this->getDefaultPhpEnv(), (array)$this->c('server.php_env'));
-        foreach ($env as $key => $value) {
-            ini_set($key, $value);
-        }
-        register_shutdown_function(array($this, 'shutdownFunction'));
-    }
-
-    /**
-     * 设置php默认的环境相关的默认配置
-     * @return array
-     */
-    public function getDefaultPhpEnv()
-    {
-        return array(
-            'display_errors' => 0,
-            'error_reporting' => E_ALL & ~E_NOTICE & ~E_STRICT & ~E_DEPRECATED,
-            'log_errors' => 1,
-            'error_log' => $this->errorFile
-        );
+        $this->cmdPath = $this->getCmdPath();
     }
 
     /**
@@ -322,14 +295,16 @@ class BaseServer
      */
     public function start()
     {
-        $this->init(); //如果子类有其它初始化要求，重载init方法。
-        $this->setPhpEnv(); //设置php运行环境
+        $this->init(); /* 如果子类有其它初始化要求，重载init方法。*/
+        register_shutdown_function(array($this, 'shutdownFunction'));
         $this->_createServer();
         $this->s->set($this->c('serverd'));
-        $this->registerCallback(); //注册回调函数
+        $this->registerCallback(); /* 注册回调函数 */
+
+        echo "{$this->name} is starting...\n";
         echo "你可使用--help查看命令更多选项\n";
-        echo "server is starting\n";
-        $this->s->start(); //启动服务
+        echo "更多启动日志，请查看run/server.log\n";
+        $this->s->start(); /* 启动服务 */
     }
 
     /**
@@ -816,8 +791,8 @@ class BaseServer
         $pidStr .= "master_pid={$server->master_pid}\n";
         $pidStr .= "manager_pid={$server->manager_pid}";
         file_put_contents($this->pidFile, $pidStr);
-        $this->serverLog("server is start\n");
         swoole_set_process_name($this->name . "_master");
+        $this->registerServer(self::STATUS_ONLINE);
     }
 
     /**
@@ -829,7 +804,7 @@ class BaseServer
      */
     public function onShutdown(\swoole_server $server)
     {
-        $this->serverLog("server shutdown");
+        $this->registerServer(self::STATUS_OFFLINE);
     }
 
     /**
@@ -875,11 +850,11 @@ class BaseServer
             swoole_set_process_name("{$this->name}_event");
         }
 
-        //加载框架配置文件
-        if ($this->c('server.load_bee')) {
+        /* 加载框架配置文件 */
+        if ($this->c('server.bee_config')) {
             require __DIR__ . '/../App.php';
             $configPath = $this->c('server.bee_config');
-            \bee\App::getInstance($configPath);
+            App::getInstance($configPath);
         }
         $this->loadTaskData();
     }
@@ -1087,13 +1062,14 @@ class BaseServer
      */
     public function stop()
     {
+        echo "{$this->name} closing...\n";
         $masterPid = $this->getMasterPidByFile();
         if ($masterPid == false) {
             die("not found master pid\n");
         }
         $signal = SIGTERM;
         shell_exec("kill -s {$signal} {$masterPid}");
-        echo "server is stopped\n";
+        echo "{$this->name} closed\n";
     }
 
     /**
@@ -1107,6 +1083,7 @@ class BaseServer
         }
         $signal = SIGUSR1;
         shell_exec("kill -s {$signal} {$masterPid}");
+        echo "{$this->name} reload success\n";
     }
 
     /**
@@ -1129,7 +1106,6 @@ class BaseServer
     }
 
     /**
-     *
      * 命令行选项
      * c, config 指定配置文件
      * h,host指定ip
@@ -1259,14 +1235,14 @@ class BaseServer
     public static function help()
     {
         $arr = array(
-            '-s，指定当前服务动作，start启动，stop停止，restart重启，reload重载',
-            '-c --config，指定启动的配置文件。如果未指定将加载默认配置',
-            '-d --daemon，指定服务是否守护进程方式运行，yes or no',
-            '-h --host， 指定服务监听IP，默认为0.0.0.0',
-            '-p --port，指定服务监听端口，默认为9501',
-            '--base_dir，指定server运行目录',
-            '--debug，开启调试模式',
-            '--help，查看命令帮助'
+            '            -s，指定当前服务动作，start启动，stop停止，restart重启，reload重载',
+            '   -c --config，指定启动的配置文件。如果未指定将加载默认配置',
+            '   -d --daemon，指定服务是否守护进程方式运行，yes or no',
+            '     -h --host，指定服务监听IP，默认为0.0.0.0',
+            '     -p --port，指定服务监听端口，默认为9501',
+            '    --base_dir，指定server运行目录',
+            '       --debug，开启调试模式',
+            '        --help，查看命令帮助'
         );
         $str = implode("\n", $arr) . "\n";
         die($str);
@@ -1340,5 +1316,83 @@ class BaseServer
     public function shutdownFunction()
     {
         $this->saveTaskData();
+    }
+
+    /**
+     * 获取协议字符重
+     * @return string
+     */
+    public function getProtocolName()
+    {
+        if ($this->protocol == SWOOLE_TCP || $this->protocol == SWOOLE_TCP6) {
+            $str = 'tcp';
+        } elseif ($this->protocol == SWOOLE_UDP || $this->protocol == SWOOLE_UDP6) {
+            $str = 'udp';
+        } elseif ($this->protocol == SWOOLE_UNIX_DGRAM || $this->protocol == SWOOLE_UNIX_DGRAM) {
+            $str = 'unix';
+        } else {
+            $str = 'tcp';
+        }
+        return $str;
+    }
+
+    /**
+     * 服务注册，上线或下线
+     * @param $status
+     */
+    public function registerServer($status)
+    {
+        /* 组织server注册数据 */
+        $protocolName = $this->getProtocolName();
+        $remote = "{$protocolName}://{$this->host}:{$this->port}";
+        $data = [
+            'remote' => $remote, /* 服务器地址 */
+            'class' => get_called_class(), /* 服务器的类 */
+            'name' => $this->name, /* 服务器的名称 */
+            'master_pid' => $this->getMasterPid(), /* 主进程PID */
+            'manager_pid' => $this->getManagerPid(), /* 管理进程PID */
+            'cmd_path' => $this->cmdPath, /* 启动脚本路径*/
+            'method' => $status, /* 请求动作*/
+        ];
+
+        /* 执行注册 */
+        $registerUrl = $this->c('server.register_url');
+        if ($registerUrl) {
+            $this->serverLog("{$this->name} {$status}..., url = {$registerUrl}");
+            $join = strpos($registerUrl, '?') ? '&' : '?';
+            $url = $registerUrl . $join . http_build_query($data);
+            $ret = file_get_contents($url);
+            if ($ret == 1) {
+                $this->serverLog("{$this->name} {$status} success");
+            } else {
+                 $this->serverLog("{$this->name} {$status} fail：{$ret}");
+            }
+        } else {
+            $this->serverLog("{$this->name} {$status} fail, no [server.register_url]");
+        }
+        if ($status == self::STATUS_ONLINE) {
+            $this->serverLog("{$this->name} start success\n");
+        } elseif ($status == self::STATUS_OFFLINE) {
+            $this->serverLog("{$this->name} close success\n");
+        }
+    }
+
+    /**
+     * 获取server启动命令绝对路径
+     * @return string
+     */
+    public function getCmdPath()
+    {
+        $script = $GLOBALS['argv'][0];
+        if ($script[0] == '/') {
+            $path = $script;
+        } else {
+            $pwd = getcwd();
+            if (substr($script, 0, 2) == './') {
+                $script = substr($script, 2);
+            }
+            $path = $pwd . '/' . $script;
+        }
+        return realpath($path);
     }
 }
