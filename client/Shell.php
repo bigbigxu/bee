@@ -65,17 +65,6 @@ class Shell
      */
     protected $fp;
     /**
-     * 错误码
-     * @var int
-     */
-    protected $errno = 0;
-    /**
-     * 错误消息
-     * @var string
-     */
-    protected $error = '';
-
-    /**
      * @param array $env
      * @return $this
      */
@@ -212,22 +201,22 @@ class Shell
         proc_close($this->fp);
 
         $this->errno = 0;
-        $this->error = '';
+        $this->errmsg = '';
     }
 
     /**
      * 简单执行shell命令
      * @param string $cmd 命令名称
-     * @param string $error 用来保存错误消息，
+     * @param string $errmsg 用来保存错误消息，
      * @return mixed
      * @throws \Exception
      */
-    public static function simpleExec($cmd, &$error)
+    public static function simpleExec($cmd, &$errmsg)
     {
         $o = new static;
         $o->cmd = $cmd;
         $str = $o->exec();
-        $error = $o->error;
+        $errmsg = $o->errmsg;
         $o->clear();
         return $str;
     }

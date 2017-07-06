@@ -26,11 +26,6 @@ abstract class Module
      */
     public $route;
     /**
-     * 错误码
-     * @var int
-     */
-    public $errno;
-    /**
      * 请求数据
      * @var mixed
      */

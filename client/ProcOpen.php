@@ -15,7 +15,7 @@ use bee\core\TComponent;
 
 class ProcOpen
 {
-    use TComponent
+    use TComponent;
     /**
      * @var resource 写入管道
      */

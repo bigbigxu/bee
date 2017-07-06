@@ -41,6 +41,7 @@ namespace bee\common;
 
 class Timer
 {
+    const HOURS = 3600;//一个小时
     const DAY_SECOND = 86400; //1天的秒数
     const WEEK_SECOND = 604800; // 1周的秒数
     const MONTH_SECOND = 2592000; //1个月的秒数，参考

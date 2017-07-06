@@ -27,16 +27,6 @@ class Stream
      */
     protected $fp;
     /**
-     * socket 错误码
-     * @var int
-     */
-    protected $errno = 0;
-    /**
-     * socket 错误消息
-     * @var string
-     */
-    protected $error = '';
-    /**
      * 连接超时时间
      * @var float
      */
@@ -63,9 +53,9 @@ class Stream
         if ($this->fp !== null && $force == false) {
             return $this->fp;
         }
-        $this->fp = stream_socket_client($this->remote, $this->errno, $this->error, $this->readTimeout);
+        $this->fp = stream_socket_client($this->remote, $this->errno, $this->errmsg, $this->readTimeout);
         if (!$this->fp) {
-            throw new \Exception("{$this->remote} 连接失败：{$this->errno} -- {$this->error}");
+            throw new \Exception("{$this->remote} 连接失败：{$this->errno} -- {$this->errmsg}");
         }
         return $this->fp;
     }
@@ -122,24 +112,6 @@ class Stream
     public function getRemote()
     {
         return $this->remote;
-    }
-
-    /**
-     * 获取错误码
-     * @return int
-     */
-    public function getErrno()
-    {
-        return $this->errno;
-    }
-
-    /**
-     * 获取错误消息
-     * @return string
-     */
-    public function getError()
-    {
-        return $this->error;
     }
 
     /**

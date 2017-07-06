@@ -5,7 +5,6 @@
  * Date: 2017/4/1
  * Time: 9:19
  * 组件对象，作用是为bee提供统一的对象实现方法。
- * 本类用于取代Object类
  *
  * Component 仅仅提供一种类初始化的功能。
  * 对象属性通过数组传入构造函数，并调用init方法，仅此而已。
@@ -16,6 +15,16 @@ use bee\App;
 
 trait TComponent
 {
+    /**
+     * 错误码
+     * @var int
+     */
+    protected $errno = 0;
+    /**
+     * 错误消息
+     * @var string
+     */
+    protected $errmsg = '';
     /**
      * 组件实例化判断的特殊变量
      * @var int
@@ -95,5 +104,65 @@ trait TComponent
             $id = ServiceLocator::create($id);
         }
         return $id;
+    }
+
+    /**
+     * 设置错误码
+     * @param $errno
+     * @return bool
+     */
+    public function setErrno($errno)
+    {
+        $this->errno = $errno;
+        return false;
+    }
+
+    /**
+     * 设置错误消息
+     * @param $errmsg
+     */
+    public function setErrmsg($errmsg)
+    {
+        $this->errmsg = $errmsg;
+    }
+
+    /**
+     * 获取错误码
+     * @return int
+     */
+    public function getErrno()
+    {
+        return $this->errno;
+    }
+
+    /**
+     * 获取错误消息
+     * @return string
+     */
+    public function getErrmsg()
+    {
+        if ($this->errmsg) {
+            return $this->errmsg;
+        } else {
+            return $this->errmsgMap()[$this->errno];
+        }
+    }
+
+    /**
+     * 判断当前是否有错误
+     * @return bool
+     */
+    public function hasError()
+    {
+        return $this->errno == 0 && $this->errmsg == '';
+    }
+
+    /**
+     * 获取错误消息数组
+     * @return array
+     */
+    public function errmsgMap()
+    {
+        return  [];
     }
 }
