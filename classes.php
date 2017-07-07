@@ -15,9 +15,8 @@ return [
     'bee\client\BaseClient' => $sysDir . '/client/BaseClient.php',
     'bee\client\CoreSocket' => $sysDir . '/client/CoreSocket.php',
     'bee\client\RemoteLog' => $sysDir . '/client/RemoteLog.php',
-    'bee\client\ProcOpen' => $sysDir . '/client/ProcOpen.php',
-    'bee\client\Ssh' => $sysDir . '/client/Ssh.php',
     'bee\client\Curl' => $sysDir . '/client/Curl.php',
+    'bee\client\Shell' => $sysDir . '/client/Shell.php',
 
     /* common 目录 */
     'bee\common\BeeClassMap' => $sysDir . '/common/BeeClassMap.php',
@@ -76,7 +75,6 @@ return [
     'bee\object\HttpObject' => $sysDir . '/object/HttpObject.php',
     'bee\object\Math' => $sysDir . '/object/Math.php',
     'bee\object\Str' => $sysDir . '/object/Str.php',
-    'bee\object\WeiXin' => $sysDir . '/object/WeiXin.php',
 
     /* server目录 */
     'bee\server\BaseServer' => $sysDir . '/server/BaseServer.php',

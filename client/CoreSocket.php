@@ -4,6 +4,7 @@
  * User: VigoXu
  * Date: 2015/6/30
  * Time: 8:57
+ * @TODO 此类将被删除
  */
 namespace bee\client;
 

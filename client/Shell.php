@@ -155,9 +155,9 @@ class Shell
         if (!is_resource($this->fp)) {
             throw new \Exception("proc_open失败，cmd = {$this->cmd}");
         }
-        $this->error = stream_get_contents($this->pipes[2]);
+        $this->errmsg = stream_get_contents($this->pipes[2]);
         /* 执行失败 */
-        if ($this->error != '') {
+        if ($this->errmsg != '') {
             $this->errno = 2;
             return false;
         } else {
