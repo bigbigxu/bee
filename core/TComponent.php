@@ -154,7 +154,7 @@ trait TComponent
      */
     public function hasError()
     {
-        return $this->errno == 0 && $this->errmsg == '';
+        return $this->errno != 0 && $this->errmsg != '';
     }
 
     /**
@@ -164,5 +164,28 @@ trait TComponent
     public function errmsgMap()
     {
         return  [];
+    }
+
+    /**
+     * 获取一个对象成员
+     * @param $key
+     * @return null
+     */
+    public function getProperty($key)
+    {
+        if (property_exists($this, $key)) {
+            return $this->$key;
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * 获取对象全部属性
+     * @return array
+     */
+    public function getAllProperty()
+    {
+        return get_object_vars($this);
     }
 }

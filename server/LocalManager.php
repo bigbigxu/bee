@@ -49,20 +49,12 @@ class LocalManager
      * 服务下线
      */
     const STATUS_OFFLINE = 'offline';
+
+    const REMOVE_NOT = 0;
     /**
-     * 服务临时移除
+     * server 已经移除监控队列
      */
-    const STATUS_REMOVE = 'remove';
-
-    public $actMap = [
-        'online' => '上线',
-        'offline' => '下线',
-        'reload' => '重载',
-        'stop' => '停止',
-        'start' => '启动',
-        'restart' => '重启'
-    ];
-
+    const REMOVE_YES = 1;
     /*
      * 启动server
      */
@@ -75,6 +67,18 @@ class LocalManager
      * 重载server
      */
     const CMD_RELOAD = 'reload';
+    /**
+     * 移除server
+     */
+    const CMD_REMOVE = 'remove';
+    /**
+     * 添加server
+     */
+    const CMD_ADD = 'add';
+    /**
+     * 删除server
+     */
+    const CMD_DEL = 'del';
 
     const ERR_CMD = 10;
     const ERR_REMOTE = 11;
@@ -82,7 +86,10 @@ class LocalManager
     protected $cmdMap = [
         self::CMD_START,
         self::CMD_STOP,
-        self::CMD_RELOAD
+        self::CMD_RELOAD,
+        self::CMD_ADD,
+        self::CMD_REMOVE,
+        self::CMD_DEL
     ];
 
     public function init()
@@ -105,7 +112,7 @@ class LocalManager
      * @return bool
      * @throws \Exception
      */
-    public function onlineServer($data)
+    public function online($data)
     {
         $data['status'] = self::STATUS_ONLINE;
         $data['online_time'] = time();
@@ -120,7 +127,7 @@ class LocalManager
      * @return bool
      * @throws \Exception
      */
-    public function offlineServer($remote)
+    public function offline($remote)
     {
         $data = [
             'remote' => $remote,
@@ -135,42 +142,57 @@ class LocalManager
     /**
      * 将server从管理列表中移除
      * 移除的server不在进行检查
-     * @param $remote
+     * @param $id
      * @return bool|int
      * @throws \Exception
      */
-    public function removeServer($remote)
+    public function remove($id)
     {
         $data = [
-            'remote' => $remote,
-            'status' => self::STATUS_REMOVE,
+            'is_remove' => self::REMOVE_YES,
         ];
         return $this->db
             ->from($this->tableName)
-            ->updateByAttr($data, 'remote');
+            ->updateById($data, $id);
     }
 
     /**
-     * 删除server
-     * @param $remote
+     * 将server添加到管理列表，server必须已经注册。
+     * @param $id
      * @return bool|int
      * @throws \Exception
      */
-    public function deleteServer($remote)
+    public function add($id)
+    {
+        $data = [
+            'is_remove' => self::REMOVE_NOT,
+        ];
+        return $this->db
+            ->from($this->tableName)
+            ->updateById($data, $id);
+    }
+
+    /**
+     * 根据主键删除server
+     * @param $id
+     * @return bool|int
+     * @throws \Exception
+     */
+    public function del($id)
     {
         return $this->db
             ->from($this->tableName)
-            ->deleteByAttr(['remote' => $remote]);
+            ->delById($id);
     }
 
     /**
      * 检查server
      */
-    public function checkServer()
+    public function check()
     {
         $res = $this->db
             ->from($this->tableName)
-            ->andFilter('status', '!=', self::STATUS_REMOVE)
+            ->andFilter('is_remove', '=', self::REMOVE_NOT)
             ->all();
         foreach ($res as $row) {
             /* 进程存活检查 */
@@ -198,31 +220,21 @@ class LocalManager
 
             /* 如果ping失败，执行启动命令 */
             if ($flag == false) {
-                $cmd = $row['cmd_path'] . " -s start -d yes";
-                $shellReturn = Shell::simpleExec($cmd, $shellError);
-                $this->opLog([
-                    'server_id' => $row['id'],
-                    'remote' => $row['remote'],
-                    'act' => 'start',
-                    'cmd' => $cmd,
-                    'check_log' => $checkLog,
-                    'shell_log' => $shellError ?: $shellReturn
-                ]);
+                $this->act($row['id'], self::CMD_START, $checkLog);
             }
         }
     }
 
     /**
      * 执行server动作命令
-     * @param $remote
+     * @param $id
      * @param $act
+     * @param string $log 执行动作原因
      * @return bool
      */
-    public function managerServer($remote, $act)
+    public function act($id, $act, $log = '')
     {
-        $res = $this->db
-            ->from($this->tableName)
-            ->findByAttr(['remote' => $remote]);
+        $res = $this->getOne($id);
         if ($res == false) {
             return $this->setErrno(self::ERR_REMOTE);
         }
@@ -230,16 +242,31 @@ class LocalManager
             return $this->setErrno(self::ERR_CMD);
         }
 
-        $cmd = "{$res['cmd_path']} -s {$act} -d yes";
-        $shellReturn = Shell::simpleExec($cmd, $this->errmsg);
+        $serverId = $res['id'];
+        $cmd = '';
+        $shellReturn = '';
+        if ($act == self::CMD_DEL) {
+            $this->del($serverId);
+        } elseif ($act == self::CMD_REMOVE) {
+            $this->remove($serverId);
+        } elseif ($act == self::CMD_ADD) {
+            $this->add($serverId);
+        } elseif (in_array($act, [self::CMD_START, self::CMD_STOP, self::CMD_RELOAD])) {
+            $cmd = "{$res['cmd_path']} -s {$act} -d yes";
+            $shellReturn = Shell::simpleExec($cmd, $this->errmsg);
+        } else {
+            return false;
+        }
+
         $this->opLog([
             'server_id' => $res['id'],
             'remote' => $res['remote'],
             'act' => $act,
             'cmd' => $cmd,
+            'check_log' => $log,
             'shell_log' => $this->errmsg ?: $shellReturn
         ]);
-        if ($this->errmsg) {
+        if ($this->hasError()) {
             return false;
         } else {
             return true;
@@ -255,7 +282,7 @@ class LocalManager
         $sleepTime = max(1, $this->interval);
         $n = intval(60 / $sleepTime) - 1;
         for ($i = 0; $i < $n; $i++) {
-            $this->checkServer();
+            $this->check();
             sleep($sleepTime);
         }
     }
@@ -331,11 +358,75 @@ class LocalManager
         return $res;
     }
 
+    /**
+     * 根据server_id获取一个server的情况
+     * 可以是id值或者remote值
+     * @param id
+     * @return array
+     */
+    public function getOne($id)
+    {
+        if (strpos($id, "://")) {
+            $field = 'remote';
+        } else {
+            $field = 'id';
+        }
+        return $this->db
+            ->from($this->tableName)
+            ->andFilter($field, '=', $id)
+            ->one();
+    }
+
+    /**
+     * 获取指定server的日志
+     * @param string $id
+     * @param int $page
+     * @param int $pageSize
+     * @return array|bool
+     */
+    public function getLogById($id, $page = 1, $pageSize = 10)
+    {
+        $res = $this->db
+            ->from($this->logTableName)
+            ->andFilter('server_id', '=', $id)
+            ->page($page, $pageSize)
+            ->order('id desc')
+            ->all();
+        return $res;
+    }
+
+    /**
+     * 获取db组件
+     * @return BeeSqlite
+     */
+    public function getDb()
+    {
+        return $this->db;
+    }
+
+    /**
+     * 获取表名
+     * @return string
+     */
+    public function getTableName()
+    {
+        return $this->tableName;
+    }
+
+    /**
+     * 获取日志表名
+     * @return string
+     */
+    public function getLogTableName()
+    {
+        return $this->logTableName;
+    }
+
     public function errmsgMap()
     {
         return [
             self::ERR_CMD => '未知的命令',
-            self::ERR_REMOTE => "remote不存在"
+            self::ERR_REMOTE => "未知的服务"
         ];
     }
 
@@ -356,7 +447,8 @@ create table {$this->tableName}(
   manager_pid INTEGER, -- 管理进程PID
   cmd_path text, -- 启动脚本路径
   online_time INTEGER, -- 上线时间
-  status INTEGER, -- 状态
+  status varchar(20), -- 状态
+  is_remove INTEGER default 0, -- 是否移除
   offline_time INTEGER, -- 下线时间
   check_time INTEGER, -- 最后一次检查的时间
   check_log INTEGER -- 最后一次结果日志
@@ -372,6 +464,7 @@ create table {$this->logTableName}
   cmd varchar(255), -- 执行的命令
   check_log text, -- 检查日志
   shell_log text, -- shell脚本执行返回日志
+  username varchar(20), -- 执行用户
   time int -- 执行时间
 );
 SQL;
