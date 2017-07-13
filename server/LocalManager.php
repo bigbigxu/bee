@@ -195,23 +195,25 @@ class LocalManager
             ->andFilter('is_remove', '=', self::REMOVE_NOT)
             ->all();
         foreach ($res as $row) {
+            $flag = true;
+            $checkLog = 'success';
             /* 进程存活检查 */
             if (!posix_kill($row['master_pid'], 0)) {
                 /* 尝试回收其他进程 */
                 posix_kill($row['manager_pid'], SIGTERM);
+                $flag = false;
+                $checkLog = 'not found master_pid';
             }
 
             /* 端口访问检查 */
-            if (!stream_socket_client($row['remote'], $errno, $checkLog, $this->connTimeout)) {
+            if ($flag == true && !stream_socket_client($row['remote'], $errno, $errmsg, $this->connTimeout)) {
                 $flag = false;
-            } else {
-                $flag = true;
+                $checkLog = $errmsg;
             }
-
             /* 更新检查结果 */
             $updateData = [
                 'check_time' => time(),
-                'check_log' => $checkLog ?: 'success',
+                'check_log' => $checkLog,
                 'status' => $flag ? self::STATUS_ONLINE : self::STATUS_OFFLINE
             ];
             $this->db

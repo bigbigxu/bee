@@ -269,9 +269,9 @@ class BeePack
     public function getData($name =  null)
     {
         if ($name === null) {
-            return $this->data[$name];
-        } else {
             return $this->data;
+        } else {
+            return $this->data[$name];
         }
     }
 }

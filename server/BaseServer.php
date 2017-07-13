@@ -851,10 +851,10 @@ class BaseServer
         }
 
         /* 加载框架配置文件 */
-        if ($this->c('server.bee_config')) {
+        if ($this->c('server.load_bee')) {
             require __DIR__ . '/../App.php';
-            $configPath = $this->c('server.bee_config');
-            App::getInstance($configPath);
+            $configPath = $this->c('server.bee_config') ?: [];
+            \bee\App::getInstance($configPath);
         }
         $this->loadTaskData();
     }
