@@ -32,4 +32,17 @@ class Arr
 
         return array_sum($this->arr) / $n;
     }
+
+    /**
+     * 过滤数组中的null值
+     * @param $arr
+     * @return array
+     */
+    public static function filterNull($arr)
+    {
+        $arr = array_filter($arr, function($v) {
+            return $v !== null;
+        });
+        return $arr;
+    }
 }

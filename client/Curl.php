@@ -21,7 +21,6 @@ class Curl
     protected $defaultOptions = array(
         CURLOPT_URL => '', // 请求的URL
         CURLOPT_RETURNTRANSFER => 1, //设置有返回信息，以流的形式返回，非不是直接输出
-        CURLOPT_HTTPGET => 1, //设定为GET请求。
         CURLOPT_CONNECTTIMEOUT => 30, // 设置默认链接超时间为30秒
         CURLOPT_TIMEOUT => 30, //设置下载时间最多30秒。
         //CURLOPT_FOLLOWLOCATION => true, //自动跟踪重定向。
@@ -33,7 +32,7 @@ class Curl
     private $_ch; //curl指针
     private static $_instance;
 
-    protected $dataType = self::DATA_TYPE_HTML; //设定返回的数据类型
+    protected $dataType = self::DATA_HTML; //设定返回的数据类型
     protected $url; //请求的Url
     protected $data; //请求的数据
     protected $type = self::HTTP_GET; //类型
@@ -43,12 +42,13 @@ class Curl
      */
     const DATA_XML = 'xml';
     const DATA_JSON = 'json';
-    const DATA_TYPE_HTML = 'HTML';
+    const DATA_HTML = 'HTML';
     const DATA_JSONP = 'jsonp';
 
     const HTTP_GET = 'get';
     const HTTP_POST = 'post';
     const HTTP_PUT = 'put';
+    const HTTP_DELETE = 'delete';
 
     const RETURN_ALL = 'all'; //返回header+body
     const RETURN_BODY = 'body'; //返回body
@@ -216,6 +216,8 @@ class Curl
             $this->options[CURLOPT_POST] = 1;
         } elseif ($type == self::HTTP_PUT) {
             $this->options[CURLOPT_PUT] = 1;
+        } elseif ($type == self::HTTP_DELETE) {
+            $this->options[CURLOPT_CUSTOMREQUEST] = 'DELETE';
         } else {
             $this->options[CURLOPT_HTTPGET] = 1;
         }
@@ -245,7 +247,7 @@ class Curl
     {
         $this->lastOptions = $this->options;
         $this->options = $this->defaultOptions;
-        $this->dataType = self::DATA_TYPE_HTML;
+        $this->dataType = self::DATA_HTML;
         $this->url = '';
         $this->data = '';
         $this->type = self::HTTP_GET;
@@ -571,5 +573,24 @@ class Curl
     public function getLastOptions()
     {
         return $this->lastOptions;
+    }
+
+    /**
+     * 设置选项
+     * @param $key
+     * @param $value
+     * @return $this
+     */
+    public function setOption($key, $value)
+    {
+        /**
+         * 如果是CURLOPT_POSTFIELDS，此项必须在CURLOPT_POST后面，
+         * 不然文件无法上传。
+         */
+        if ($key == CURLOPT_POSTFIELDS) {
+            $this->options[CURLOPT_POST] = null;
+        }
+        $this->options[$key] = $value;
+        return $this;
     }
 }

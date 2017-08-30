@@ -8,6 +8,7 @@
 
 ## 文档列表
 
+1. [psr代码规范](doc/php_psr.md)
 1. [开始使用](doc/创建应用.md)
 2. [增删改查](doc/增删改查.md)
 3. [redis操作](doc/redis操作.md)

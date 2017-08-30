@@ -290,6 +290,19 @@ class BeeRedis
     }
 
     /**
+     * @see Redis::hIncrByFloat()
+     * 为hash表设这累加，可以负数
+     * @param string $key
+     * @param int $field
+     * @param float $value
+     * @return bool
+     */
+    public function hIncrByFloat($key, $field, $value = 1.0)
+    {
+        return $this->_execForRedis(__FUNCTION__, [$key, $field, $value]);
+    }
+    
+    /**
      * @see Redis::hKeys()
      * 返回所有hash表的所有字段
      * @param string $key
@@ -1574,7 +1587,7 @@ class BeeRedis
      * @param int $end 结束位置，以字节为单位(8bit)
      * @return mixed 返回可以可以使用的二进制位数
      */
-    public function bitCount($key, $start = null, $end = null)
+    public function bitCount($key, $start = 0, $end = -1)
     {
         return $this->_execForRedis(__FUNCTION__, [$key, $start, $end]);
     }
@@ -1586,13 +1599,14 @@ class BeeRedis
      * 复杂度: O(N)
      * @param string $op 操作类型 "AND", "OR", "NOT", "XOR"
      * @param string $retKey 要改变得key
-     * @param string $keys 参数运算的key， 空的 key 也被看作是包含 0 的字符串序列
-     *                     除了 NOT 操作之外，其他操作都可以接受一个或多个 key 作为输入
+     * @param string $keyArr 参数运算的key， 空的 key 也被看作是包含 0 的字符串序列
+     *                       除了 NOT 操作之外，其他操作都可以接受一个或多个 key 作为输入
      * @return mixed $retKey大小, 输入 key 中最长的字符串长度相等
      */
-    public function bitOp($op, $retKey, $keys)
+    public function bitOp($op, $retKey, $keyArr)
     {
-        return $this->_execForRedis(__FUNCTION__, [$op, $retKey, $keys]);
+        $keyArr = is_array($keyArr) ? $keyArr : [$keyArr];
+        return $this->_execForRedis(__FUNCTION__, array_merge([$op, $retKey], $keyArr));
     }
 
     /**

@@ -120,10 +120,12 @@ trait TComponent
     /**
      * 设置错误消息
      * @param $errmsg
+     * @return false
      */
     public function setErrmsg($errmsg)
     {
         $this->errmsg = $errmsg;
+        return false;
     }
 
     /**

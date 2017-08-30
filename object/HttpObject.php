@@ -78,4 +78,17 @@ class HttpObject
     {
         header("location: {$url}");
     }
+
+    /**
+     * 设置文件下载header头
+     * @param string $name 文件名
+     * @param int $size 文件字节数
+     */
+    public static function file($name, $size)
+    {
+        header("Content-type: application/octet-stream");
+        header("Accept-Ranges: bytes");
+        header("Accept-Length: {$size}");
+        header("Content-Disposition: attachment; filename= {$name}");
+    }
 }

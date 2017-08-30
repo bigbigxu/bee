@@ -156,6 +156,17 @@ class BeePack
     }
 
     /**
+     * 直接打包字符，不计算长度
+     * @param $type
+     * @param  $value
+     * @return $this;
+     */
+    public function writePack($type, $value)
+    {
+        return $this->pack($value, $type, 0);
+    }
+
+    /**
      * 读取一个整数
      * @param $name
      * @return $this
